@@ -1,4 +1,6 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
+import { IRenderData } from '../types/types';
+import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
 import shader from './shaders/shader.wgsl';
 
@@ -7,6 +9,9 @@ export default class Renderer {
 	canvas: HTMLCanvasElement;
 	context: GPUCanvasContext;
 	view: GPUTextureView;
+
+	// Nodes
+	nodes: GLTFNode[];
 
 	// Camera
 	fov: number;
@@ -39,6 +44,8 @@ export default class Renderer {
 
 	// Buffers
 	vertexBuffer: GPUBuffer;
+	modelTransformsBuffer: GPUBuffer;
+	projViewTransformBuffer: GPUBuffer;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -46,13 +53,6 @@ export default class Renderer {
 		this.fov = utils.degToRad(60);
 		this.aspect = canvas.width / canvas.height;
 		this.projection = mat4.perspective(this.fov, this.aspect, 0.01, 1000);
-	}
-
-	async init() {
-		await this.setupDevice();
-		this.createDepthTexture();
-		this.createBindGroupLayouts();
-		this.createPipeline();
 	}
 
 	async setupDevice() {
@@ -65,6 +65,32 @@ export default class Renderer {
 			device: this.device,
 			format: this.format,
 			alphaMode: 'premultiplied',
+		});
+	}
+
+	set_nodes(nodes: GLTFNode[]) {
+		this.nodes = nodes;
+	}
+
+	async init() {
+		this.createBuffers();
+		this.createDepthTexture();
+		this.createBindGroupLayouts();
+		this.createBindGroups();
+		this.createPipeline();
+	}
+
+	createBuffers() {
+		this.modelTransformsBuffer = this.device.createBuffer({
+			label: 'Model Transform Buffer',
+			size: 4 * 16 * this.nodes.length,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+
+		this.projViewTransformBuffer = this.device.createBuffer({
+			label: 'Proj-View Transform Buffer',
+			size: 4 * 16,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 	}
 
@@ -97,16 +123,20 @@ export default class Renderer {
 		};
 	}
 
-	setVertexBuffer(arr: Uint8Array, size: number) {
-		this.vertexBuffer = this.device.createBuffer({
-			label: 'Vertex Buffer',
-			size: size,
-			usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-			mappedAtCreation: true,
-		});
+	alignTo(val: number, align: number) {
+		return Math.floor((val + align - 1) / align) * align;
+	}
 
-		new Float32Array(this.vertexBuffer.getMappedRange()).set(arr);
-		this.vertexBuffer.unmap();
+	setVertexBuffer(arr: Uint8Array, size: number) {
+		// console.log(arr, size);
+		// this.vertexBuffer = this.device.createBuffer({
+		// 	label: 'Vertex Buffer',
+		// 	size: size,
+		// 	usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+		// 	mappedAtCreation: true,
+		// });
+		// new Float32Array(this.vertexBuffer.getMappedRange()).set(arr);
+		// this.vertexBuffer.unmap();
 	}
 
 	createBindGroupLayouts() {
@@ -115,6 +145,15 @@ export default class Renderer {
 				{
 					// Model matrices
 					binding: 0,
+					visibility: GPUShaderStage.VERTEX,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					// Proj-View matrix
+					binding: 1,
 					visibility: GPUShaderStage.VERTEX,
 					buffer: {
 						type: 'read-only-storage',
@@ -136,13 +175,13 @@ export default class Renderer {
 				},
 				{
 					// Base Color Factor
-					binding: 0,
+					binding: 1,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {},
 				},
 				{
 					// Metallic Roughness Texture
-					binding: 0,
+					binding: 2,
 					visibility: GPUShaderStage.FRAGMENT,
 					texture: {
 						viewDimension: '2d',
@@ -150,13 +189,13 @@ export default class Renderer {
 				},
 				{
 					// Metallic Factor
-					binding: 0,
+					binding: 3,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {},
 				},
 				{
 					// Roughness Factor
-					binding: 0,
+					binding: 4,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {},
 				},
@@ -164,19 +203,37 @@ export default class Renderer {
 		});
 	}
 
-	createBindGroups() {}
+	createBindGroups() {
+		this.frameBindGroup = this.device.createBindGroup({
+			layout: this.frameBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.modelTransformsBuffer,
+					},
+				},
+				{
+					binding: 1,
+					resource: {
+						buffer: this.projViewTransformBuffer,
+					},
+				},
+			],
+		});
+	}
 
 	createPipeline() {
 		this.pipeline = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
-				bindGroupLayouts: [this.frameBindGroupLayout, this.materialBindGroupLayout],
+				bindGroupLayouts: [this.frameBindGroupLayout],
 			}),
 			vertex: {
 				module: this.shaderModule,
 				entryPoint: 'v_main',
 				buffers: [
 					{
-						arrayStride: 32,
+						arrayStride: 12,
 						attributes: [
 							{
 								// position
@@ -184,18 +241,18 @@ export default class Renderer {
 								format: 'float32x3',
 								offset: 0,
 							},
-							{
-								// normal
-								shaderLocation: 1,
-								format: 'float32x3',
-								offset: 12,
-							},
-							{
-								// text coord
-								shaderLocation: 2,
-								format: 'float32x2',
-								offset: 24,
-							},
+							// {
+							// 	// normal
+							// 	shaderLocation: 1,
+							// 	format: 'float32x3',
+							// 	offset: 12,
+							// },
+							// {
+							// 	// text coord
+							// 	shaderLocation: 2,
+							// 	format: 'float32x2',
+							// 	offset: 24,
+							// },
 						],
 					},
 				],
@@ -216,7 +273,9 @@ export default class Renderer {
 		});
 	}
 
-	render = (primitives: GLTFPrimitive[]) => {
+	render = (nodes: GLTFNode[], renderables: IRenderData) => {
+		const projView = mat4.mul(this.projection, renderables.viewTransform);
+
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();
 
@@ -232,12 +291,38 @@ export default class Renderer {
 			depthStencilAttachment: this.depthStencilAttachment,
 		});
 
+		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.modelTransforms);
+		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
+
 		this.renderPass.setPipeline(this.pipeline);
 		this.renderPass.setBindGroup(0, this.frameBindGroup);
 
-		for (let i = 0; i < primitives.length; i++) {
-			const p = primitives[i];
-			this.renderPass.setVertexBuffer(0, this.vertexBuffer, p.positions.byteOffset, p.positions.byteLength);
+		for (let i = 0; i < nodes.length; i++) {
+			const node: GLTFNode = nodes[i];
+
+			for (let j = 0; j < node.mesh.primitives.length; j++) {
+				const p: GLTFPrimitive = node.mesh.primitives[j];
+
+				this.renderPass.setVertexBuffer(
+					0,
+					p.positions.bufferView.gpuBuffer,
+					p.positions.byteOffset,
+					p.positions.byteLength
+				);
+
+				if (p.indices) {
+					this.renderPass.setIndexBuffer(
+						<GPUBuffer>p.indices.bufferView.gpuBuffer,
+						<GPUIndexFormat>p.indices.elementType,
+						p.indices.byteOffset,
+						p.indices.byteLength
+					);
+
+					this.renderPass.drawIndexed(p.indices.count);
+				} else {
+					this.renderPass.draw(p.positions.count, 1, 0, i);
+				}
+			}
 		}
 
 		this.renderPass.end();

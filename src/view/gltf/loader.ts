@@ -23,6 +23,7 @@ export default class GTLFLoader {
 	samplers: GLTFSampler[];
 	textures: GLTFTexture[];
 	materials: GLTFMaterial[];
+	primitives: GLTFPrimitive[];
 	meshes: GLTFMesh[];
 	nodes: GLTFNode[];
 
@@ -34,6 +35,7 @@ export default class GTLFLoader {
 		this.samplers = [];
 		this.textures = [];
 		this.materials = [];
+		this.primitives = [];
 		this.meshes = [];
 		this.nodes = [];
 	}
@@ -242,6 +244,7 @@ export default class GTLFLoader {
 				meshPrimitives.push(new GLTFPrimitive(mat, indices, positions, normals, colors, texcoords, topology));
 			}
 			this.meshes.push(new GLTFMesh(mesh['name'], meshPrimitives));
+			this.primitives.push(...meshPrimitives);
 		}
 	}
 
