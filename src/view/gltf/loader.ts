@@ -1,7 +1,8 @@
-import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
+import { degToRad } from 'wgpu-matrix/dist/3.x/utils';
 import { GLTFRenderMode, GLTFTextureFilter, GLTFTextureWrap } from '../../types/enums';
 import { IGLTFAccessor, IGLTFBufferView, IGLTFImage, IGLTFNode, IGLTFPrimitive } from '../../types/gltf';
-import { fromRotationTranslationScale } from '../../utils/gltf';
+import { fromRotationTranslationScale } from '../../utils/matrix';
 import GLTFAccessor from './accessor';
 import { GLTFBuffer } from './buffer';
 import GLTFBufferView from './bufferView';
@@ -273,7 +274,7 @@ export default class GTLFLoader {
 				this.load_nodes(allNodes, node['children'][i], parentNode);
 			}
 		}
-	} //
+	}
 
 	get_node_matrix(node: IGLTFNode): Mat4 {
 		if (node['matrix']) {
@@ -299,7 +300,7 @@ export default class GTLFLoader {
 			);
 		} else {
 			let scale: Vec3 = vec3.create(1, 1, 1);
-			let rotation: Vec4 = vec4.create(0, 0, 0, 1);
+			let rotation: Quat = vec4.create(0, 0, 0, 1);
 			let translation: Vec3 = vec3.create(0, 0, 0);
 
 			if (node['scale']) {

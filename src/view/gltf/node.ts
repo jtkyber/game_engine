@@ -3,7 +3,7 @@ import GLTFMesh from './mesh';
 
 export default class GLTFNode {
 	name: string;
-	parent: number;
+	parent: number = null;
 	transform: Mat4;
 	mesh: GLTFMesh;
 

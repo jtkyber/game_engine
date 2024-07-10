@@ -45,11 +45,7 @@ export class Camera {
 
 		this.target = vec3.add(this.position, this.forwards);
 
-		// Eye: Position of the camera
-		// Target: The point we're looking at
-		// Up: The vector we are considering "up" to be at
-		// this.view = mat4.lookAt(this.position, this.target, this.up);
-		this.view = mat4.lookAt([0, -3, 1], [0, 0, 0], [0, 0, 1]);
+		this.view = mat4.lookAt([0, -5, 1], [0, 0, 0], [0, 0, 1]);
 	}
 
 	get_view(): Mat4 {

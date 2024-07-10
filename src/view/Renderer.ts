@@ -284,7 +284,7 @@ export default class Renderer {
 				{
 					view: this.view,
 					loadOp: 'clear',
-					clearValue: [1.0, 1.0, 1.0, 1.0],
+					clearValue: [0.0, 0.0, 0.0, 1.0],
 					storeOp: 'store',
 				},
 			],
@@ -299,6 +299,7 @@ export default class Renderer {
 
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
+			if (!node.mesh) continue;
 
 			for (let j = 0; j < node.mesh.primitives.length; j++) {
 				const p: GLTFPrimitive = node.mesh.primitives[j];
@@ -318,7 +319,7 @@ export default class Renderer {
 						p.indices.byteLength
 					);
 
-					this.renderPass.drawIndexed(p.indices.count);
+					this.renderPass.drawIndexed(p.indices.count, 1, 0, 0, i);
 				} else {
 					this.renderPass.draw(p.positions.count, 1, 0, i);
 				}

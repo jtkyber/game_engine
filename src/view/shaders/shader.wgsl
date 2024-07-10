@@ -21,5 +21,8 @@ var out: VertexOutput;
 
 @fragment
 fn f_main(in: VertexOutput) -> @location(0) vec4f {
-    return vec4f(0.0, 1.0, 1.0, 1.0);
+    let dx = dpdx(in.world_pos);
+    let dy = dpdy(in.world_pos);
+    let n = normalize(cross(dx, dy));
+    return vec4f((n + 1.0) * 0.5, 1.0);
 }

@@ -1,6 +1,6 @@
-import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, Vec3, Vec4, mat4, quat, vec3, vec4 } from 'wgpu-matrix';
 import { IRenderData } from '../types/types';
-import { fromRotationTranslationScale } from '../utils/gltf';
+import { fromRotationTranslationScale, getRotation } from '../utils/matrix';
 import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
 import Model from './model';
@@ -10,14 +10,12 @@ export default class Scene {
 	models: Model[];
 	modelTransforms: Float32Array;
 	camera: Camera;
-	zUpTransformation: Mat4;
 
 	constructor(nodes: GLTFNode[]) {
 		this.nodes = nodes;
 		this.models = [];
 		this.modelTransforms = new Float32Array(16 * this.nodes.length);
 		this.camera = new Camera(vec3.create(0, 0, 2), 0, 0);
-		this.zUpTransformation = mat4.create(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1);
 	}
 
 	update() {
@@ -25,8 +23,7 @@ export default class Scene {
 		this.camera.update();
 
 		for (let i = 0; i < this.nodes.length; i++) {
-			// Rethink this
-			this.set_model_transform(this.nodes[i], this.nodes[i].transform, i, i);
+			this.set_model_transform(this.nodes[i], this.nodes[i].transform, i);
 		}
 	}
 
@@ -38,33 +35,42 @@ export default class Scene {
 		}
 	}
 
-	set_model_transform(node: GLTFNode, transform: Mat4, nodeIndex: number, currentIndex: number) {
-		if (!node.parent) {
-			const model: Model = this.models.filter(m => m.nodeIndex === currentIndex)[0];
-			const finalModelTransform: Mat4 = mat4.mul(model.transform, transform);
+	set_model_transform(node: GLTFNode, transform: Mat4, nodeIndex: number) {
+		if (node.parent === null) {
+			// If root node, just use model transform
+
+			const model: Model = this.models.filter(m => m.nodeIndex === nodeIndex)[0];
+
+			for (let i = 0; i < 16; i++) {
+				this.modelTransforms[nodeIndex * 16 + i] = model.transform[i];
+			}
+		} else if (this.nodes[node.parent].parent === null) {
+			// If only one parent
+
+			const model: Model = this.models.filter(m => m.nodeIndex === node.parent)[0];
+
+			// Transform by updated model translation & rotation
+			let finalModelTransform: Mat4 = mat4.mul(model.transform, transform);
 
 			for (let i = 0; i < 16; i++) {
 				this.modelTransforms[nodeIndex * 16 + i] = finalModelTransform[i];
 			}
 		} else {
 			const combinedTransform: Mat4 = mat4.mul(this.nodes[node.parent].transform, transform);
-			this.set_model_transform(this.nodes[node.parent], combinedTransform, nodeIndex, node.parent);
+			this.set_model_transform(this.nodes[node.parent], combinedTransform, nodeIndex);
 		}
 	}
 
 	set_models() {
 		for (let i = 0; i < this.nodes.length; i++) {
 			const node: GLTFNode = this.nodes[i];
-			if (!node.parent) {
-				const model: Model = new Model(node.name, i, node.name === 'player');
+			if (node.parent === null) {
+				const model: Model = new Model(node.name, i, node.name === 'Player');
 				this.models.push(model);
-				let scale: Vec3 = vec3.create(1, 1, 1);
-				let rotation: Vec4 = vec4.create(0, 0, 0, 1);
-				let translation: Vec3 = vec3.create(0, 0, 0);
 
-				const m = mat4.create();
-				const baseModelMatrix = fromRotationTranslationScale(m, rotation, translation, scale);
-				model.transform = baseModelMatrix;
+				model.scale = vec3.getScaling(node.transform);
+				model.quat = getRotation(node.transform);
+				model.position = vec3.getTranslation(node.transform);
 			}
 		}
 	}
