@@ -9,12 +9,14 @@ export default class Scene {
 	nodes: GLTFNode[];
 	models: Model[];
 	modelTransforms: Float32Array;
+	normalTransforms: Float32Array;
 	camera: Camera;
 
 	constructor(nodes: GLTFNode[]) {
 		this.nodes = nodes;
 		this.models = [];
 		this.modelTransforms = new Float32Array(16 * this.nodes.length);
+		this.normalTransforms = new Float32Array(16 * this.nodes.length);
 		this.camera = new Camera(vec3.create(0, 0, 2), 0, 0);
 	}
 
@@ -23,7 +25,15 @@ export default class Scene {
 		this.camera.update();
 
 		for (let i = 0; i < this.nodes.length; i++) {
-			this.set_model_transform(this.nodes[i], this.nodes[i].transform, i);
+			const modelMatrix: Mat4 = this.get_model_transform(this.nodes[i], this.nodes[i].transform, i);
+			for (let j = 0; j < 16; j++) {
+				this.modelTransforms[i * 16 + j] = modelMatrix[j];
+			}
+
+			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(modelMatrix));
+			for (let j = 0; j < 16; j++) {
+				this.normalTransforms[i * 16 + j] = normalMatrix[j];
+			}
 		}
 	}
 
@@ -35,29 +45,20 @@ export default class Scene {
 		}
 	}
 
-	set_model_transform(node: GLTFNode, transform: Mat4, nodeIndex: number) {
+	get_model_transform(node: GLTFNode, transform: Mat4, nodeIndex: number): Mat4 {
 		if (node.parent === null) {
 			// If root node, just use model transform
-
 			const model: Model = this.models.filter(m => m.nodeIndex === nodeIndex)[0];
-
-			for (let i = 0; i < 16; i++) {
-				this.modelTransforms[nodeIndex * 16 + i] = model.transform[i];
-			}
+			return model.transform;
 		} else if (this.nodes[node.parent].parent === null) {
 			// If only one parent
-
 			const model: Model = this.models.filter(m => m.nodeIndex === node.parent)[0];
-
 			// Transform by updated model translation & rotation
-			let finalModelTransform: Mat4 = mat4.mul(model.transform, transform);
-
-			for (let i = 0; i < 16; i++) {
-				this.modelTransforms[nodeIndex * 16 + i] = finalModelTransform[i];
-			}
+			const finalModelTransform: Mat4 = mat4.mul(model.transform, transform);
+			return finalModelTransform;
 		} else {
 			const combinedTransform: Mat4 = mat4.mul(this.nodes[node.parent].transform, transform);
-			this.set_model_transform(this.nodes[node.parent], combinedTransform, nodeIndex);
+			return this.get_model_transform(this.nodes[node.parent], combinedTransform, nodeIndex);
 		}
 	}
 
@@ -79,6 +80,7 @@ export default class Scene {
 		return {
 			viewTransform: this.camera.get_view(),
 			modelTransforms: this.modelTransforms,
+			normalTransforms: this.normalTransforms,
 		};
 	}
 }

@@ -42,7 +42,6 @@ export default class App {
 		this.scene = new Scene(nodes);
 		this.scene.set_models();
 
-		this.renderer.setVertexBuffer(gltfLoader.binaryChunk.buffer, gltfLoader.binaryChunk.size);
 		this.renderer.set_nodes(nodes);
 		this.renderer.init();
 	}

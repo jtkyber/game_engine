@@ -49,7 +49,6 @@ export default class GTLFLoader {
 	async validate(buffer: ArrayBuffer): Promise<void> {
 		const header = new Uint32Array(buffer, 0, 5);
 		// Validate glb file contains correct magic value
-		console.log(header[0], 0x46546c67, header[0] == 0x46546c67);
 		if (header[0] != 0x46546c67) {
 			throw Error('Provided file is not a glB file');
 		}
@@ -123,6 +122,11 @@ export default class GTLFLoader {
 	}
 
 	async load_images() {
+		if (!this.jsonChunk.images) {
+			this.images = [];
+			return;
+		}
+
 		for (let i = 0; i < this.jsonChunk['images'].length; i++) {
 			const img: IGLTFImage = this.jsonChunk['images'][i];
 			const bv: GLTFBufferView = this.bufferViews[img['bufferView']];
@@ -133,6 +137,11 @@ export default class GTLFLoader {
 	}
 
 	load_samplers() {
+		if (!this.jsonChunk.samplers) {
+			this.samplers = [];
+			return;
+		}
+
 		for (let i = 0; i < this.jsonChunk['samplers'].length; i++) {
 			const s = this.jsonChunk['samplers'][i];
 			this.samplers.push(

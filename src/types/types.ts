@@ -13,4 +13,5 @@ declare global {
 export interface IRenderData {
 	viewTransform: Float32Array;
 	modelTransforms: Float32Array;
+	normalTransforms: Float32Array;
 }

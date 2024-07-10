@@ -24,8 +24,8 @@ export default class Model {
 
 	update() {
 		if (this.name === 'Player') {
-			this.spin(vec3.create(0, 0, 1), 0.2);
-			this.move(vec3.create(-1, 0, 0), 0.002);
+			this.spin(vec3.create(0, 0, 1), 0.05);
+			// this.move(vec3.create(-1, 0, 0), 0.002);
 		}
 
 		this.transform = mat4.create();
