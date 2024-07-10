@@ -49,7 +49,7 @@ export default class GTLFLoader {
 	async validate(buffer: ArrayBuffer): Promise<void> {
 		const header = new Uint32Array(buffer, 0, 5);
 		// Validate glb file contains correct magic value
-		console.log(header[0], header[1], header[4]);
+		console.log(header[0], 0x46546c67, header[0] == 0x46546c67);
 		if (header[0] != 0x46546c67) {
 			throw Error('Provided file is not a glB file');
 		}

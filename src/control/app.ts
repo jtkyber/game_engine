@@ -33,7 +33,7 @@ export default class App {
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);
 
-		await gltfLoader.parse_gltf('../../dist/scene');
+		await gltfLoader.parse_gltf('dist/scene');
 		this.primitives = gltfLoader.primitives;
 
 		const nodes = gltfLoader.load_scene(0);
