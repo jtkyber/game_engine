@@ -28,3 +28,15 @@ export function getMoveableFlagType(name: string): moveableFlag | null {
 			return null;
 	}
 }
+
+export type MoveSignFB = -1 | 0 | 1;
+export type MoveSignLR = -1 | 0 | 1;
+export type MoveVec = [MoveSignFB, MoveSignLR];
+
+export interface IMoveVecOnOff {
+	f: MoveVecOnOffValue;
+	b: MoveVecOnOffValue;
+	l: MoveVecOnOffValue;
+	r: MoveVecOnOffValue;
+}
+export type MoveVecOnOffValue = 0 | 1;

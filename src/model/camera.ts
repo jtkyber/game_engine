@@ -45,7 +45,8 @@ export class Camera {
 
 		this.target = vec3.add(this.position, this.forwards);
 
-		this.view = mat4.lookAt([2, -6, 1], [-1, 0, 0], [0, 0, 1]);
+		// this.view = mat4.lookAt([2, -6, 1], [-1, 0, 0], [0, 0, 1]);
+		this.view = mat4.lookAt(this.position, this.target, this.up);
 	}
 
 	get_view(): Mat4 {
@@ -54,5 +55,33 @@ export class Camera {
 
 	get_position(): Vec3 {
 		return this.position;
+	}
+
+	spin_on_target(dX: number, dY: number, target: Vec3) {
+		// Translate to center eye level of player
+		this.position[0] = target[0];
+		this.position[1] = target[1];
+		this.position[2] = target[2] + this.distAbovePlayer;
+
+		// Apply rotations
+		this.eulers[2] += dX;
+		this.eulers[2] %= 360;
+
+		this.eulers[1] = Math.min(89, Math.max(-89, this.eulers[1] + dY));
+
+		// Translate straight back along the forwards vector to the camera
+		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromPlayer);
+	}
+
+	move_FB(sign: number, amt: number) {
+		const moveAmt: number = sign * amt * window.myLib.deltaTime;
+
+		this.position = vec3.addScaled(this.position, this.forwardMove, moveAmt);
+	}
+
+	strafe(sign: number, amt: number) {
+		const moveAmt: number = sign * amt * window.myLib.deltaTime;
+
+		this.position = vec3.addScaled(this.position, this.rightMove, moveAmt);
 	}
 }

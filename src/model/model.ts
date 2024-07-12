@@ -12,6 +12,7 @@ export default class Model {
 	quat: Vec4;
 	scale: Vec3;
 	zUP: Mat4;
+	speed: number;
 
 	constructor(name: string, isPlayer: boolean, moveableFlag: moveableFlag, transform: Mat4) {
 		this.name = name;
@@ -22,6 +23,7 @@ export default class Model {
 		this.quat = vec4.create(0, 0, 0, 1);
 		this.scale = vec3.create(0, 0, 0);
 		this.zUP = zUpTransformation();
+		this.speed = 0.005;
 	}
 
 	update() {
@@ -32,14 +34,14 @@ export default class Model {
 			return;
 		}
 
-		if (this.name === 'Player') {
-			// this.move(vec3.create(1, 0, 0), 0.0005);
-			this.spin(vec3.create(0, 0, 1), 0.02);
-		} else if (this.name === 'wheel fr.001' || this.name === 'wheel fl.001') {
-			this.spin(vec3.create(0, 0, -1), 0.1);
-		} else if (this.name === 'Sphere') {
-			this.spin(vec3.create(0, 0, -1), 0.01);
-		}
+		// if (this.name === 'Player') {
+		// 	// this.move(vec3.create(1, 0, 0), 0.0005);
+		// 	this.spin(vec3.create(0, 0, 1), 0.02);
+		// } else if (this.name === 'wheel fr.001' || this.name === 'wheel fl.001') {
+		// 	this.spin(vec3.create(0, 0, -1), 0.1);
+		// } else if (this.name === 'Sphere') {
+		// 	this.spin(vec3.create(0, 0, -1), 0.01);
+		// }
 
 		this.transform = mat4.create();
 
@@ -63,12 +65,12 @@ export default class Model {
 		vec4.transformMat4(this.quat, this.zUP, this.quat);
 	}
 
-	move(dir: Vec3, inc: number) {
+	move(dir: Vec3, amt: number) {
 		const dirY = dir[1];
 		dir[1] = dir[2];
 		dir[2] = -dirY;
 
-		inc *= window.myLib.deltaTime;
-		vec3.addScaled(this.position, dir, inc, this.position);
+		amt *= window.myLib.deltaTime;
+		vec3.addScaled(this.position, dir, amt, this.position);
 	}
 }

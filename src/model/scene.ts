@@ -1,7 +1,7 @@
-import { Mat4, Vec3, Vec4, mat4, quat, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, mat4, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { IRenderData } from '../types/types';
-import { fromRotationTranslationScale, getRotation } from '../utils/matrix';
+import { getRotation } from '../utils/matrix';
 import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
 import Model from './model';
@@ -12,6 +12,7 @@ export default class Scene {
 	modelTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	camera: Camera;
+	player: Model;
 
 	constructor(nodes: GLTFNode[]) {
 		this.nodes = nodes;
@@ -73,7 +74,9 @@ export default class Scene {
 		const parentRefs: number[] = [];
 		for (let i = 0; i < this.nodes.length; i++) {
 			const node: GLTFNode = this.nodes[i];
-			const model: Model = new Model(node.name, node.name === 'Player', node.flag, node.transform);
+			const isPlayer: boolean = node.name === 'Player';
+			const model: Model = new Model(node.name, isPlayer, node.flag, node.transform);
+			if (isPlayer) this.player = model;
 			this.models.push(model);
 
 			model.scale = vec3.getScaling(node.transform);
@@ -83,12 +86,14 @@ export default class Scene {
 			parentRefs.push(node.parent);
 		}
 
+		if (!this.player) throw new Error('Player model not found');
+
 		// Set model parents
 		for (let i = 0; i < parentRefs.length; i++) {
 			this.models[i].parent = this.models[parentRefs[i]] ?? null;
 		}
 
-		console.log(this.models);
+		// console.log(this.models);
 	}
 
 	get_render_data(): IRenderData {

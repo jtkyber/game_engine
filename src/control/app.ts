@@ -2,6 +2,7 @@ import Scene from '../model/scene';
 import GTLFLoader from '../view/gltf/loader';
 import GLTFPrimitive from '../view/gltf/primitive';
 import Renderer from '../view/renderer';
+import Controller from './controller';
 
 export default class App {
 	canvas: HTMLCanvasElement;
@@ -13,8 +14,8 @@ export default class App {
 	framerateChunk: number[];
 	framesPerFPSupdate: number;
 	renderer: Renderer;
-	primitives: GLTFPrimitive[];
 	scene: Scene;
+	controller: Controller;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -34,17 +35,18 @@ export default class App {
 		const gltfLoader = new GTLFLoader(this.renderer.device);
 
 		await gltfLoader.parse_gltf('dist/scene');
-		this.primitives = gltfLoader.primitives;
 
 		const nodes = gltfLoader.load_scene(0);
-		console.log(nodes);
-		console.log(gltfLoader.lights);
+		// console.log(nodes);
+		// console.log(gltfLoader.lights);
 
 		this.scene = new Scene(nodes);
 		this.scene.set_models();
 
 		this.renderer.set_nodes(nodes);
 		this.renderer.init();
+
+		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
 	}
 
 	start = () => {
@@ -59,6 +61,8 @@ export default class App {
 		this.now = performance.now();
 		window.myLib.deltaTime = this.now - this.then;
 		this.then = performance.now();
+
+		this.controller.update();
 
 		this.scene.update();
 		this.renderer.render(this.scene.nodes, this.scene.get_render_data());

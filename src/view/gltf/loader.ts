@@ -1,5 +1,4 @@
-import { Mat4, Quat, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
-import { degToRad } from 'wgpu-matrix/dist/3.x/utils';
+import { Mat4, Quat, Vec3, mat4, vec3, vec4 } from 'wgpu-matrix';
 import { GLTFRenderMode, GLTFTextureFilter, GLTFTextureWrap, moveableFlag } from '../../types/enums';
 import { IGLTFAccessor, IGLTFBufferView, IGLTFImage, IGLTFNode, IGLTFPrimitive } from '../../types/gltf';
 import { getMoveableFlagType } from '../../types/types';
@@ -64,13 +63,15 @@ export default class GTLFLoader {
 			throw Error('Invalid glB: The first chunk of the glB file is not a JSON chunk!');
 		}
 
+		console.log('.glb file validated');
+
 		await this.set_chunks(buffer, header);
 	}
 
 	async set_chunks(buffer: ArrayBuffer, header: Uint32Array): Promise<void> {
 		this.jsonChunk = JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(buffer, 20, header[3])));
 
-		console.log(this.jsonChunk);
+		// console.log(this.jsonChunk);
 
 		const binaryHeader = new Uint32Array(buffer, 20 + header[3], 2);
 		if (binaryHeader[1] != 0x004e4942) {
@@ -78,6 +79,8 @@ export default class GTLFLoader {
 		}
 
 		this.binaryChunk = new GLTFBuffer(buffer, 28 + header[3], binaryHeader[0]);
+
+		console.log('gltf json and binary extracted');
 
 		await this.load_gltf_constants();
 	}
@@ -106,8 +109,6 @@ export default class GTLFLoader {
 		this.materials.forEach((mat: GLTFMaterial) => {
 			mat.upload(this.device);
 		});
-
-		console.log('Constants Loaded');
 	}
 
 	load_buffer_views() {
@@ -115,6 +116,7 @@ export default class GTLFLoader {
 			const bufferView: IGLTFBufferView = this.jsonChunk['bufferViews'][i];
 			this.bufferViews.push(new GLTFBufferView(this.binaryChunk, bufferView));
 		}
+		console.log('gltf buffer views loaded');
 	}
 
 	load_accessors() {
@@ -123,6 +125,7 @@ export default class GTLFLoader {
 			let viewID = accessor['bufferView'];
 			this.accessors.push(new GLTFAccessor(this.bufferViews[viewID], accessor));
 		}
+		console.log('gltf accessors views loaded');
 	}
 
 	async load_images() {
@@ -138,6 +141,7 @@ export default class GTLFLoader {
 			const bitmap = await createImageBitmap(blob);
 			this.images.push(new GLTFImage(img['name'], bitmap));
 		}
+		console.log('gltf images loaded');
 	}
 
 	load_samplers() {
@@ -157,6 +161,7 @@ export default class GTLFLoader {
 				)
 			);
 		}
+		console.log('gltf samplers loaded');
 	}
 
 	load_textures() {
@@ -184,6 +189,7 @@ export default class GTLFLoader {
 		if (usedDefaultSampler) {
 			this.samplers.push(defaultSampler);
 		}
+		console.log('gltf textures loaded');
 	}
 
 	loadMaterials() {
@@ -212,6 +218,7 @@ export default class GTLFLoader {
 				)
 			);
 		}
+		console.log('gltf materials loaded');
 	}
 
 	load_meshes() {
@@ -262,6 +269,7 @@ export default class GTLFLoader {
 			this.meshes.push(new GLTFMesh(mesh['name'], meshPrimitives));
 			this.primitives.push(...meshPrimitives);
 		}
+		console.log('gltf meshes loaded');
 	}
 
 	load_scene(scene_index: number): GLTFNode[] {
@@ -289,6 +297,7 @@ export default class GTLFLoader {
 			this.nodes[i].transform = modelMatrix;
 		}
 
+		console.log('gltf nodes loaded');
 		return <GLTFNode[]>this.nodes;
 	}
 
