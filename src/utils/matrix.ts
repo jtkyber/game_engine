@@ -1,4 +1,4 @@
-import { Mat4, Quat, Vec3, quat, vec3 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
 
 export function fromRotationTranslationScale(
 	out: Mat4,
@@ -98,4 +98,8 @@ export function getRotation(mat: Mat4, out?: Quat) {
 	}
 
 	return out;
+}
+
+export function zUpTransformation(): Mat4 {
+	return mat4.create(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1);
 }

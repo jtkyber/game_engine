@@ -10,6 +10,7 @@ export interface IGLTFNode {
 	translation?: Vec3;
 	matrix?: Mat4;
 	camera?: number;
+	extensions?: { [key: string]: any };
 }
 
 export interface IGLTFMesh {

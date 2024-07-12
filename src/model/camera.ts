@@ -45,7 +45,7 @@ export class Camera {
 
 		this.target = vec3.add(this.position, this.forwards);
 
-		this.view = mat4.lookAt([0, -6, 1], [0, 0, 0], [0, 0, 1]);
+		this.view = mat4.lookAt([2, -6, 1], [-1, 0, 0], [0, 0, 1]);
 	}
 
 	get_view(): Mat4 {

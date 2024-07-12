@@ -38,6 +38,7 @@ export default class App {
 
 		const nodes = gltfLoader.load_scene(0);
 		console.log(nodes);
+		console.log(gltfLoader.lights);
 
 		this.scene = new Scene(nodes);
 		this.scene.set_models();

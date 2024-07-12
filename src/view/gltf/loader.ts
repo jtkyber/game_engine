@@ -1,12 +1,14 @@
 import { Mat4, Quat, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
 import { degToRad } from 'wgpu-matrix/dist/3.x/utils';
-import { GLTFRenderMode, GLTFTextureFilter, GLTFTextureWrap } from '../../types/enums';
+import { GLTFRenderMode, GLTFTextureFilter, GLTFTextureWrap, moveableFlag } from '../../types/enums';
 import { IGLTFAccessor, IGLTFBufferView, IGLTFImage, IGLTFNode, IGLTFPrimitive } from '../../types/gltf';
-import { fromRotationTranslationScale } from '../../utils/matrix';
+import { getMoveableFlagType } from '../../types/types';
+import { fromRotationTranslationScale, zUpTransformation } from '../../utils/matrix';
 import GLTFAccessor from './accessor';
 import { GLTFBuffer } from './buffer';
 import GLTFBufferView from './bufferView';
 import GLTFImage from './image';
+import GLTFLight from './light';
 import GLTFMaterial from './materials';
 import GLTFMesh from './mesh';
 import GLTFNode from './node';
@@ -27,6 +29,7 @@ export default class GTLFLoader {
 	primitives: GLTFPrimitive[];
 	meshes: GLTFMesh[];
 	nodes: GLTFNode[];
+	lights: GLTFLight[];
 
 	constructor(device: GPUDevice) {
 		this.device = device;
@@ -39,6 +42,7 @@ export default class GTLFLoader {
 		this.primitives = [];
 		this.meshes = [];
 		this.nodes = [];
+		this.lights = [];
 	}
 
 	async parse_gltf(url: string): Promise<void> {
@@ -174,6 +178,7 @@ export default class GTLFLoader {
 				usedDefaultSampler = true;
 			}
 			this.textures.push(new GLTFTexture(sampler, this.images[t['source']]));
+			new GLTFTexture(sampler, this.images[t['source']]);
 		}
 
 		if (usedDefaultSampler) {
@@ -261,28 +266,108 @@ export default class GTLFLoader {
 
 	load_scene(scene_index: number): GLTFNode[] {
 		const scene = this.jsonChunk['scenes'][scene_index];
-		// const sceneName: string = scene['name'];
 		const baseNodeRefs: number[] = scene['nodes'];
 		const allNodes: IGLTFNode[] = this.jsonChunk['nodes'];
 
 		for (let i = 0; i < baseNodeRefs.length; i++) {
-			this.load_nodes(allNodes, baseNodeRefs[i]);
+			const node = allNodes[baseNodeRefs[i]];
+			let flag: moveableFlag;
+
+			const lastIndex: number = node['name'].lastIndexOf('_');
+			flag = getMoveableFlagType(node['name'].substring(lastIndex + 1));
+
+			if (flag !== null) node['name'] = node['name'].substring(0, lastIndex);
+
+			this.load_nodes(allNodes, baseNodeRefs[i], flag);
 		}
 
-		return this.nodes;
+		this.transform_static_roots_to_zUP();
+
+		// Pre-multiply transforms based on flag
+		for (let i = 0; i < this.nodes.length; i++) {
+			const modelMatrix: Mat4 = this.transform_matrices(<GLTFNode>this.nodes[i], this.nodes[i].transform);
+			this.nodes[i].transform = modelMatrix;
+		}
+
+		return <GLTFNode[]>this.nodes;
 	}
 
-	load_nodes(allNodes: IGLTFNode[], n: number, nodeNum: number = null) {
+	load_nodes(allNodes: IGLTFNode[], n: number, flag: number, nodeNum: number = null) {
 		const node: IGLTFNode = allNodes[n];
 		const matrix: Mat4 = this.get_node_matrix(node);
+		const name: string = node.name;
 
-		this.nodes.push(new GLTFNode(node['name'], nodeNum, matrix, this.meshes[node['mesh']]));
+		const lightRef: number = node?.['extensions']?.['KHR_lights_punctual']?.['light'];
+		if (lightRef !== undefined) {
+			const lightDetails = this.jsonChunk['extensions']['KHR_lights_punctual']['lights'][lightRef];
+
+			const lightName: string = lightDetails['name'];
+			const lightType: string = lightDetails['type'];
+			const lightIntensity: number = lightDetails['intensity'];
+			const lightColor: Vec3 = lightDetails['color'];
+			let innerConeAngle = null;
+			let outerConeAngle = null;
+
+			if (lightType === 'spot') {
+				innerConeAngle = lightDetails['spot']['innerConeAngle'];
+				outerConeAngle = lightDetails['spot']['outerConeAngle'];
+			}
+
+			this.lights.push(
+				new GLTFLight(
+					lightName,
+					lightType,
+					lightIntensity,
+					lightColor,
+					innerConeAngle,
+					outerConeAngle,
+					matrix
+				)
+			);
+
+			return;
+		}
+
+		this.nodes.push(new GLTFNode(name, flag, nodeNum, matrix, this.meshes[node['mesh']]));
 
 		if (node['children']) {
 			const parentNode = this.nodes.length - 1;
 			for (let i = 0; i < node['children'].length; i++) {
-				this.load_nodes(allNodes, node['children'][i], parentNode);
+				this.load_nodes(allNodes, node['children'][i], flag, parentNode);
 			}
+		}
+	}
+
+	transform_static_roots_to_zUP() {
+		for (let i = 0; i < this.nodes.length; i++) {
+			const node: GLTFNode = this.nodes[i];
+			if (node.parent === null && node.flag === moveableFlag.STATIC) {
+				node.transform = mat4.mul(zUpTransformation(), node.transform);
+			}
+		}
+	}
+
+	transform_matrices(node: GLTFNode, transform: Mat4): Mat4 {
+		if (node.parent === null) {
+			// If root node
+			return transform;
+		} else if (node.flag === moveableFlag.STATIC) {
+			// Multiply up the parent chain, including root node
+			let parentMat: Mat4 = this.nodes[node.parent].transform;
+			const combinedTransform: Mat4 = mat4.mul(parentMat, transform);
+			return combinedTransform;
+		} else if (node.flag === moveableFlag.MOVEABLE_ROOT) {
+			// Multiply up the parent chain, excluding root node
+			if (this.nodes[node.parent].parent === null) {
+				// If parent is root node
+				return transform;
+			} else {
+				const combinedTransform: Mat4 = mat4.mul(this.nodes[node.parent].transform, transform);
+				return this.transform_matrices(this.nodes[node.parent], combinedTransform);
+			}
+		} else {
+			// No Pre-multiplication up the parent chain
+			return transform;
 		}
 	}
 

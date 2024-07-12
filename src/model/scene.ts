@@ -1,4 +1,5 @@
 import { Mat4, Vec3, Vec4, mat4, quat, vec3, vec4 } from 'wgpu-matrix';
+import { moveableFlag } from '../types/enums';
 import { IRenderData } from '../types/types';
 import { fromRotationTranslationScale, getRotation } from '../utils/matrix';
 import GLTFNode from '../view/gltf/node';
@@ -24,8 +25,8 @@ export default class Scene {
 		this.update_models();
 		this.camera.update();
 
-		for (let i = 0; i < this.nodes.length; i++) {
-			const modelMatrix: Mat4 = this.get_model_transform(this.nodes[i], this.nodes[i].transform, i);
+		for (let i = 0; i < this.models.length; i++) {
+			const modelMatrix: Mat4 = this.get_model_transform(this.models[i], this.models[i].transform);
 			for (let j = 0; j < 16; j++) {
 				this.modelTransforms[i * 16 + j] = modelMatrix[j];
 			}
@@ -40,40 +41,54 @@ export default class Scene {
 	update_models() {
 		for (let i = 0; i < this.models.length; i++) {
 			const model: Model = this.models[i];
-
 			model.update();
 		}
 	}
 
-	get_model_transform(node: GLTFNode, transform: Mat4, nodeIndex: number): Mat4 {
-		if (node.parent === null) {
-			// If root node, just use model transform
-			const model: Model = this.models.filter(m => m.nodeIndex === nodeIndex)[0];
-			return model.transform;
-		} else if (this.nodes[node.parent].parent === null) {
-			// If only one parent
-			const model: Model = this.models.filter(m => m.nodeIndex === node.parent)[0];
-			// Transform by updated model translation & rotation
-			const finalModelTransform: Mat4 = mat4.mul(model.transform, transform);
-			return finalModelTransform;
+	get_model_transform(model: Model, transform: Mat4): Mat4 {
+		if (model.parent === null) {
+			// If root node
+			return transform;
+		} else if (model.moveableFlag === moveableFlag.STATIC) {
+			// Never moves, so just return pre-multiplied matrix
+			return transform;
+		} else if (model.moveableFlag === moveableFlag.MOVEABLE_ROOT) {
+			// Only moves as single chunk, so multiply by root
+			// Non-root nodes pre-multiplied
+			const parentMat: Mat4 = this.get_root_matrix(model.parent);
+			return mat4.mul(parentMat, transform);
 		} else {
-			const combinedTransform: Mat4 = mat4.mul(this.nodes[node.parent].transform, transform);
-			return this.get_model_transform(this.nodes[node.parent], combinedTransform, nodeIndex);
+			// Any part can move, so muliply all nodes by parent
+			const combinedTransform: Mat4 = mat4.mul(model.parent.transform, transform);
+			return this.get_model_transform(model.parent, combinedTransform);
 		}
 	}
 
+	get_root_matrix(m: Model): Mat4 {
+		if (m.parent === null) return m.transform;
+		return this.get_root_matrix(m.parent);
+	}
+
 	set_models() {
+		const parentRefs: number[] = [];
 		for (let i = 0; i < this.nodes.length; i++) {
 			const node: GLTFNode = this.nodes[i];
-			if (node.parent === null) {
-				const model: Model = new Model(node.name, i, node.name === 'Player');
-				this.models.push(model);
+			const model: Model = new Model(node.name, node.name === 'Player', node.flag, node.transform);
+			this.models.push(model);
 
-				model.scale = vec3.getScaling(node.transform);
-				model.quat = getRotation(node.transform);
-				model.position = vec3.getTranslation(node.transform);
-			}
+			model.scale = vec3.getScaling(node.transform);
+			model.quat = getRotation(node.transform);
+			model.position = vec3.getTranslation(node.transform);
+
+			parentRefs.push(node.parent);
 		}
+
+		// Set model parents
+		for (let i = 0; i < parentRefs.length; i++) {
+			this.models[i].parent = this.models[parentRefs[i]] ?? null;
+		}
+
+		console.log(this.models);
 	}
 
 	get_render_data(): IRenderData {

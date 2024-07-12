@@ -53,3 +53,8 @@ export enum ImageUsage {
 	OCCLUSION,
 	EMISSION,
 }
+
+export enum moveableFlag {
+	STATIC,
+	MOVEABLE_ROOT,
+}
