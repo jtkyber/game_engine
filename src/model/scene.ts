@@ -5,6 +5,7 @@ import { getRotation } from '../utils/matrix';
 import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
 import Model from './model';
+import Player from './player';
 
 export default class Scene {
 	nodes: GLTFNode[];
@@ -12,14 +13,13 @@ export default class Scene {
 	modelTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	camera: Camera;
-	player: Model;
+	player: Player;
 
 	constructor(nodes: GLTFNode[]) {
 		this.nodes = nodes;
 		this.models = [];
 		this.modelTransforms = new Float32Array(16 * this.nodes.length);
 		this.normalTransforms = new Float32Array(16 * this.nodes.length);
-		this.camera = new Camera(vec3.create(0, 0, 2), 0, 0);
 	}
 
 	update() {
@@ -72,11 +72,24 @@ export default class Scene {
 
 	set_models() {
 		const parentRefs: number[] = [];
+		let isPlayer: boolean = false;
+		let playerFound: boolean = false;
+		let firstRoot: number = null;
+
 		for (let i = 0; i < this.nodes.length; i++) {
 			const node: GLTFNode = this.nodes[i];
-			const isPlayer: boolean = node.name === 'Player';
-			const model: Model = new Model(node.name, isPlayer, node.flag, node.transform);
-			if (isPlayer) this.player = model;
+			if (node.parent === null && !firstRoot) firstRoot = i;
+			isPlayer = node.name === 'Player' && !isPlayer;
+			if (isPlayer) playerFound = true;
+
+			let model: Model | Player;
+			if (isPlayer) {
+				model = new Player(node.name, node.flag, node.transform);
+				this.player = <Player>model;
+			} else {
+				model = new Model(node.name, node.flag, node.transform);
+			}
+
 			this.models.push(model);
 
 			model.scale = vec3.getScaling(node.transform);
@@ -86,12 +99,21 @@ export default class Scene {
 			parentRefs.push(node.parent);
 		}
 
-		if (!this.player) throw new Error('Player model not found');
+		if (!playerFound) {
+			this.player = new Player(
+				this.nodes[firstRoot].name,
+				this.nodes[firstRoot].flag,
+				this.nodes[firstRoot].transform
+			);
+			this.models.splice(firstRoot, 1, this.player);
+		}
 
 		// Set model parents
 		for (let i = 0; i < parentRefs.length; i++) {
 			this.models[i].parent = this.models[parentRefs[i]] ?? null;
 		}
+
+		this.camera = new Camera();
 
 		// console.log(this.models);
 	}

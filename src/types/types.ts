@@ -40,3 +40,5 @@ export interface IMoveVecOnOff {
 	r: MoveVecOnOffValue;
 }
 export type MoveVecOnOffValue = 0 | 1;
+
+export type Lerp = 0 | 1;

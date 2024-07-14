@@ -289,7 +289,7 @@ export default class GTLFLoader {
 			this.load_nodes(allNodes, baseNodeRefs[i], flag);
 		}
 
-		this.transform_static_roots_to_zUP();
+		// this.transform_static_roots_to_zUP();
 
 		// Pre-multiply transforms based on flag
 		for (let i = 0; i < this.nodes.length; i++) {
