@@ -13,7 +13,7 @@ export class Camera {
 	distAbovePlayer: number = 2;
 	distFromPlayerStart: number = 8;
 	distFromPlayer: number = 8;
-	distFromPlayerMin: number = 1;
+	distFromPlayerMin: number = 1.5;
 	distFromPlayerMax: number = 20;
 	camDistLerpInc: number = 0;
 
@@ -49,6 +49,8 @@ export class Camera {
 	}
 
 	spin_on_target(dX: number, dY: number, target: Vec3) {
+		dX *= window.myLib.deltaTime;
+		dY *= window.myLib.deltaTime;
 		// Translate to center eye level of player
 		this.position[0] = target[0];
 		this.position[1] = target[1] + this.distAbovePlayer;

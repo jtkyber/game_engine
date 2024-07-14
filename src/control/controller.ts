@@ -1,4 +1,4 @@
-import { Vec3, vec3 } from 'wgpu-matrix';
+import { Vec3, vec2, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Player from '../model/player';
 import { IMoveVecOnOff, MoveVec, MoveVecOnOffValue } from '../types/types';
@@ -166,8 +166,7 @@ export default class Controller {
 
 	handleMouseMove(e: MouseEvent) {
 		if (!this.pointerLocked) return;
-
-		this.spinAmt = [e.movementX / 20, -(e.movementY / 20)];
+		this.spinAmt = vec2.add(this.spinAmt, [e.movementX / 200, -(e.movementY / 200)]);
 	}
 
 	handleMouseDown() {
@@ -181,7 +180,7 @@ export default class Controller {
 		if (!this.pointerLocked) return;
 
 		this.scrollInterpolationCoefficient = 0;
-		this.camera.camDistLerpInc = e.deltaY / 20;
+		this.camera.camDistLerpInc = e.deltaY / 30;
 		this.camera.distFromPlayerStart = this.camera.distFromPlayer;
 	}
 
