@@ -11,7 +11,11 @@ export class Camera {
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
 	distAbovePlayer: number = 2;
+	distFromPlayerStart: number = 8;
 	distFromPlayer: number = 8;
+	distFromPlayerMin: number = 1;
+	distFromPlayerMax: number = 20;
+	camDistLerpInc: number = 0;
 
 	update() {
 		if (this.position[1] < 0.1) this.position[1] = 0.1;
@@ -70,5 +74,14 @@ export class Camera {
 		const moveAmt: number = sign * amt * window.myLib.deltaTime;
 
 		this.position = vec3.addScaled(this.position, this.rightMove, moveAmt);
+	}
+
+	lerp_cam_dist(lerpVal: number) {
+		const lerpAmt: number = lerpVal * window.myLib.deltaTime * 0.5;
+		if (lerpAmt >= 1 || lerpAmt <= -1) return;
+		this.distFromPlayer = this.distFromPlayerStart + lerpAmt * this.camDistLerpInc;
+
+		if (this.distFromPlayer < this.distFromPlayerMin) this.distFromPlayer = this.distFromPlayerMin;
+		if (this.distFromPlayer > this.distFromPlayerMax) this.distFromPlayer = this.distFromPlayerMax;
 	}
 }

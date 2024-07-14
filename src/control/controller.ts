@@ -1,7 +1,7 @@
 import { Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Player from '../model/player';
-import { IMoveVecOnOff, Lerp, MoveVec, MoveVecOnOffValue } from '../types/types';
+import { IMoveVecOnOff, MoveVec, MoveVecOnOffValue } from '../types/types';
 
 export default class Controller {
 	canvas: HTMLCanvasElement;
@@ -11,8 +11,8 @@ export default class Controller {
 	spinAmt: number[];
 	moveVec: MoveVec;
 	moveVecOnOff: IMoveVecOnOff;
-	spinInterpolationCoefficient: Lerp;
-	scrollwheelValue: number;
+	spinInterpolationCoefficient: number;
+	scrollInterpolationCoefficient: number;
 
 	constructor(canvas: HTMLCanvasElement, camera: Camera, player: Player) {
 		this.canvas = canvas;
@@ -27,7 +27,7 @@ export default class Controller {
 			r: 0,
 		};
 		this.spinInterpolationCoefficient = 0;
-		this.scrollwheelValue = 0;
+		this.scrollInterpolationCoefficient = 0;
 
 		document.addEventListener('keydown', e => this.handleKeyDown(e));
 		document.addEventListener('keyup', e => this.handleKeyUp(e));
@@ -46,15 +46,16 @@ export default class Controller {
 	}
 
 	update() {
-		this.spinInterpolationCoefficient = <Lerp>(
-			Math.min((this.spinInterpolationCoefficient * 0.01 + 0.01) * window.myLib.deltaTime, 1)
-		);
+		this.spinInterpolationCoefficient += 0.01;
+		this.scrollInterpolationCoefficient += 0.01;
+
 		this.moveVec[0] = <MoveVecOnOffValue>(this.moveVecOnOff.f - this.moveVecOnOff.b);
 		this.moveVec[1] = <MoveVecOnOffValue>(this.moveVecOnOff.r - this.moveVecOnOff.l);
 
 		this.camera.move_FB(this.moveVec[0], this.player.speed);
 		this.camera.strafe(this.moveVec[1], this.player.speed);
-		this.camera.distFromPlayer += this.scrollwheelValue;
+		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
+		this.camera.spin_on_target(this.spinAmt[0], this.spinAmt[1], this.player.position);
 
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
@@ -62,10 +63,7 @@ export default class Controller {
 			this.player.move(endDir, this.player.speed);
 		}
 
-		this.camera.spin_on_target(this.spinAmt[0], this.spinAmt[1], this.player.position);
-
 		this.spinAmt = [0, 0];
-		this.scrollwheelValue = 0;
 	}
 
 	get_rotated_direction_with_forward(forward: Vec3): Vec3 {
@@ -182,7 +180,9 @@ export default class Controller {
 	handleScrollWheel(e: WheelEvent) {
 		if (!this.pointerLocked) return;
 
-		this.scrollwheelValue = e.deltaY / 500;
+		this.scrollInterpolationCoefficient = 0;
+		this.camera.camDistLerpInc = e.deltaY / 20;
+		this.camera.distFromPlayerStart = this.camera.distFromPlayer;
 	}
 
 	lockPointer() {
