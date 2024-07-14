@@ -166,7 +166,8 @@ export default class Controller {
 
 	handleMouseMove(e: MouseEvent) {
 		if (!this.pointerLocked) return;
-		this.spinAmt = vec2.add(this.spinAmt, [e.movementX / 200, -(e.movementY / 200)]);
+		this.spinAmt[0] += e.movementX / 400;
+		this.spinAmt[1] += -(e.movementY / 400);
 	}
 
 	handleMouseDown() {

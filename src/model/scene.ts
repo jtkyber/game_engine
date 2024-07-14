@@ -23,11 +23,11 @@ export default class Scene {
 	}
 
 	update() {
-		this.update_models();
-		this.camera.update();
-
 		for (let i = 0; i < this.models.length; i++) {
-			const modelMatrix: Mat4 = this.get_model_transform(this.models[i], this.models[i].transform);
+			const model: Model = this.models[i];
+			model.update();
+
+			const modelMatrix: Mat4 = this.get_model_transform(model, model.transform);
 			for (let j = 0; j < 16; j++) {
 				this.modelTransforms[i * 16 + j] = modelMatrix[j];
 			}
@@ -37,13 +37,8 @@ export default class Scene {
 				this.normalTransforms[i * 16 + j] = normalMatrix[j];
 			}
 		}
-	}
 
-	update_models() {
-		for (let i = 0; i < this.models.length; i++) {
-			const model: Model = this.models[i];
-			model.update();
-		}
+		this.camera.update();
 	}
 
 	get_model_transform(model: Model, transform: Mat4): Mat4 {
@@ -114,8 +109,6 @@ export default class Scene {
 		}
 
 		this.camera = new Camera();
-
-		// console.log(this.models);
 	}
 
 	get_render_data(): IRenderData {
