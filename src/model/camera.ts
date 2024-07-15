@@ -6,13 +6,13 @@ export class Camera {
 	// eulers: Vec3 = vec3.create(0, 0, 0);
 	quat: Vec3 = quat.create(0, 0, 0, 1);
 	view: Mat4;
-	forwards: Vec3 = vec3.create();
+	forward: Vec3 = vec3.create();
 	forwardMove: Vec3 = vec3.create();
 	right: Vec3 = vec3.create();
 	rightMove: Vec3 = vec3.create();
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
-	distAboveModel: number = 2;
+	distAboveModel: number = 1.5;
 	distFromModelStart: number = 8;
 	distFromModel: number = 8;
 	distFromModelMin: number = 1.5;
@@ -37,21 +37,21 @@ export class Camera {
 		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'yxz');
 
 		// Get direction vectors
-		this.forwards = vec3.normalize(this.get_forward_direction(this.quat));
-		this.forwardMove = vec3.normalize(vec3.create(this.forwards[0], 0, this.forwards[2]));
+		this.forward = vec3.normalize(vec3.transformQuat([0, 0, -1], this.quat));
+		this.forwardMove = vec3.normalize(vec3.create(this.forward[0], 0, this.forward[2]));
 
-		this.right = vec3.normalize(vec3.cross(this.forwards, [0, 1, 0]));
+		this.right = vec3.normalize(vec3.cross(this.forward, [0, 1, 0]));
 		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
 
-		this.up = vec3.normalize(vec3.cross(this.right, this.forwards));
+		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 
 		// Move camera back out along forward vector
-		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromModel);
+		this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
 		// Don't let camera clip through ground
 		if (this.position[1] < 0.1) this.position[1] = 0.1;
 
 		// Get position to look at
-		this.target = vec3.add(this.position, this.forwards);
+		this.target = vec3.add(this.position, this.forward);
 
 		// Create view matrix
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
@@ -78,17 +78,15 @@ export class Camera {
 		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 	}
 
-	get_forward_direction(q: Quat) {
-		const forward: Vec3 = vec3.fromValues(0, 0, -1);
-
-		return vec3.transformQuat(forward, q);
-	}
-
 	get_view(): Mat4 {
 		return this.view;
 	}
 
 	get_position(): Vec3 {
 		return this.position;
+	}
+
+	get_forward(): Vec3 {
+		return vec3.mulScalar(this.forward, -1);
 	}
 }

@@ -1,4 +1,4 @@
-import { Vec3, vec2, vec3 } from 'wgpu-matrix';
+import { Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Player from '../model/player';
 import { IMoveVecOnOff, MoveVec, MoveVecOnOffValue } from '../types/types';
@@ -8,7 +8,6 @@ export default class Controller {
 	camera: Camera;
 	player: Player;
 	pointerLocked: boolean;
-	spinAmt: number[];
 	moveVec: MoveVec;
 	moveVecOnOff: IMoveVecOnOff;
 	spinInterpolationCoefficient: number;
@@ -18,7 +17,6 @@ export default class Controller {
 		this.canvas = canvas;
 		this.camera = camera;
 		this.player = player;
-		this.spinAmt = [0, 0];
 		this.moveVec = [0, 0];
 		this.moveVecOnOff = {
 			f: 0,
@@ -46,24 +44,21 @@ export default class Controller {
 	}
 
 	update() {
-		this.spinInterpolationCoefficient += 0.01;
 		this.scrollInterpolationCoefficient += 0.01;
+		this.spinInterpolationCoefficient += 0.01;
 
 		this.moveVec[0] = <MoveVecOnOffValue>(this.moveVecOnOff.f - this.moveVecOnOff.b);
 		this.moveVec[1] = <MoveVecOnOffValue>(this.moveVecOnOff.r - this.moveVecOnOff.l);
 
-		// this.camera.spin_on_target(this.spinAmt[0], this.spinAmt[1], this.player.position);
-		this.camera.move_FB(this.moveVec[0], this.player.speed);
-		this.camera.strafe(this.moveVec[1], this.player.speed);
-		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
-
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
-			this.player.move(endDir, this.player.speed);
 			this.player.spin_lerp(vec3.mulScalar(endDir, -1), this.spinInterpolationCoefficient);
+			this.player.move(vec3.mulScalar(this.player.forwardMove, -1), this.player.speed);
 		}
 
-		this.spinAmt = [0, 0];
+		// this.camera.move_FB(this.moveVec[0], this.player.speed);
+		// this.camera.strafe(this.moveVec[1], this.player.speed);
+		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
 	}
 
 	get_rotated_direction_with_forward(forward: Vec3): Vec3 {
@@ -123,18 +118,22 @@ export default class Controller {
 
 		switch (e.code) {
 			case 'KeyW':
+				if (this.moveVecOnOff.f) return;
 				this.moveVecOnOff.f = 1;
 				this.spinInterpolationCoefficient = 0;
 				break;
 			case 'KeyS':
+				if (this.moveVecOnOff.b) return;
 				this.moveVecOnOff.b = 1;
 				this.spinInterpolationCoefficient = 0;
 				break;
 			case 'KeyA':
+				if (this.moveVecOnOff.l) return;
 				this.moveVecOnOff.l = 1;
 				this.spinInterpolationCoefficient = 0;
 				break;
 			case 'KeyD':
+				if (this.moveVecOnOff.r) return;
 				this.moveVecOnOff.r = 1;
 				this.spinInterpolationCoefficient = 0;
 				break;

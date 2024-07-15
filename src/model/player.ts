@@ -12,6 +12,11 @@ export default class Player extends Model {
 	scale: Vec3;
 	zUP: Mat4;
 	speed: number = 0.01;
+	forward: Vec3;
+	forwardMove: Vec3;
+	right: Vec3;
+	rightMove: Vec3;
+	up: Vec3;
 
 	constructor(name: string, moveableFlag: moveableFlag, transform: Mat4) {
 		super(name, moveableFlag, transform);
@@ -26,8 +31,4 @@ export default class Player extends Model {
 		const endQuat: Quat = quat.fromMat(lookAt);
 		this.quat = quat.slerp(this.quat, endQuat, lerpAmt);
 	}
-
-	// get_forward_direction(): Vec3 {
-	// 	return quat.mul(this.quat, [0, 0, 1, 0]);
-	// }
 }

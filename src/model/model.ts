@@ -1,4 +1,4 @@
-import { Mat4, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 
 export default class Model {
@@ -10,6 +10,11 @@ export default class Model {
 	quat: Vec4;
 	scale: Vec3;
 	speed: number;
+	forward: Vec3;
+	forwardMove: Vec3;
+	right: Vec3;
+	rightMove: Vec3;
+	up: Vec3;
 
 	constructor(name: string, moveableFlag: moveableFlag, transform: Mat4) {
 		this.name = name;
@@ -28,6 +33,14 @@ export default class Model {
 		) {
 			return;
 		}
+
+		this.forward = vec3.normalize(vec3.transformQuat([0, 0, -1], this.quat));
+		this.forwardMove = vec3.normalize(vec3.create(this.forward[0], 0, this.forward[2]));
+
+		this.right = vec3.normalize(vec3.cross(this.forward, [0, 1, 0]));
+		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
+
+		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 
 		this.transform = mat4.create();
 
@@ -48,6 +61,10 @@ export default class Model {
 
 	move(dir: Vec3, amt: number) {
 		amt *= window.myLib.deltaTime;
-		vec3.addScaled(this.position, dir, amt, this.position);
+		this.position = vec3.addScaled(this.position, dir, amt);
+	}
+
+	get_forward(): Vec3 {
+		return vec3.mulScalar(this.forward, -1);
 	}
 }
