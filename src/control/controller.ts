@@ -166,8 +166,8 @@ export default class Controller {
 
 	handleMouseMove(e: MouseEvent) {
 		if (!this.pointerLocked) return;
-		this.camera.yaw += e.movementX * 0.0005;
-		this.camera.pitch += -(e.movementY * 0.0005);
+		this.camera.yaw -= e.movementX * 0.0005;
+		this.camera.pitch -= e.movementY * 0.0005;
 	}
 
 	handleMouseDown() {
