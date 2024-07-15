@@ -27,22 +27,23 @@ export class Camera {
 	}
 
 	update() {
+		this.pitch = Math.min(Math.PI / 2 - 0.1, Math.max(-Math.PI / 2 + 0.1, this.pitch));
 		// Move camera to center of model
 		this.position[0] = this.targetModel.position[0];
 		this.position[1] = this.targetModel.position[1] + this.distAboveModel;
 		this.position[2] = this.targetModel.position[2];
 
 		// Make quat from pitch and yaw
-		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'xyz');
+		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'yxz');
 
 		// Get direction vectors
-		this.forwards = this.get_forward_direction(this.quat);
-		this.forwardMove = vec3.create(this.forwards[0], 0, this.forwards[2]);
+		this.forwards = vec3.normalize(this.get_forward_direction(this.quat));
+		this.forwardMove = vec3.normalize(vec3.create(this.forwards[0], 0, this.forwards[2]));
 
-		this.right = vec3.cross(this.forwards, [0, 1, 0]);
-		this.rightMove = vec3.create(this.right[0], 0, this.right[2]);
+		this.right = vec3.normalize(vec3.cross(this.forwards, [0, 1, 0]));
+		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
 
-		this.up = vec3.cross(this.right, this.forwards);
+		this.up = vec3.normalize(vec3.cross(this.right, this.forwards));
 
 		// Move camera back out along forward vector
 		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromModel);
@@ -54,36 +55,6 @@ export class Camera {
 
 		// Create view matrix
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
-	}
-
-	spin_on_target() {
-		// Translate to center eye level of player
-		this.position[0] = this.targetModel.position[0];
-		this.position[1] = this.targetModel.position[1] + this.distAboveModel;
-		this.position[2] = this.targetModel.position[2];
-
-		// Apply rotations
-		// this.eulers[1] += dX;
-		// this.eulers[1] %= 360;
-		// dX = utils.degToRad(dX);
-		// dY = utils.degToRad(dY);
-
-		// this.eulers[2] = Math.min(89, Math.max(-89, this.eulers[2] + dY));
-		// quat.rotateX(this.quat, dY, this.quat);
-		// quat.rotateY(this.quat, dX, this.quat);
-
-		let quatTemp: Quat = quat.create(0, 0, 0, 1);
-
-		const yaw: Quat = quat.rotateY(quat.create(0, 0, 0, 1), this.yaw);
-		const pitch: Quat = quat.rotateX(quat.create(0, 0, 0, 1), this.pitch);
-
-		quat.mul(pitch, quatTemp, quatTemp);
-		quat.mul(quatTemp, yaw, quatTemp);
-
-		this.quat = quatTemp;
-
-		// Translate straight back along the forwards vector to the camera
-		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromModel);
 	}
 
 	move_FB(sign: number, amt: number) {

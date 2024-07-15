@@ -5,11 +5,9 @@ import Controller from './controller';
 
 export default class App {
 	canvas: HTMLCanvasElement;
-	fpsInterval: number;
 	then: number;
 	startTime: number;
 	now: number;
-	maxFramerate: number;
 	framerateChunk: number[];
 	framesPerFPSupdate: number;
 	renderer: Renderer;
@@ -18,8 +16,6 @@ export default class App {
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
-		this.maxFramerate = 75;
-		this.fpsInterval = 1000 / this.maxFramerate;
 		this.framerateChunk = [];
 		this.framesPerFPSupdate = 10;
 	}
