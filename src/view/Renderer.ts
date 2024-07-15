@@ -1,6 +1,5 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
 import { IRenderData } from '../types/types';
-import GLTFMaterial from './gltf/materials';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
 import shader from './shaders/shader.wgsl';

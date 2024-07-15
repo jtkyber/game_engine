@@ -52,15 +52,15 @@ export default class Controller {
 		this.moveVec[0] = <MoveVecOnOffValue>(this.moveVecOnOff.f - this.moveVecOnOff.b);
 		this.moveVec[1] = <MoveVecOnOffValue>(this.moveVecOnOff.r - this.moveVecOnOff.l);
 
+		// this.camera.spin_on_target(this.spinAmt[0], this.spinAmt[1], this.player.position);
 		this.camera.move_FB(this.moveVec[0], this.player.speed);
 		this.camera.strafe(this.moveVec[1], this.player.speed);
 		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
-		this.camera.spin_on_target(this.spinAmt[0], this.spinAmt[1], this.player.position);
 
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
-			this.player.spin_lerp(vec3.mulScalar(endDir, -1), this.spinInterpolationCoefficient);
 			this.player.move(endDir, this.player.speed);
+			this.player.spin_lerp(vec3.mulScalar(endDir, -1), this.spinInterpolationCoefficient);
 		}
 
 		this.spinAmt = [0, 0];
@@ -166,8 +166,8 @@ export default class Controller {
 
 	handleMouseMove(e: MouseEvent) {
 		if (!this.pointerLocked) return;
-		this.spinAmt[0] += e.movementX / 400;
-		this.spinAmt[1] += -(e.movementY / 400);
+		this.camera.yaw += e.movementX * 0.005;
+		this.camera.pitch += -(e.movementY * 0.005);
 	}
 
 	handleMouseDown() {
@@ -182,7 +182,7 @@ export default class Controller {
 
 		this.scrollInterpolationCoefficient = 0;
 		this.camera.camDistLerpInc = e.deltaY / 30;
-		this.camera.distFromPlayerStart = this.camera.distFromPlayer;
+		this.camera.distFromModelStart = this.camera.distFromModel;
 	}
 
 	lockPointer() {

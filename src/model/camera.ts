@@ -1,8 +1,10 @@
-import { Mat4, Vec3, mat4, utils, vec3 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, mat4, quat, utils, vec3 } from 'wgpu-matrix';
+import Model from './model';
 
 export class Camera {
 	position: Vec3 = vec3.create(0, 0, 0);
-	eulers: Vec3 = vec3.create(0, 0, 0);
+	// eulers: Vec3 = vec3.create(0, 0, 0);
+	quat: Vec3 = quat.create(0, 0, 0, 1);
 	view: Mat4;
 	forwards: Vec3 = vec3.create();
 	forwardMove: Vec3 = vec3.create();
@@ -10,60 +12,78 @@ export class Camera {
 	rightMove: Vec3 = vec3.create();
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
-	distAbovePlayer: number = 2;
-	distFromPlayerStart: number = 8;
-	distFromPlayer: number = 8;
-	distFromPlayerMin: number = 1.5;
-	distFromPlayerMax: number = 20;
+	distAboveModel: number = 2;
+	distFromModelStart: number = 8;
+	distFromModel: number = 8;
+	distFromModelMin: number = 1.5;
+	distFromModelMax: number = 20;
 	camDistLerpInc: number = 0;
+	targetModel: Model;
+	pitch: number = 0;
+	yaw: number = 0;
+
+	constructor(targetModel: Model) {
+		this.targetModel = targetModel;
+	}
 
 	update() {
-		if (this.position[1] < 0.1) this.position[1] = 0.1;
+		// Move camera to center of model
+		this.position[0] = this.targetModel.position[0];
+		this.position[1] = this.targetModel.position[1] + this.distAboveModel;
+		this.position[2] = this.targetModel.position[2];
 
-		this.forwards[0] = Math.cos(utils.degToRad(this.eulers[1])) * Math.cos(utils.degToRad(this.eulers[2]));
-		this.forwards[1] = Math.sin(utils.degToRad(this.eulers[2]));
-		this.forwards[2] = Math.sin(utils.degToRad(this.eulers[1])) * Math.cos(utils.degToRad(this.eulers[2]));
+		// Make quat from pitch and yaw
+		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'xyz');
 
-		this.forwardMove[0] = Math.cos(utils.degToRad(this.eulers[1]));
-		this.forwardMove[1] = 0;
-		this.forwardMove[2] = Math.sin(utils.degToRad(this.eulers[1]));
+		// Get direction vectors
+		this.forwards = this.get_forward_direction(this.quat);
+		this.forwardMove = vec3.create(this.forwards[0], 0, this.forwards[2]);
 
 		this.right = vec3.cross(this.forwards, [0, 1, 0]);
-		this.rightMove = vec3.cross(this.forwardMove, [0, 1, 0]);
-		vec3.normalize(this.right, this.right);
+		this.rightMove = vec3.create(this.right[0], 0, this.right[2]);
 
 		this.up = vec3.cross(this.right, this.forwards);
-		vec3.normalize(this.up, this.up);
 
+		// Move camera back out along forward vector
+		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromModel);
+		// Don't let camera clip through ground
+		if (this.position[1] < 0.1) this.position[1] = 0.1;
+
+		// Get position to look at
 		this.target = vec3.add(this.position, this.forwards);
 
-		this.view = mat4.lookAt(this.position, this.target, this.up);
+		// Create view matrix
+		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
 	}
 
-	get_view(): Mat4 {
-		return this.view;
-	}
-
-	get_position(): Vec3 {
-		return this.position;
-	}
-
-	spin_on_target(dX: number, dY: number, target: Vec3) {
-		dX *= window.myLib.deltaTime;
-		dY *= window.myLib.deltaTime;
+	spin_on_target() {
 		// Translate to center eye level of player
-		this.position[0] = target[0];
-		this.position[1] = target[1] + this.distAbovePlayer;
-		this.position[2] = target[2];
+		this.position[0] = this.targetModel.position[0];
+		this.position[1] = this.targetModel.position[1] + this.distAboveModel;
+		this.position[2] = this.targetModel.position[2];
 
 		// Apply rotations
-		this.eulers[1] += dX;
-		this.eulers[1] %= 360;
+		// this.eulers[1] += dX;
+		// this.eulers[1] %= 360;
+		// dX = utils.degToRad(dX);
+		// dY = utils.degToRad(dY);
 
-		this.eulers[2] = Math.min(89, Math.max(-89, this.eulers[2] + dY));
+		// this.eulers[2] = Math.min(89, Math.max(-89, this.eulers[2] + dY));
+		// quat.rotateX(this.quat, dY, this.quat);
+		// quat.rotateY(this.quat, dX, this.quat);
+
+		let quatTemp: Quat = quat.create(0, 0, 0, 1);
+
+		const yaw: Quat = quat.rotateY(quat.create(0, 0, 0, 1), this.yaw);
+		const pitch: Quat = quat.rotateX(quat.create(0, 0, 0, 1), this.pitch);
+
+		quat.mul(pitch, quatTemp, quatTemp);
+		quat.mul(quatTemp, yaw, quatTemp);
+
+		this.quat = quatTemp;
 
 		// Translate straight back along the forwards vector to the camera
-		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromPlayer);
+		this.position = vec3.addScaled(this.position, this.forwards, -this.distFromModel);
 	}
 
 	move_FB(sign: number, amt: number) {
@@ -81,9 +101,23 @@ export class Camera {
 	lerp_cam_dist(lerpVal: number) {
 		const lerpAmt: number = lerpVal * window.myLib.deltaTime * 0.5;
 		if (lerpAmt >= 1 || lerpAmt <= -1) return;
-		this.distFromPlayer = this.distFromPlayerStart + lerpAmt * this.camDistLerpInc;
+		this.distFromModel = this.distFromModelStart + lerpAmt * this.camDistLerpInc;
 
-		if (this.distFromPlayer < this.distFromPlayerMin) this.distFromPlayer = this.distFromPlayerMin;
-		if (this.distFromPlayer > this.distFromPlayerMax) this.distFromPlayer = this.distFromPlayerMax;
+		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
+		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
+	}
+
+	get_forward_direction(q: Quat) {
+		const forward: Vec3 = vec3.fromValues(0, 0, -1);
+
+		return vec3.transformQuat(forward, q);
+	}
+
+	get_view(): Mat4 {
+		return this.view;
+	}
+
+	get_position(): Vec3 {
+		return this.position;
 	}
 }

@@ -1,6 +1,5 @@
 import Scene from '../model/scene';
 import GTLFLoader from '../view/gltf/loader';
-import GLTFPrimitive from '../view/gltf/primitive';
 import Renderer from '../view/renderer';
 import Controller from './controller';
 
@@ -19,7 +18,7 @@ export default class App {
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
-		this.maxFramerate = 60;
+		this.maxFramerate = 75;
 		this.fpsInterval = 1000 / this.maxFramerate;
 		this.framerateChunk = [];
 		this.framesPerFPSupdate = 10;

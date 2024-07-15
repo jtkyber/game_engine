@@ -23,6 +23,8 @@ export default class Scene {
 	}
 
 	update() {
+		this.camera.update();
+
 		for (let i = 0; i < this.models.length; i++) {
 			const model: Model = this.models[i];
 			model.update();
@@ -37,8 +39,6 @@ export default class Scene {
 				this.normalTransforms[i * 16 + j] = normalMatrix[j];
 			}
 		}
-
-		this.camera.update();
 	}
 
 	get_model_transform(model: Model, transform: Mat4): Mat4 {
@@ -108,7 +108,7 @@ export default class Scene {
 			this.models[i].parent = this.models[parentRefs[i]] ?? null;
 		}
 
-		this.camera = new Camera();
+		this.camera = new Camera(this.player);
 	}
 
 	get_render_data(): IRenderData {
