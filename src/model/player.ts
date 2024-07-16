@@ -1,17 +1,20 @@
 import { Mat4, Quat, Vec3, Vec4, mat4, quat, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
+import { Camera } from './camera';
 import Model from './model';
 
 export default class Player extends Model {
 	name: string;
 	moveableFlag: moveableFlag;
 	transform: Mat4;
+	camera: Camera;
 	parent: Model = null;
 	position: Vec3;
 	quat: Vec4;
 	scale: Vec3;
 	zUP: Mat4;
 	speed: number = 0.01;
+	turnSpeed: number = 0.005;
 	forward: Vec3;
 	forwardMove: Vec3;
 	right: Vec3;
@@ -22,13 +25,16 @@ export default class Player extends Model {
 		super(name, moveableFlag, transform);
 	}
 
-	spin_lerp(endDir: Vec3, lerpVal: number) {
-		const lerpAmt: number = lerpVal * window.myLib.deltaTime * 0.1;
-		if (lerpAmt >= 1) return;
+	spin_lerp(endDir: Vec3) {
+		let spinAmt: number = this.turnSpeed * window.myLib.deltaTime;
 
-		const endPos: Vec3 = vec3.add(this.position, [-endDir[0], endDir[1], endDir[2]]);
-		const lookAt: Mat4 = mat4.lookAt(this.position, endPos, [0, 1, 0]);
-		const endQuat: Quat = quat.fromMat(lookAt);
-		this.quat = quat.slerp(this.quat, endQuat, lerpAmt);
+		vec3.mulScalar(endDir, -1, endDir);
+
+		const sign: number = -Math.sign(vec3.cross(endDir, this.forwardMove)[1]);
+		const angleToTurn: number = vec3.angle(endDir, this.forwardMove);
+
+		if (angleToTurn <= spinAmt + 1) spinAmt = angleToTurn * 0.005 * window.myLib.deltaTime;
+
+		quat.rotateY(this.quat, sign * spinAmt, this.quat);
 	}
 }

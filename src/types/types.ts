@@ -33,10 +33,10 @@ export type MoveSignFB = -1 | 0 | 1;
 export type MoveSignLR = -1 | 0 | 1;
 export type MoveVec = [MoveSignFB, MoveSignLR];
 
-export interface IMoveVecOnOff {
-	f: MoveVecOnOffValue;
-	b: MoveVecOnOffValue;
-	l: MoveVecOnOffValue;
-	r: MoveVecOnOffValue;
+export interface MoveSwitchBoard {
+	f: MoveSwitchValue;
+	b: MoveSwitchValue;
+	l: MoveSwitchValue;
+	r: MoveSwitchValue;
 }
-export type MoveVecOnOffValue = 0 | 1;
+export type MoveSwitchValue = 0 | 1;

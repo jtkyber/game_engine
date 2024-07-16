@@ -1,9 +1,8 @@
-import { Mat4, Quat, Vec3, mat4, quat, utils, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
 import Model from './model';
 
 export class Camera {
 	position: Vec3 = vec3.create(0, 0, 0);
-	// eulers: Vec3 = vec3.create(0, 0, 0);
 	quat: Vec3 = quat.create(0, 0, 0, 1);
 	view: Mat4;
 	forward: Vec3 = vec3.create();

@@ -1,4 +1,4 @@
-import { Mat4, Quat, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 
 export default class Model {
@@ -6,10 +6,11 @@ export default class Model {
 	moveableFlag: moveableFlag;
 	transform: Mat4;
 	parent: Model = null;
-	position: Vec3;
-	quat: Vec4;
-	scale: Vec3;
-	speed: number;
+	position: Vec3 = vec3.create(0, 0, 0);
+	quat: Vec4 = vec4.create(0, 0, 0, 1);
+	scale: Vec3 = vec3.create(0, 0, 0);
+	speed: number = 0.005;
+	turnSpeed: number = 0;
 	forward: Vec3;
 	forwardMove: Vec3;
 	right: Vec3;
@@ -20,10 +21,6 @@ export default class Model {
 		this.name = name;
 		this.moveableFlag = moveableFlag;
 		this.transform = transform;
-		this.position = vec3.create(0, 0, 0);
-		this.quat = vec4.create(0, 0, 0, 1);
-		this.scale = vec3.create(0, 0, 0);
-		this.speed = 0.005;
 	}
 
 	update() {

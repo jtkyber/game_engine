@@ -85,12 +85,11 @@ export default class Scene {
 				model = new Model(node.name, node.flag, node.transform);
 			}
 
-			this.models.push(model);
-
 			model.scale = vec3.getScaling(node.transform);
 			model.quat = getRotation(node.transform);
 			model.position = vec3.getTranslation(node.transform);
 
+			this.models.push(model);
 			parentRefs.push(node.parent);
 		}
 
