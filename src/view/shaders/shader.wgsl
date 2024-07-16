@@ -70,17 +70,17 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         color.r = linear_to_srgb(color.r);
         color.g = linear_to_srgb(color.g);
         color.b = linear_to_srgb(color.b);
-        color.a = 1.0;
+        color.a = linear_to_srgb(color.a);
     } else {
-        // color.r = linear_to_srgb(material_params.base_color_factor.r);
-        // color.g = linear_to_srgb(material_params.base_color_factor.g);
-        // color.b = linear_to_srgb(material_params.base_color_factor.b);
-        // color.a = 1.0;
-        color = mix(vec4f((in.normal + 1.0) * 0.5, 1.0), material_params.base_color_factor, 0.8); // Remove later
-        color.r = linear_to_srgb(color.r);
-        color.g = linear_to_srgb(color.g);
-        color.b = linear_to_srgb(color.b);
-        color.a = 1.0;
+        color.r = linear_to_srgb(material_params.base_color_factor.r);
+        color.g = linear_to_srgb(material_params.base_color_factor.g);
+        color.b = linear_to_srgb(material_params.base_color_factor.b);
+        color.a = linear_to_srgb(material_params.base_color_factor.a);
+        // color = mix(vec4f((in.normal + 1.0) * 0.5, 1.0), material_params.base_color_factor, 0.8); // Remove later
+        // color.r = linear_to_srgb(color.r);
+        // color.g = linear_to_srgb(color.g);
+        // color.b = linear_to_srgb(color.b);
+        // color.a = linear_to_srgb(color.a);
     }
     return color;
 }

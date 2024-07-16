@@ -13,6 +13,8 @@ export default class App {
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
+	showAABBs: boolean = false;
+	showOBBs: boolean = false;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -30,9 +32,10 @@ export default class App {
 		const gltfLoader = new GTLFLoader(this.renderer.device);
 
 		await gltfLoader.parse_gltf('dist/scene');
-		console.log(gltfLoader.jsonChunk);
+		// console.log(gltfLoader.jsonChunk);
 
 		const nodes = gltfLoader.load_scene(0);
+		// console.log(nodes);
 
 		this.scene = new Scene(nodes);
 		this.scene.set_models();

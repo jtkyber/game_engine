@@ -39,7 +39,11 @@ export default class GLTFImage {
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
-		device.queue.copyExternalImageToTexture({ source: this.bitmap }, { texture: this.image }, imgSize);
+		device.queue.copyExternalImageToTexture(
+			{ source: this.bitmap },
+			{ texture: this.image, premultipliedAlpha: true },
+			imgSize
+		);
 
 		this.view = this.image.createView();
 	}

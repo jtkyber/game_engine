@@ -16,6 +16,8 @@ export default class Model {
 	right: Vec3;
 	rightMove: Vec3;
 	up: Vec3;
+	OBBMin: number;
+	OBBMax: number;
 
 	constructor(name: string, moveableFlag: moveableFlag, transform: Mat4) {
 		this.name = name;

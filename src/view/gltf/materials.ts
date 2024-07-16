@@ -1,6 +1,5 @@
 import { Vec4 } from 'wgpu-matrix';
-import { GLTFTextureFilter, GLTFTextureWrap, ImageUsage } from '../../types/enums';
-import { GLTFSampler } from './sampler';
+import { ImageUsage } from '../../types/enums';
 
 export default class GLTFMaterial {
 	baseColorTextureView: any = null; // Make texture, sampler and image classes

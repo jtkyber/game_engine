@@ -277,6 +277,16 @@ export default class Renderer {
 				targets: [
 					{
 						format: this.format,
+						blend: {
+							color: {
+								srcFactor: 'one',
+								dstFactor: 'one-minus-src-alpha',
+							},
+							alpha: {
+								srcFactor: 'one',
+								dstFactor: 'one-minus-src-alpha',
+							},
+						},
 					},
 				],
 			},

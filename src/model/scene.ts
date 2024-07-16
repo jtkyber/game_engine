@@ -108,6 +108,8 @@ export default class Scene {
 		}
 
 		this.camera = new Camera(this.player);
+
+		// console.log(this.models);
 	}
 
 	get_render_data(): IRenderData {
