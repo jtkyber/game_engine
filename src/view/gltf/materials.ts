@@ -14,12 +14,15 @@ export default class GLTFMaterial {
 	bindGroupLayout: GPUBindGroupLayout = null;
 	bindGroup: GPUBindGroup = null;
 
+	isTransparent: boolean = false;
+
 	constructor(
 		baseColorFactor: Vec4,
 		baseColorTextureView: any,
 		metallicFactor: number,
 		roughnessFactor: number,
-		metallicRoughnessTextureView: any
+		metallicRoughnessTextureView: any,
+		isTransparent: boolean
 	) {
 		this.baseColorFactor = baseColorFactor;
 		this.baseColorTextureView = baseColorTextureView;
@@ -33,6 +36,8 @@ export default class GLTFMaterial {
 		if (this.metallicRoughnessTextureView) {
 			this.metallicRoughnessTextureView.setUsage(ImageUsage.METALLIC_ROUGHNESS);
 		}
+
+		if (isTransparent) this.isTransparent = isTransparent;
 	}
 
 	upload(device: GPUDevice) {

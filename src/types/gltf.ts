@@ -92,3 +92,13 @@ export function gltfAddressMode(mode: GLTFTextureWrap) {
 			return 'mirror-repeat' as GPUAddressMode;
 	}
 }
+
+export interface INodeChunks {
+	opaque: INodeChunkIndices[];
+	transparent: INodeChunkIndices[];
+}
+
+export interface INodeChunkIndices {
+	nodeIndex: number;
+	primitiveIndex: number;
+}

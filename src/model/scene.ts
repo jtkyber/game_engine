@@ -1,5 +1,6 @@
-import { Mat4, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, mat4, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
+import { INodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import { getRotation } from '../utils/matrix';
 import GLTFNode from '../view/gltf/node';
@@ -9,14 +10,16 @@ import Player from './player';
 
 export default class Scene {
 	nodes: GLTFNode[];
+	nodeChunks: INodeChunks;
 	models: Model[];
 	modelTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	camera: Camera;
 	player: Player;
 
-	constructor(nodes: GLTFNode[]) {
+	constructor(nodes: GLTFNode[], nodeChunks: INodeChunks) {
 		this.nodes = nodes;
+		this.nodeChunks = nodeChunks;
 		this.models = [];
 		this.modelTransforms = new Float32Array(16 * this.nodes.length);
 		this.normalTransforms = new Float32Array(16 * this.nodes.length);
@@ -39,6 +42,8 @@ export default class Scene {
 				this.normalTransforms[i * 16 + j] = normalMatrix[j];
 			}
 		}
+
+		this.sortTransparent();
 	}
 
 	get_model_transform(model: Model, transform: Mat4): Mat4 {
@@ -63,6 +68,14 @@ export default class Scene {
 	get_root_matrix(m: Model): Mat4 {
 		if (m.parent === null) return m.transform;
 		return this.get_root_matrix(m.parent);
+	}
+
+	sortTransparent() {
+		this.nodeChunks.transparent = this.nodeChunks.transparent.sort((a, b) => {
+			const nodeAdist: number = vec3.dist(this.camera.position, this.models[a.nodeIndex].position);
+			const nodeBdist: number = vec3.dist(this.camera.position, this.models[b.nodeIndex].position);
+			return nodeBdist - nodeAdist;
+		});
 	}
 
 	set_models() {

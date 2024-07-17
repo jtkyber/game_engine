@@ -1,4 +1,5 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
+import { INodeChunkIndices, INodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
@@ -12,6 +13,7 @@ export default class Renderer {
 
 	// Nodes
 	nodes: GLTFNode[];
+	nodeChunks: INodeChunks;
 
 	// Camera
 	fov: number;
@@ -29,7 +31,8 @@ export default class Renderer {
 	encoder: GPUCommandEncoder;
 
 	// Pipeline
-	pipeline: GPURenderPipeline;
+	pipelineOpaque: GPURenderPipeline;
+	pipelineTransparent: GPURenderPipeline;
 	frameBindGroupLayout: GPUBindGroupLayout;
 	frameBindGroup: GPUBindGroup;
 	materialBindGroupLayout: GPUBindGroupLayout;
@@ -228,7 +231,7 @@ export default class Renderer {
 	}
 
 	createPipeline() {
-		this.pipeline = this.device.createRenderPipeline({
+		this.pipelineOpaque = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
 				bindGroupLayouts: [this.frameBindGroupLayout, this.materialBindGroupLayout],
 			}),
@@ -295,9 +298,128 @@ export default class Renderer {
 			},
 			depthStencil: this.depthStencilState,
 		});
+
+		this.pipelineTransparent = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: [this.frameBindGroupLayout, this.materialBindGroupLayout],
+			}),
+			vertex: {
+				module: this.shaderModule,
+				entryPoint: 'v_main',
+				buffers: [
+					{
+						arrayStride: 12,
+						attributes: [
+							{
+								// position
+								shaderLocation: 0,
+								format: 'float32x3',
+								offset: 0,
+							},
+						],
+					},
+					{
+						arrayStride: 12,
+						attributes: [
+							{
+								// normal
+								shaderLocation: 1,
+								format: 'float32x3',
+								offset: 0,
+							},
+						],
+					},
+					{
+						arrayStride: 8,
+						attributes: [
+							{
+								// text coord
+								shaderLocation: 2,
+								format: 'float32x2',
+								offset: 0,
+							},
+						],
+					},
+				],
+			},
+			fragment: {
+				module: this.shaderModule,
+				entryPoint: 'f_main',
+				targets: [
+					{
+						format: this.format,
+						blend: {
+							color: {
+								srcFactor: 'one',
+								dstFactor: 'one-minus-src-alpha',
+							},
+							alpha: {
+								srcFactor: 'one',
+								dstFactor: 'one-minus-src-alpha',
+							},
+						},
+					},
+				],
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			depthStencil: {
+				format: this.depthFormat,
+				depthWriteEnabled: false,
+				depthCompare: 'less',
+			},
+		});
 	}
 
-	render = (nodes: GLTFNode[], renderables: IRenderData) => {
+	renderChunk(chunk: INodeChunkIndices[]) {
+		for (let i = 0; i < chunk.length; i++) {
+			const nodeIndex: number = chunk[i].nodeIndex;
+			const primIndex: number = chunk[i].primitiveIndex;
+			const node: GLTFNode = this.nodes[nodeIndex];
+			if (!node.mesh) continue;
+
+			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
+
+			this.renderPass.setBindGroup(1, p.material.bindGroup);
+
+			this.renderPass.setVertexBuffer(
+				0,
+				p.positions.bufferView.gpuBuffer,
+				p.positions.byteOffset,
+				p.positions.byteLength
+			);
+
+			this.renderPass.setVertexBuffer(
+				1,
+				p.normals.bufferView.gpuBuffer,
+				p.normals.byteOffset,
+				p.normals.byteLength
+			);
+
+			this.renderPass.setVertexBuffer(
+				2,
+				p.texCoords.bufferView.gpuBuffer,
+				p.texCoords.byteOffset,
+				p.texCoords.byteLength
+			);
+
+			if (p.indices) {
+				this.renderPass.setIndexBuffer(
+					<GPUBuffer>p.indices.bufferView.gpuBuffer,
+					<GPUIndexFormat>p.indices.elementType,
+					p.indices.byteOffset,
+					p.indices.byteLength
+				);
+
+				this.renderPass.drawIndexed(p.indices.count, 1, 0, 0, nodeIndex);
+			} else {
+				this.renderPass.draw(p.positions.count, 1, 0, nodeIndex);
+			}
+		}
+	}
+
+	render = (renderables: IRenderData, nodeChunks: INodeChunks) => {
 		const projView = mat4.mul(this.projection, renderables.viewTransform);
 
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
@@ -319,53 +441,13 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
 		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
 
-		this.renderPass.setPipeline(this.pipeline);
+		this.renderPass.setPipeline(this.pipelineOpaque);
 		this.renderPass.setBindGroup(0, this.frameBindGroup);
+		this.renderChunk(nodeChunks.opaque);
 
-		for (let i = 0; i < nodes.length; i++) {
-			const node: GLTFNode = nodes[i];
-			if (!node.mesh) continue;
-
-			for (let j = 0; j < node.mesh.primitives.length; j++) {
-				const p: GLTFPrimitive = node.mesh.primitives[j];
-
-				this.renderPass.setBindGroup(1, p.material.bindGroup);
-
-				this.renderPass.setVertexBuffer(
-					0,
-					p.positions.bufferView.gpuBuffer,
-					p.positions.byteOffset,
-					p.positions.byteLength
-				);
-
-				this.renderPass.setVertexBuffer(
-					1,
-					p.normals.bufferView.gpuBuffer,
-					p.normals.byteOffset,
-					p.normals.byteLength
-				);
-
-				this.renderPass.setVertexBuffer(
-					2,
-					p.texCoords.bufferView.gpuBuffer,
-					p.texCoords.byteOffset,
-					p.texCoords.byteLength
-				);
-
-				if (p.indices) {
-					this.renderPass.setIndexBuffer(
-						<GPUBuffer>p.indices.bufferView.gpuBuffer,
-						<GPUIndexFormat>p.indices.elementType,
-						p.indices.byteOffset,
-						p.indices.byteLength
-					);
-
-					this.renderPass.drawIndexed(p.indices.count, 1, 0, 0, i);
-				} else {
-					this.renderPass.draw(p.positions.count, 1, 0, i);
-				}
-			}
-		}
+		this.renderPass.setPipeline(this.pipelineTransparent);
+		this.renderPass.setBindGroup(0, this.frameBindGroup);
+		this.renderChunk(nodeChunks.transparent);
 
 		this.renderPass.end();
 		this.device.queue.submit([this.encoder.finish()]);

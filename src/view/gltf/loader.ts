@@ -1,6 +1,13 @@
 import { Mat4, Quat, Vec3, mat4, vec3, vec4 } from 'wgpu-matrix';
 import { GLTFRenderMode, GLTFTextureFilter, GLTFTextureWrap, moveableFlag } from '../../types/enums';
-import { IGLTFAccessor, IGLTFBufferView, IGLTFImage, IGLTFNode, IGLTFPrimitive } from '../../types/gltf';
+import {
+	IGLTFAccessor,
+	IGLTFBufferView,
+	IGLTFImage,
+	IGLTFNode,
+	IGLTFPrimitive,
+	INodeChunks,
+} from '../../types/gltf';
 import { getMoveableFlagType } from '../../types/types';
 import { fromRotationTranslationScale, zUpTransformation } from '../../utils/matrix';
 import GLTFAccessor from './accessor';
@@ -28,6 +35,7 @@ export default class GTLFLoader {
 	primitives: GLTFPrimitive[];
 	meshes: GLTFMesh[];
 	nodes: GLTFNode[];
+	nodeChunks: INodeChunks;
 	lights: GLTFLight[];
 
 	constructor(device: GPUDevice) {
@@ -41,6 +49,10 @@ export default class GTLFLoader {
 		this.primitives = [];
 		this.meshes = [];
 		this.nodes = [];
+		this.nodeChunks = {
+			opaque: [],
+			transparent: [],
+		};
 		this.lights = [];
 	}
 
@@ -139,6 +151,17 @@ export default class GTLFLoader {
 			const bv: GLTFBufferView = this.bufferViews[img['bufferView']];
 			const blob = new Blob([bv.view], { type: img['mimeType'] });
 			const bitmap = await createImageBitmap(blob);
+
+			// const cvs = new OffscreenCanvas(bitmap.width, bitmap.height);
+			// const ctx = cvs.getContext('2d');
+			// ctx.drawImage(bitmap, 0, 0);
+			// const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+			// const alphas = [];
+			// for (let i = 3; i < data.data.length; i += 4) {
+			// 	if (data.data[i] !== 255) alphas.push(data.data[i]);
+			// }
+			// console.log(alphas);
+
 			this.images.push(new GLTFImage(img['name'], bitmap));
 		}
 		console.log('gltf images loaded');
@@ -199,6 +222,7 @@ export default class GTLFLoader {
 			const baseColorFactor = pbrMR['baseColorFactor'] ?? [1, 1, 1, 1];
 			const metallicFactor = pbrMR['metallicFactor'] ?? 1;
 			const roughnessFactor = pbrMR['roughnessFactor'] ?? 1;
+			const alphaMode = m['alphaMode'] ?? null;
 
 			let baseColorTexture: GLTFTexture | null = null;
 			if ('baseColorTexture' in pbrMR) {
@@ -208,13 +232,15 @@ export default class GTLFLoader {
 			if ('metallicRoughnessTexture' in pbrMR) {
 				metallicRoughnessTexture = this.textures[pbrMR['metallicRoughnessTexture']['index']];
 			}
+
 			this.materials.push(
 				new GLTFMaterial(
 					baseColorFactor,
 					baseColorTexture,
 					metallicFactor,
 					roughnessFactor,
-					metallicRoughnessTexture
+					metallicRoughnessTexture,
+					alphaMode
 				)
 			);
 		}
@@ -305,6 +331,7 @@ export default class GTLFLoader {
 		const node: IGLTFNode = allNodes[n];
 		const matrix: Mat4 = this.get_node_matrix(node);
 		const name: string = node.name;
+		const mesh: GLTFMesh = this.meshes[node['mesh']];
 
 		const lightRef: number = node?.['extensions']?.['KHR_lights_punctual']?.['light'];
 		if (lightRef !== undefined) {
@@ -337,7 +364,15 @@ export default class GTLFLoader {
 			return;
 		}
 
-		this.nodes.push(new GLTFNode(name, flag, nodeNum, matrix, this.meshes[node['mesh']]));
+		this.nodes.push(new GLTFNode(name, flag, nodeNum, matrix, mesh));
+
+		for (let i = 0; i < mesh.primitives.length; i++) {
+			const prim: GLTFPrimitive = mesh.primitives[i];
+			const nodeIndex: number = this.nodes.length - 1;
+			if (prim.material.isTransparent) {
+				this.nodeChunks.transparent.push({ nodeIndex: nodeIndex, primitiveIndex: i });
+			} else this.nodeChunks.opaque.push({ nodeIndex: nodeIndex, primitiveIndex: i });
+		}
 
 		if (node['children']) {
 			const parentNode = this.nodes.length - 1;

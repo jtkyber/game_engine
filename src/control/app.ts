@@ -1,4 +1,5 @@
 import Scene from '../model/scene';
+import { INodeChunks } from '../types/gltf';
 import GTLFLoader from '../view/gltf/loader';
 import Renderer from '../view/renderer';
 import Controller from './controller';
@@ -35,9 +36,10 @@ export default class App {
 		// console.log(gltfLoader.jsonChunk);
 
 		const nodes = gltfLoader.load_scene(0);
-		// console.log(nodes);
+		const nodeChunks: INodeChunks = gltfLoader.nodeChunks;
+		// console.log(nodeChunks);
 
-		this.scene = new Scene(nodes);
+		this.scene = new Scene(nodes, nodeChunks);
 		this.scene.set_models();
 
 		this.renderer.set_nodes(nodes);
@@ -61,7 +63,7 @@ export default class App {
 
 		this.controller.update();
 		this.scene.update();
-		this.renderer.render(this.scene.nodes, this.scene.get_render_data());
+		this.renderer.render(this.scene.get_render_data(), this.scene.nodeChunks);
 
 		this.framerateChunk.push(window.myLib.deltaTime);
 		if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
