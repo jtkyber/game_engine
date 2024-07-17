@@ -81,6 +81,6 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         // color.g = linear_to_srgb(color.g);
         // color.b = linear_to_srgb(color.b);
         // color.a = linear_to_srgb(color.a);
-    }
+    }//
     return color;
 }
