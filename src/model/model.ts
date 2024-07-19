@@ -1,11 +1,11 @@
-import { Mat4, Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
+import { Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
+import { nodes } from '../view/gltf/loader';
 
 export default class Model {
 	name: string;
 	moveableFlag: moveableFlag;
-	transform: Mat4;
-	parent: Model = null;
+	nodeIndex: number;
 	position: Vec3 = vec3.create(0, 0, 0);
 	quat: Vec4 = vec4.create(0, 0, 0, 1);
 	scale: Vec3 = vec3.create(0, 0, 0);
@@ -19,16 +19,16 @@ export default class Model {
 	OBBMin: number;
 	OBBMax: number;
 
-	constructor(name: string, moveableFlag: moveableFlag, transform: Mat4) {
+	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number) {
 		this.name = name;
 		this.moveableFlag = moveableFlag;
-		this.transform = transform;
+		this.nodeIndex = nodeIndex;
 	}
 
 	update() {
 		if (
 			this.moveableFlag === moveableFlag.STATIC ||
-			(this.moveableFlag === moveableFlag.MOVEABLE_ROOT && this.parent !== null)
+			(this.moveableFlag === moveableFlag.MOVEABLE_ROOT && nodes[this.nodeIndex].parent !== null)
 		) {
 			return;
 		}
@@ -41,14 +41,16 @@ export default class Model {
 
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 
-		this.transform = mat4.create();
+		const transform = mat4.create();
 
-		mat4.translation(this.position, this.transform);
+		mat4.translation(this.position, transform);
 
 		const rotFromQuat = quat.toAxisAngle(this.quat);
-		mat4.rotate(this.transform, rotFromQuat.axis, rotFromQuat.angle, this.transform);
+		mat4.rotate(transform, rotFromQuat.axis, rotFromQuat.angle, transform);
 
-		mat4.scale(this.transform, this.scale, this.transform);
+		mat4.scale(transform, this.scale, transform);
+
+		nodes[this.nodeIndex].transform = transform;
 	}
 
 	spin(rotationAxis: Vec3, angleOfRotationInc: number) {

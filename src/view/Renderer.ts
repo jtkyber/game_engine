@@ -1,5 +1,5 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
-import { INodeChunkIndices, INodeChunks } from '../types/gltf';
+import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
@@ -13,7 +13,7 @@ export default class Renderer {
 
 	// Nodes
 	nodes: GLTFNode[];
-	nodeChunks: INodeChunks;
+	modelNodeChunks: IModelNodeChunks;
 
 	// Camera
 	fov: number;
@@ -372,7 +372,7 @@ export default class Renderer {
 		});
 	}
 
-	renderChunk(chunk: INodeChunkIndices[]) {
+	renderChunk(chunk: IModelNodeIndices[]) {
 		for (let i = 0; i < chunk.length; i++) {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
@@ -380,6 +380,7 @@ export default class Renderer {
 			if (!node.mesh) continue;
 
 			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
+			// if (node.name === 'Plane') console.log(p);
 
 			this.renderPass.setBindGroup(1, p.material.bindGroup);
 
@@ -419,7 +420,7 @@ export default class Renderer {
 		}
 	}
 
-	render = (renderables: IRenderData, nodeChunks: INodeChunks) => {
+	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
 		const projView = mat4.mul(this.projection, renderables.viewTransform);
 
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
@@ -443,11 +444,11 @@ export default class Renderer {
 
 		this.renderPass.setPipeline(this.pipelineOpaque);
 		this.renderPass.setBindGroup(0, this.frameBindGroup);
-		this.renderChunk(nodeChunks.opaque);
+		this.renderChunk(modelNodeChunks.opaque);
 
 		this.renderPass.setPipeline(this.pipelineTransparent);
 		this.renderPass.setBindGroup(0, this.frameBindGroup);
-		this.renderChunk(nodeChunks.transparent);
+		this.renderChunk(modelNodeChunks.transparent);
 
 		this.renderPass.end();
 		this.device.queue.submit([this.encoder.finish()]);

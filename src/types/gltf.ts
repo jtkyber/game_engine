@@ -1,4 +1,8 @@
 import { Mat4, Vec3, Vec4 } from 'wgpu-matrix';
+import Light from '../model/light';
+import Model from '../model/model';
+import Player from '../model/player';
+import GLTFNode from '../view/gltf/node';
 import { GLTFTextureFilter, GLTFTextureWrap } from './enums';
 
 export interface IGLTFNode {
@@ -93,12 +97,19 @@ export function gltfAddressMode(mode: GLTFTextureWrap) {
 	}
 }
 
-export interface INodeChunks {
-	opaque: INodeChunkIndices[];
-	transparent: INodeChunkIndices[];
+export interface IModelNodeChunks {
+	opaque: IModelNodeIndices[];
+	transparent: IModelNodeIndices[];
 }
 
-export interface INodeChunkIndices {
+export interface IModelNodeIndices {
 	nodeIndex: number;
 	primitiveIndex: number;
+}
+
+export interface IGLTFScene {
+	models: Model[];
+	player: Player;
+	lights: Light[];
+	modelNodeChunks: IModelNodeChunks;
 }

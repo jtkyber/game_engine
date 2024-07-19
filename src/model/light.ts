@@ -1,13 +1,14 @@
 import { Mat4, Vec3 } from 'wgpu-matrix';
+import GLTFNode from '../view/gltf/node';
 
-export default class GLTFLight {
+export default class Light {
 	name: string;
 	type: string;
 	intensity: number;
 	color: Vec3;
 	innerConeAngle: number;
 	outerConeAngle: number;
-	transform: Mat4;
+	nodeIndex: number;
 
 	constructor(
 		name: string,
@@ -16,7 +17,7 @@ export default class GLTFLight {
 		color: Vec3,
 		innerConeAngle: number,
 		outerConeAngle: number,
-		transform: Mat4
+		nodeIndex: number
 	) {
 		this.name = name;
 		this.type = type;
@@ -24,6 +25,6 @@ export default class GLTFLight {
 		this.color = color;
 		this.innerConeAngle = innerConeAngle;
 		this.outerConeAngle = outerConeAngle;
-		this.transform = transform;
+		this.nodeIndex = nodeIndex;
 	}
 }

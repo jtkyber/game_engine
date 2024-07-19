@@ -7,7 +7,7 @@ export default class GLTFNode {
 	flag: moveableFlag;
 	parent: number = null;
 	transform: Mat4;
-	mesh: GLTFMesh;
+	mesh: GLTFMesh = null;
 
 	constructor(name: string, flag: any, parent: number, transform: Mat4, mesh: GLTFMesh) {
 		this.name = name;
