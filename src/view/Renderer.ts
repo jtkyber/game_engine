@@ -1,18 +1,22 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
+import Model from '../model/model';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
+import { nodes } from './gltf/loader';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
-import shader from './shaders/shader.wgsl';
+import colorFragShader from './shaders/color_frag.wgsl';
+import colorVertShader from './shaders/color_vert.wgsl';
+import colorVertShaderSkinned from './shaders/color_vert_skinned.wgsl';
 
 export default class Renderer {
 	// Canvas
 	canvas: HTMLCanvasElement;
 	context: GPUCanvasContext;
 	view: GPUTextureView;
+	identity: Mat4 = mat4.identity();
 
 	// Nodes
-	nodes: GLTFNode[];
 	modelNodeChunks: IModelNodeChunks;
 
 	// Camera
@@ -24,7 +28,9 @@ export default class Renderer {
 	adapter: GPUAdapter;
 	device: GPUDevice;
 	format: GPUTextureFormat;
-	shaderModule: GPUShaderModule;
+	colorVertShaderModule: GPUShaderModule;
+	colorVertShaderModuleSkinned: GPUShaderModule;
+	colorFragShaderModule: GPUShaderModule;
 
 	// Render Pass
 	renderPass: GPURenderPassEncoder;
@@ -33,10 +39,14 @@ export default class Renderer {
 	// Pipeline
 	pipelineOpaque: GPURenderPipeline;
 	pipelineTransparent: GPURenderPipeline;
+	pipelineOpaqueSkinned: GPURenderPipeline;
+	pipelineTransparentSkinned: GPURenderPipeline;
+
 	frameBindGroupLayout: GPUBindGroupLayout;
 	frameBindGroup: GPUBindGroup;
 	materialBindGroupLayout: GPUBindGroupLayout;
 	materialBindGroup: GPUBindGroup;
+	jointBindGroupLayout: GPUBindGroupLayout;
 
 	// Depth buffer
 	depthTexture: GPUTexture;
@@ -50,6 +60,7 @@ export default class Renderer {
 	modelTransformsBuffer: GPUBuffer;
 	normalTransformBuffer: GPUBuffer;
 	projViewTransformBuffer: GPUBuffer;
+	jointMatricesBuffers: GPUBuffer[];
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -63,17 +74,21 @@ export default class Renderer {
 		this.adapter = <GPUAdapter>await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
 		this.device = <GPUDevice>await this.adapter.requestDevice();
 		this.format = <GPUTextureFormat>navigator.gpu.getPreferredCanvasFormat();
-		this.shaderModule = <GPUShaderModule>this.device.createShaderModule({ label: 'shader', code: shader });
+		this.colorVertShaderModule = <GPUShaderModule>(
+			this.device.createShaderModule({ label: 'colorVertShaderModule', code: colorVertShader })
+		);
+		this.colorVertShaderModuleSkinned = <GPUShaderModule>(
+			this.device.createShaderModule({ label: 'colorVertShaderModuleSkinned', code: colorVertShaderSkinned })
+		);
+		this.colorFragShaderModule = <GPUShaderModule>(
+			this.device.createShaderModule({ label: 'colorFragShaderModule', code: colorFragShader })
+		);
 
 		this.context.configure({
 			device: this.device,
 			format: this.format,
 			alphaMode: 'premultiplied',
 		});
-	}
-
-	set_nodes(nodes: GLTFNode[]) {
-		this.nodes = nodes;
 	}
 
 	async init() {
@@ -87,13 +102,13 @@ export default class Renderer {
 	createBuffers() {
 		this.modelTransformsBuffer = this.device.createBuffer({
 			label: 'Model Transform Buffer',
-			size: 4 * 16 * this.nodes.length,
+			size: 4 * 16 * nodes.length,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 
 		this.normalTransformBuffer = this.device.createBuffer({
 			label: 'Normal Transform Buffer',
-			size: 4 * 16 * this.nodes.length,
+			size: 4 * 16 * nodes.length,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 
@@ -202,6 +217,19 @@ export default class Renderer {
 				},
 			],
 		});
+
+		this.jointBindGroupLayout = this.device.createBindGroupLayout({
+			entries: [
+				{
+					// Joint matrices
+					binding: 0,
+					visibility: GPUShaderStage.VERTEX,
+					buffer: {
+						type: 'read-only-storage',
+					},
+				},
+			],
+		});
 	}
 
 	createBindGroups() {
@@ -231,67 +259,120 @@ export default class Renderer {
 	}
 
 	createPipeline() {
-		this.pipelineOpaque = this.device.createRenderPipeline({
-			layout: this.device.createPipelineLayout({
-				bindGroupLayouts: [this.frameBindGroupLayout, this.materialBindGroupLayout],
-			}),
-			vertex: {
-				module: this.shaderModule,
-				entryPoint: 'v_main',
-				buffers: [
+		const bindGroupLayouts: GPUBindGroupLayout[] = [this.frameBindGroupLayout, this.materialBindGroupLayout];
+
+		const bindGroupLayoutsSkinned: GPUBindGroupLayout[] = bindGroupLayouts.concat(this.jointBindGroupLayout);
+
+		const vertexBuffers: GPUVertexBufferLayout[] = [
+			{
+				arrayStride: 12,
+				attributes: [
 					{
-						arrayStride: 12,
-						attributes: [
-							{
-								// position
-								shaderLocation: 0,
-								format: 'float32x3',
-								offset: 0,
-							},
-						],
-					},
-					{
-						arrayStride: 12,
-						attributes: [
-							{
-								// normal
-								shaderLocation: 1,
-								format: 'float32x3',
-								offset: 0,
-							},
-						],
-					},
-					{
-						arrayStride: 8,
-						attributes: [
-							{
-								// text coord
-								shaderLocation: 2,
-								format: 'float32x2',
-								offset: 0,
-							},
-						],
+						// position
+						shaderLocation: 0,
+						format: 'float32x3',
+						offset: 0,
 					},
 				],
 			},
-			fragment: {
-				module: this.shaderModule,
-				entryPoint: 'f_main',
-				targets: [
+			{
+				arrayStride: 12,
+				attributes: [
 					{
-						format: this.format,
-						blend: {
-							color: {
-								srcFactor: 'one',
-								dstFactor: 'one-minus-src-alpha',
-							},
-							alpha: {
-								srcFactor: 'one',
-								dstFactor: 'one-minus-src-alpha',
-							},
-						},
+						// normal
+						shaderLocation: 1,
+						format: 'float32x3',
+						offset: 0,
 					},
 				],
+			},
+			{
+				arrayStride: 8,
+				attributes: [
+					{
+						// text coord
+						shaderLocation: 2,
+						format: 'float32x2',
+						offset: 0,
+					},
+				],
+			},
+		];
+
+		const vertexBuffersSkinned: GPUVertexBufferLayout[] = vertexBuffers.concat(
+			{
+				arrayStride: 8,
+				attributes: [
+					{
+						// joint
+						shaderLocation: 3,
+						format: 'uint16x4',
+						offset: 0,
+					},
+				],
+			},
+			{
+				arrayStride: 16,
+				attributes: [
+					{
+						// weight
+						shaderLocation: 4,
+						format: 'float32x4',
+						offset: 0,
+					},
+				],
+			}
+		);
+
+		const targets: GPUColorTargetState[] = [
+			{
+				format: this.format,
+				blend: {
+					color: {
+						srcFactor: 'one',
+						dstFactor: 'one-minus-src-alpha',
+					},
+					alpha: {
+						srcFactor: 'one',
+						dstFactor: 'one-minus-src-alpha',
+					},
+				},
+			},
+		];
+
+		this.pipelineOpaque = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: bindGroupLayouts,
+			}),
+			vertex: {
+				module: this.colorVertShaderModule,
+				entryPoint: 'v_main',
+				buffers: vertexBuffers,
+			},
+			fragment: {
+				module: this.colorFragShaderModule,
+				entryPoint: 'f_main',
+				targets: targets,
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			depthStencil: this.depthStencilState,
+		});
+
+		this.pipelineOpaqueSkinned = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: bindGroupLayoutsSkinned,
+			}),
+			vertex: {
+				module: this.colorVertShaderModuleSkinned,
+				entryPoint: 'v_main',
+				buffers: vertexBuffersSkinned,
+			},
+			fragment: {
+				module: this.colorFragShaderModule,
+				entryPoint: 'f_main',
+				targets: targets,
 			},
 			primitive: {
 				topology: 'triangle-list',
@@ -301,65 +382,41 @@ export default class Renderer {
 
 		this.pipelineTransparent = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
-				bindGroupLayouts: [this.frameBindGroupLayout, this.materialBindGroupLayout],
+				bindGroupLayouts: bindGroupLayouts,
 			}),
 			vertex: {
-				module: this.shaderModule,
+				module: this.colorVertShaderModule,
 				entryPoint: 'v_main',
-				buffers: [
-					{
-						arrayStride: 12,
-						attributes: [
-							{
-								// position
-								shaderLocation: 0,
-								format: 'float32x3',
-								offset: 0,
-							},
-						],
-					},
-					{
-						arrayStride: 12,
-						attributes: [
-							{
-								// normal
-								shaderLocation: 1,
-								format: 'float32x3',
-								offset: 0,
-							},
-						],
-					},
-					{
-						arrayStride: 8,
-						attributes: [
-							{
-								// text coord
-								shaderLocation: 2,
-								format: 'float32x2',
-								offset: 0,
-							},
-						],
-					},
-				],
+				buffers: vertexBuffers,
 			},
 			fragment: {
-				module: this.shaderModule,
+				module: this.colorFragShaderModule,
 				entryPoint: 'f_main',
-				targets: [
-					{
-						format: this.format,
-						blend: {
-							color: {
-								srcFactor: 'one',
-								dstFactor: 'one-minus-src-alpha',
-							},
-							alpha: {
-								srcFactor: 'one',
-								dstFactor: 'one-minus-src-alpha',
-							},
-						},
-					},
-				],
+				targets: targets,
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			depthStencil: {
+				format: this.depthFormat,
+				depthWriteEnabled: false,
+				depthCompare: 'less',
+			},
+		});
+
+		this.pipelineTransparentSkinned = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: bindGroupLayoutsSkinned,
+			}),
+			vertex: {
+				module: this.colorVertShaderModuleSkinned,
+				entryPoint: 'v_main',
+				buffers: vertexBuffersSkinned,
+			},
+			fragment: {
+				module: this.colorFragShaderModule,
+				entryPoint: 'f_main',
+				targets: targets,
 			},
 			primitive: {
 				topology: 'triangle-list',
@@ -372,16 +429,61 @@ export default class Renderer {
 		});
 	}
 
-	renderChunk(chunk: IModelNodeIndices[]) {
+	set_joint_buffers(jointMatricesBufferList: GPUBuffer[], models: Model[]) {
+		for (let i = 0; i < models.length; i++) {
+			const node: GLTFNode = nodes[models[i].nodeIndex];
+			if (!node.skin) continue;
+
+			this.encoder.copyBufferToBuffer(
+				jointMatricesBufferList[i],
+				0,
+				node.skin.jointMatricesBuffer,
+				0,
+				node.skin.jointMatricesBuffer.size
+			);
+		}
+	}
+
+	renderChunk(chunkType: string, chunk: IModelNodeIndices[]) {
 		for (let i = 0; i < chunk.length; i++) {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
-			const node: GLTFNode = this.nodes[nodeIndex];
+			const node: GLTFNode = nodes[nodeIndex];
 			if (!node.mesh) continue;
 
 			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
-			// if (node.name === 'Plane') console.log(p);
 
+			if (node.skin) {
+				if (chunkType === 'transparent') {
+					this.renderPass.setPipeline(this.pipelineTransparentSkinned);
+				} else {
+					this.renderPass.setPipeline(this.pipelineOpaqueSkinned);
+				}
+
+				this.renderPass.setBindGroup(2, node.skin.jointBindGroup);
+
+				this.renderPass.setVertexBuffer(
+					3,
+					p.joints.bufferView.gpuBuffer,
+					p.joints.byteOffset,
+					p.joints.byteLength
+				);
+
+				this.renderPass.setVertexBuffer(
+					4,
+					p.weights.bufferView.gpuBuffer,
+					p.weights.byteOffset,
+					p.weights.byteLength
+				);
+			} else {
+				if (chunkType === 'transparent') {
+					this.renderPass.setPipeline(this.pipelineTransparent);
+				} else {
+					this.renderPass.setPipeline(this.pipelineOpaque);
+				}
+			}
+
+			this.renderPass.setBindGroup(0, this.frameBindGroup);
 			this.renderPass.setBindGroup(1, p.material.bindGroup);
 
 			this.renderPass.setVertexBuffer(
@@ -420,11 +522,13 @@ export default class Renderer {
 		}
 	}
 
-	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
+	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks, models: Model[]) => {
 		const projView = mat4.mul(this.projection, renderables.viewTransform);
 
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();
+
+		this.set_joint_buffers(renderables.jointMatricesBufferList, models);
 
 		this.renderPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
 			colorAttachments: [
@@ -442,13 +546,10 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
 		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
 
-		this.renderPass.setPipeline(this.pipelineOpaque);
-		this.renderPass.setBindGroup(0, this.frameBindGroup);
-		this.renderChunk(modelNodeChunks.opaque);
-
-		this.renderPass.setPipeline(this.pipelineTransparent);
-		this.renderPass.setBindGroup(0, this.frameBindGroup);
-		this.renderChunk(modelNodeChunks.transparent);
+		this.renderChunk('opaque', modelNodeChunks.opaque);
+		if (modelNodeChunks.transparent.length) {
+			this.renderChunk('transparent', modelNodeChunks.transparent);
+		}
 
 		this.renderPass.end();
 		this.device.queue.submit([this.encoder.finish()]);

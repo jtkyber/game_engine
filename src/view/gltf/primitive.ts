@@ -9,6 +9,8 @@ export default class GLTFPrimitive {
 	normals: GLTFAccessor = null;
 	colors: GLTFAccessor = null;
 	texCoords: GLTFAccessor = null;
+	joints: GLTFAccessor = null;
+	weights: GLTFAccessor = null;
 	topology: GLTFRenderMode = null;
 
 	constructor(
@@ -18,6 +20,8 @@ export default class GLTFPrimitive {
 		normals: GLTFAccessor,
 		colors: GLTFAccessor,
 		texCoords: GLTFAccessor,
+		joints: GLTFAccessor,
+		weights: GLTFAccessor,
 		topology: GLTFRenderMode
 	) {
 		this.material = material;
@@ -26,6 +30,8 @@ export default class GLTFPrimitive {
 		this.normals = normals;
 		this.colors = colors;
 		this.texCoords = texCoords;
+		this.joints = joints;
+		this.weights = weights;
 		this.topology = topology;
 
 		this.positions.bufferView.needsUpload = true;
@@ -42,6 +48,16 @@ export default class GLTFPrimitive {
 		if (this.texCoords) {
 			this.texCoords.bufferView.needsUpload = true;
 			this.texCoords.bufferView.addUsage(GPUBufferUsage.VERTEX);
+		}
+
+		if (this.joints) {
+			this.joints.bufferView.needsUpload = true;
+			this.joints.bufferView.addUsage(GPUBufferUsage.VERTEX);
+		}
+
+		if (this.weights) {
+			this.weights.bufferView.needsUpload = true;
+			this.weights.bufferView.addUsage(GPUBufferUsage.VERTEX);
 		}
 
 		if (this.colors) {

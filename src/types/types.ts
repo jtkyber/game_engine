@@ -16,6 +16,7 @@ export interface IRenderData {
 	viewTransform: Float32Array;
 	modelTransforms: Float32Array;
 	normalTransforms: Float32Array;
+	jointMatricesBufferList: GPUBuffer[];
 }
 
 export function getMoveableFlagType(name: string): moveableFlag | null {

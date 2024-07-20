@@ -23,6 +23,7 @@ import GLTFMesh from './mesh';
 import GLTFNode from './node';
 import GLTFPrimitive from './primitive';
 import { GLTFSampler } from './sampler';
+import GLTFSkin from './skin';
 import { GLTFTexture } from './texture';
 
 export const nodes: GLTFNode[] = [];
@@ -38,12 +39,16 @@ export default class GTLFLoader {
 	textures: GLTFTexture[];
 	materials: GLTFMaterial[];
 	primitives: GLTFPrimitive[];
+	skins: GLTFSkin[];
 	meshes: GLTFMesh[];
 	lights: Light[];
 	models: Model[];
 	modelNodeChunks: IModelNodeChunks;
 	meshNode: GLTFNode;
 	player: Player;
+	originalNodeIndices: {
+		[key: number]: number;
+	};
 
 	constructor(device: GPUDevice) {
 		this.device = device;
@@ -55,12 +60,14 @@ export default class GTLFLoader {
 		this.materials = [];
 		this.primitives = [];
 		this.meshes = [];
+		this.skins = [];
 		this.lights = [];
 		this.models = [];
 		this.modelNodeChunks = {
 			opaque: [],
 			transparent: [],
 		};
+		this.originalNodeIndices = {};
 	}
 
 	async parse_gltf(url: string): Promise<void> {
@@ -111,6 +118,7 @@ export default class GTLFLoader {
 		this.load_samplers();
 		this.load_textures();
 		this.loadMaterials();
+		this.load_skins();
 		this.load_meshes();
 
 		for (let i = 0; i < this.bufferViews.length; ++i) {
@@ -127,6 +135,9 @@ export default class GTLFLoader {
 		});
 		this.materials.forEach((mat: GLTFMaterial) => {
 			mat.upload(this.device);
+		});
+		this.skins.forEach((skin: GLTFSkin) => {
+			skin.upload(this.device);
 		});
 	}
 
@@ -254,6 +265,16 @@ export default class GTLFLoader {
 		console.log('gltf materials loaded');
 	}
 
+	load_skins() {
+		for (let i = 0; i < this.jsonChunk.skins.length; i++) {
+			const skin = this.jsonChunk.skins[i];
+			const name: string = skin.name;
+			const inverseBindMatrices: GLTFAccessor = this.accessors[skin.inverseBindMatrices];
+			const joints: number[] = skin['joints'];
+			this.skins.push(new GLTFSkin(name, inverseBindMatrices, joints));
+		}
+	}
+
 	load_meshes() {
 		for (let mesh of this.jsonChunk.meshes) {
 			let meshPrimitives = [];
@@ -275,6 +296,8 @@ export default class GTLFLoader {
 				let positions = null;
 				let texcoords = null;
 				let normals = null;
+				let joints = null;
+				let weights = null;
 				let colors = null;
 				for (let attr in prim['attributes']) {
 					let accessor = this.accessors[(prim['attributes'] as any)[attr]];
@@ -289,6 +312,12 @@ export default class GTLFLoader {
 						case 'NORMAL':
 							normals = accessor;
 							break;
+						case 'JOINTS_0':
+							joints = accessor;
+							break;
+						case 'WEIGHTS_0':
+							weights = accessor;
+							break;
 						case 'COLOR_0':
 							colors = accessor;
 							break;
@@ -297,7 +326,9 @@ export default class GTLFLoader {
 
 				let mat = this.materials[prim['material']];
 
-				meshPrimitives.push(new GLTFPrimitive(mat, indices, positions, normals, colors, texcoords, topology));
+				meshPrimitives.push(
+					new GLTFPrimitive(mat, indices, positions, normals, colors, texcoords, joints, weights, topology)
+				);
 			}
 			this.meshes.push(new GLTFMesh(mesh['name'], meshPrimitives));
 			this.primitives.push(...meshPrimitives);
@@ -322,14 +353,13 @@ export default class GTLFLoader {
 			this.load_nodes(allNodes, baseNodeRefs[i], flag);
 		}
 
-		// this.transform_static_roots_to_zUP();
-
 		// Pre-multiply transforms based on flag
 		for (let i = 0; i < nodes.length; i++) {
 			const modelMatrix: Mat4 = this.transform_matrices(<GLTFNode>nodes[i], nodes[i].transform);
 			nodes[i].transform = modelMatrix;
 		}
 
+		this.remap_joint_indices();
 		this.setup_models();
 		console.log('gltf nodes loaded');
 
@@ -339,6 +369,14 @@ export default class GTLFLoader {
 			lights: this.lights,
 			modelNodeChunks: this.modelNodeChunks,
 		};
+	}
+
+	remap_joint_indices() {
+		for (let i = 0; i < this.skins.length; i++) {
+			for (let j = 0; j < this.skins[i].joints.length; j++) {
+				this.skins[i].joints[j] = this.originalNodeIndices[this.skins[i].joints[j]];
+			}
+		}
 	}
 
 	load_nodes(
@@ -352,9 +390,12 @@ export default class GTLFLoader {
 		const matrix: Mat4 = this.get_node_matrix(node);
 		const name: string = node.name;
 		const mesh: GLTFMesh = this.meshes[node['mesh']] ?? null;
+		const skin: GLTFSkin = this.skins[node['skin']] ?? null;
 
-		nodes.push(new GLTFNode(name, flag, parentNode, matrix, mesh));
+		nodes.push(new GLTFNode(name, flag, parentNode, matrix, mesh, skin));
 		const lastNodeIndex: number = nodes.length - 1;
+
+		this.originalNodeIndices[n] = lastNodeIndex;
 
 		const lightRef: number = node?.['extensions']?.['KHR_lights_punctual']?.['light'];
 		if (lightRef !== undefined) {
@@ -422,15 +463,6 @@ export default class GTLFLoader {
 			model.position = vec3.getTranslation(node.transform);
 		}
 	}
-
-	// transform_static_roots_to_zUP() {
-	// 	for (let i = 0; i < nodes.length; i++) {
-	// 		const node: GLTFNode = nodes[i];
-	// 		if (node.parent === null && node.flag === moveableFlag.STATIC) {
-	// 			node.transform = mat4.mul(zUpTransformation(), node.transform);
-	// 		}
-	// 	}
-	// }
 
 	transform_matrices(node: GLTFNode, transform: Mat4): Mat4 {
 		if (node.parent === null) {

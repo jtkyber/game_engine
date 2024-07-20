@@ -15,6 +15,7 @@ export interface IGLTFNode {
 	matrix?: Mat4;
 	camera?: number;
 	extensions?: { [key: string]: any };
+	skin: number;
 }
 
 export interface IGLTFMesh {

@@ -35,12 +35,12 @@ export default class App {
 		console.log(gltfLoader.jsonChunk);
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
-		console.log(gltfScene);
+		// console.log(gltfScene);
+		// console.log(nodes);
 
-		this.scene = new Scene(nodes, gltfScene.modelNodeChunks);
+		this.scene = new Scene(nodes, gltfScene.modelNodeChunks, this.renderer.device);
 		this.scene.set_models(gltfScene.models, gltfScene.player);
 
-		this.renderer.set_nodes(nodes);
 		this.renderer.init();
 
 		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
@@ -61,7 +61,7 @@ export default class App {
 
 		this.controller.update();
 		this.scene.update();
-		this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
+		this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks, this.scene.models);
 
 		this.framerateChunk.push(window.myLib.deltaTime);
 		if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();

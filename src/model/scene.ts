@@ -1,7 +1,8 @@
-import { Mat4, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, mat4, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
+import JointMatrices from '../view/compute/joint_matrices/joint_matrices';
 import { nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
@@ -11,26 +12,39 @@ import Player from './player';
 export default class Scene {
 	nodes: GLTFNode[];
 	modelNodeChunks: IModelNodeChunks;
+	device: GPUDevice;
 	models: Model[];
 	modelTransforms: Float32Array;
 	normalTransforms: Float32Array;
+	jointMatricesBufferList: GPUBuffer[];
 	camera: Camera;
 	player: Player;
+	jointMatrixCompute: JointMatrices;
+	posTemp: Vec3;
 
-	constructor(nodes: GLTFNode[], modelNodeChunks: IModelNodeChunks) {
+	constructor(nodes: GLTFNode[], modelNodeChunks: IModelNodeChunks, device: GPUDevice) {
 		this.nodes = nodes;
 		this.modelNodeChunks = modelNodeChunks;
+		this.device = device;
 		this.models = [];
 		this.modelTransforms = new Float32Array(16 * this.nodes.length);
 		this.normalTransforms = new Float32Array(16 * this.nodes.length);
+		this.jointMatricesBufferList = [];
+		this.jointMatrixCompute = new JointMatrices(device);
+
+		this.posTemp = vec3.create(0, 0, 0);
 	}
 
 	update() {
 		this.camera.update();
 		this.update_models();
+		this.posTemp[0] += 0.001;
 
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
+			// if (node.name === 'RightArm') {
+			// 	mat4.translation(this.posTemp, node.transform);
+			// }
 
 			const modelMatrix: Mat4 = this.get_model_transform(node, node.transform);
 			for (let j = 0; j < 16; j++) {
@@ -43,6 +57,10 @@ export default class Scene {
 			}
 		}
 
+		this.jointMatricesBufferList = this.jointMatrixCompute.get_joint_matrices(
+			this.models,
+			this.modelTransforms
+		);
 		this.sortTransparent();
 	}
 
@@ -98,6 +116,7 @@ export default class Scene {
 			viewTransform: this.camera.get_view(),
 			modelTransforms: this.modelTransforms,
 			normalTransforms: this.normalTransforms,
+			jointMatricesBufferList: this.jointMatricesBufferList,
 		};
 	}
 }
