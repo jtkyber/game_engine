@@ -39,8 +39,7 @@ fn get_skin_matrix(weight: vec4f, joint: vec4u) -> mat4x4f {
 fn v_main(vert: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    var skinMatrix: mat4x4f = get_skin_matrix(vert.weight, vert.joint);
-    // var skinMatrix: mat4x4f = jointMatrices[0];
+    let skinMatrix: mat4x4f = get_skin_matrix(vert.weight, vert.joint);
 
     out.position = proj_view_transform * model_transforms[vert.i_id] * skinMatrix * vec4f(vert.position, 1.0);
     out.world_pos = vert.position.xyz;

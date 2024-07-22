@@ -2,9 +2,18 @@ import { Mat4, Quat, Vec3, mat4, vec3, vec4 } from 'wgpu-matrix';
 import Light from '../../model/light';
 import Model from '../../model/model';
 import Player from '../../model/player';
-import { GLTFRenderMode, GLTFTextureFilter, GLTFTextureWrap, moveableFlag } from '../../types/enums';
+import {
+	GLTFAnimationInterpolation,
+	GLTFAnimationPath,
+	GLTFRenderMode,
+	GLTFTextureFilter,
+	GLTFTextureWrap,
+	moveableFlag,
+} from '../../types/enums';
 import {
 	IGLTFAccessor,
+	IGLTFAnimationChannel,
+	IGLTFAnimationSampler,
 	IGLTFBufferView,
 	IGLTFImage,
 	IGLTFNode,
@@ -13,8 +22,11 @@ import {
 	IModelNodeChunks,
 } from '../../types/gltf';
 import { getMoveableFlagType } from '../../types/types';
-import { fromRotationTranslationScale, getRotation, zUpTransformation } from '../../utils/matrix';
+import { fromRotationTranslationScale, getRotation } from '../../utils/matrix';
 import GLTFAccessor from './accessor';
+import GLTFAnimation from './animation';
+import GLTFAnimationChannel from './animationChannel';
+import GLTFAnimationSampler from './animationSampler';
 import { GLTFBuffer } from './buffer';
 import GLTFBufferView from './bufferView';
 import GLTFImage from './image';
@@ -27,6 +39,7 @@ import GLTFSkin from './skin';
 import { GLTFTexture } from './texture';
 
 export const nodes: GLTFNode[] = [];
+export const animations: { [key: string]: GLTFAnimation } = {};
 
 export default class GTLFLoader {
 	device: GPUDevice;
@@ -46,9 +59,10 @@ export default class GTLFLoader {
 	modelNodeChunks: IModelNodeChunks;
 	meshNode: GLTFNode;
 	player: Player;
-	originalNodeIndices: {
+	indexSwapBoard: {
 		[key: number]: number;
 	};
+	allJoints: Set<number>;
 
 	constructor(device: GPUDevice) {
 		this.device = device;
@@ -67,7 +81,8 @@ export default class GTLFLoader {
 			opaque: [],
 			transparent: [],
 		};
-		this.originalNodeIndices = {};
+		this.indexSwapBoard = {};
+		this.allJoints = new Set();
 	}
 
 	async parse_gltf(url: string): Promise<void> {
@@ -97,7 +112,7 @@ export default class GTLFLoader {
 	async set_chunks(buffer: ArrayBuffer, header: Uint32Array): Promise<void> {
 		this.jsonChunk = JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(buffer, 20, header[3])));
 
-		// console.log(this.jsonChunk);
+		console.log(this.jsonChunk);
 
 		const binaryHeader = new Uint32Array(buffer, 20 + header[3], 2);
 		if (binaryHeader[1] != 0x004e4942) {
@@ -120,6 +135,7 @@ export default class GTLFLoader {
 		this.loadMaterials();
 		this.load_skins();
 		this.load_meshes();
+		this.load_animations();
 
 		for (let i = 0; i < this.bufferViews.length; ++i) {
 			if (this.bufferViews[i].needsUpload) {
@@ -214,6 +230,11 @@ export default class GTLFLoader {
 		);
 		let usedDefaultSampler = false;
 
+		if (!this?.jsonChunk['textures']?.length) {
+			this.textures = [];
+			return;
+		}
+
 		for (let i = 0; i < this.jsonChunk['textures'].length; i++) {
 			const t = this.jsonChunk['textures'][i];
 			let sampler = null;
@@ -266,11 +287,11 @@ export default class GTLFLoader {
 	}
 
 	load_skins() {
-		for (let i = 0; i < this.jsonChunk.skins.length; i++) {
-			const skin = this.jsonChunk.skins[i];
+		for (let i = 0; i < this.jsonChunk['skins'].length; i++) {
+			const skin = this.jsonChunk['skins'][i];
 			const name: string = skin.name;
 			const inverseBindMatrices: GLTFAccessor = this.accessors[skin.inverseBindMatrices];
-			const joints: number[] = skin['joints'];
+			const joints: number[] = [...skin['joints']];
 			this.skins.push(new GLTFSkin(name, inverseBindMatrices, joints));
 		}
 	}
@@ -336,6 +357,69 @@ export default class GTLFLoader {
 		console.log('gltf meshes loaded');
 	}
 
+	load_animations() {
+		for (let i = 0; i < this.jsonChunk['animations'].length; i++) {
+			const animation = this.jsonChunk['animations'][i];
+			const samplers: GLTFAnimationSampler[] = this.get_animation_samplers(animation['samplers']);
+			const channels: GLTFAnimationChannel[] = this.get_animation_channels(animation['channels'], samplers);
+
+			animations[animation['name']] = new GLTFAnimation(animation['name'], channels);
+		}
+	}
+
+	get_animation_samplers(samplers: IGLTFAnimationSampler[]): GLTFAnimationSampler[] {
+		const allSamplers: GLTFAnimationSampler[] = [];
+		for (let s of samplers) {
+			const input: GLTFAccessor = this.accessors[s['input']];
+			const output: GLTFAccessor = this.accessors[s['output']];
+			let interpolation: GLTFAnimationInterpolation = null;
+
+			switch (s['interpolation']) {
+				case 'STEP':
+					interpolation = GLTFAnimationInterpolation.STEP;
+					break;
+				case 'LINEAR':
+					interpolation = GLTFAnimationInterpolation.LINEAR;
+					break;
+				case 'CUBICSPLINE':
+					interpolation = GLTFAnimationInterpolation.CUBICSPLINE;
+					break;
+			}
+
+			allSamplers.push(new GLTFAnimationSampler(input, output, interpolation));
+		}
+
+		return allSamplers;
+	}
+
+	get_animation_channels(channels: IGLTFAnimationChannel[], samplers: GLTFAnimationSampler[]) {
+		const allChannels: GLTFAnimationChannel[] = [];
+		for (let c of channels) {
+			const sampler: GLTFAnimationSampler = samplers[c['sampler']];
+			const targetNode: number = c['target'].node;
+			let path: GLTFAnimationPath = null;
+
+			switch (c['target']['path']) {
+				case 'translation':
+					path = GLTFAnimationPath.TRANSLATION;
+					break;
+				case 'rotation':
+					path = GLTFAnimationPath.ROTATION;
+					break;
+				case 'scale':
+					path = GLTFAnimationPath.SCALE;
+					break;
+				case 'weights':
+					path = GLTFAnimationPath.WEIGHTS;
+					break;
+			}
+
+			allChannels.push(new GLTFAnimationChannel(sampler, targetNode, path));
+		}
+
+		return allChannels;
+	}
+
 	load_scene(scene_index: number): IGLTFScene {
 		const scene = this.jsonChunk['scenes'][scene_index];
 		const baseNodeRefs: number[] = scene['nodes'];
@@ -374,7 +458,8 @@ export default class GTLFLoader {
 	remap_joint_indices() {
 		for (let i = 0; i < this.skins.length; i++) {
 			for (let j = 0; j < this.skins[i].joints.length; j++) {
-				this.skins[i].joints[j] = this.originalNodeIndices[this.skins[i].joints[j]];
+				this.skins[i].joints[j] = this.indexSwapBoard[this.skins[i].joints[j]];
+				this.allJoints.add(this.skins[i].joints[j]);
 			}
 		}
 	}
@@ -395,7 +480,7 @@ export default class GTLFLoader {
 		nodes.push(new GLTFNode(name, flag, parentNode, matrix, mesh, skin));
 		const lastNodeIndex: number = nodes.length - 1;
 
-		this.originalNodeIndices[n] = lastNodeIndex;
+		this.indexSwapBoard[n] = lastNodeIndex;
 
 		const lightRef: number = node?.['extensions']?.['KHR_lights_punctual']?.['light'];
 		if (lightRef !== undefined) {

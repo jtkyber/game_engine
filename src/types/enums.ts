@@ -58,3 +58,16 @@ export enum moveableFlag {
 	STATIC,
 	MOVEABLE_ROOT,
 }
+
+export enum GLTFAnimationInterpolation {
+	LINEAR,
+	STEP,
+	CUBICSPLINE,
+}
+
+export enum GLTFAnimationPath {
+	TRANSLATION,
+	ROTATION,
+	SCALE,
+	WEIGHTS,
+}

@@ -306,7 +306,7 @@ export default class Renderer {
 					{
 						// joint
 						shaderLocation: 3,
-						format: 'uint16x4',
+						format: 'uint8x4',
 						offset: 0,
 					},
 				],
@@ -542,7 +542,7 @@ export default class Renderer {
 			depthStencilAttachment: this.depthStencilAttachment,
 		});
 
-		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.modelTransforms);
+		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
 		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
 

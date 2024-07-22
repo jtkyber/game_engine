@@ -35,6 +35,7 @@ export default class JointMatrices {
 		this.jointMatricesBufferList = [];
 		this.createBindGroupLayouts();
 
+		let count: number = 0;
 		for (let i = 0; i < models.length; i++) {
 			const model: Model = models[i];
 			const node: GLTFNode = nodes[model.nodeIndex];
@@ -43,34 +44,11 @@ export default class JointMatrices {
 				continue;
 			}
 
-			this.inverseBindMatricesBuffer = node.skin.inverseBindMatrices.bufferView.gpuBuffer;
+			this.setInverseBindMatricesForModel(node);
 
-			const globalTransform: Mat4 = modelTransforms.slice(16 * model.nodeIndex, 16 * model.nodeIndex + 16);
-			const inverseGlobalTransform: Mat4 = mat4.inverse(globalTransform);
-			this.inverseGlobalTransformBuffer = this.device.createBuffer({
-				label: 'inverseGlobalTransformBuffer',
-				size: 16 * 4,
-				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-			});
-			this.device.queue.writeBuffer(this.inverseGlobalTransformBuffer, 0, inverseGlobalTransform);
+			this.setInverseGlobalTransformForModel(model.nodeIndex, modelTransforms);
 
-			const globalJointTrasformArr: Float32Array = new Float32Array(16 * node.skin.joints.length);
-			for (let j = 0; j < node.skin.joints.length; j++) {
-				const jointNodeIndex: number = node.skin.joints[j];
-				const globalJointTransform: Mat4 = modelTransforms.slice(
-					16 * jointNodeIndex,
-					16 * jointNodeIndex + 16
-				);
-
-				for (let k = 0; k < 16; k++) globalJointTrasformArr[j * 16 + k] = globalJointTransform[k];
-			}
-
-			this.globalJointTransformsBuffer = this.device.createBuffer({
-				label: 'globalJointTransformsBuffer',
-				size: globalJointTrasformArr.byteLength,
-				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-			});
-			this.device.queue.writeBuffer(this.globalJointTransformsBuffer, 0, globalJointTrasformArr);
+			this.setGlobalJointTransformsForModel(node, modelTransforms);
 
 			this.resultBuffer = this.device.createBuffer({
 				label: 'resultBuffer',
@@ -78,12 +56,46 @@ export default class JointMatrices {
 				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
 			});
 
-			this.createBingGroup();
+			this.createBindGroup();
 			this.createPipeline();
 			this.compute();
+			count++;
 		}
 
 		return this.jointMatricesBufferList;
+	}
+
+	setInverseBindMatricesForModel(node: GLTFNode) {
+		this.inverseBindMatricesBuffer = node.skin.inverseBindMatrices.bufferView.gpuBuffer;
+	}
+
+	setInverseGlobalTransformForModel(nodeIndex: number, modelTransforms: Float32Array) {
+		const globalTransform: Mat4 = modelTransforms.slice(16 * nodeIndex, 16 * nodeIndex + 16);
+		const inverseGlobalTransform: Mat4 = mat4.inverse(globalTransform);
+
+		this.inverseGlobalTransformBuffer = this.device.createBuffer({
+			label: 'inverseGlobalTransformBuffer',
+			size: 16 * 4,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.device.queue.writeBuffer(this.inverseGlobalTransformBuffer, 0, inverseGlobalTransform);
+	}
+
+	setGlobalJointTransformsForModel(node: GLTFNode, modelTransforms: Float32Array) {
+		const globalJointTransformArr: Float32Array = new Float32Array(16 * node.skin.joints.length);
+		for (let j = 0; j < node.skin.joints.length; j++) {
+			const jointNodeIndex: number = node.skin.joints[j];
+			const globalJointTransform: Mat4 = modelTransforms.slice(16 * jointNodeIndex, 16 * jointNodeIndex + 16);
+
+			for (let k = 0; k < 16; k++) globalJointTransformArr[j * 16 + k] = globalJointTransform[k];
+		}
+
+		this.globalJointTransformsBuffer = this.device.createBuffer({
+			label: 'globalJointTransformsBuffer',
+			size: globalJointTransformArr.byteLength,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.device.queue.writeBuffer(this.globalJointTransformsBuffer, 0, globalJointTransformArr);
 	}
 
 	createBindGroupLayouts() {
@@ -122,7 +134,7 @@ export default class JointMatrices {
 		});
 	}
 
-	createBingGroup() {
+	createBindGroup() {
 		this.bindGroup = this.device.createBindGroup({
 			label: 'Joint Matrices Bind Group',
 			layout: this.bindGroupLayout,

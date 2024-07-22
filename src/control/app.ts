@@ -1,6 +1,6 @@
 import Scene from '../model/scene';
-import { IGLTFScene, IModelNodeChunks } from '../types/gltf';
-import GTLFLoader, { nodes } from '../view/gltf/loader';
+import { IGLTFScene } from '../types/gltf';
+import GTLFLoader, { animations, nodes } from '../view/gltf/loader';
 import Renderer from '../view/renderer';
 import Controller from './controller';
 
@@ -32,13 +32,12 @@ export default class App {
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);
 		await gltfLoader.parse_gltf('dist/scene');
-		console.log(gltfLoader.jsonChunk);
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
-		// console.log(gltfScene);
-		// console.log(nodes);
+		console.log(nodes);
+		console.log(animations);
 
-		this.scene = new Scene(nodes, gltfScene.modelNodeChunks, this.renderer.device);
+		this.scene = new Scene(nodes, gltfScene.modelNodeChunks, this.renderer.device, gltfLoader.allJoints);
 		this.scene.set_models(gltfScene.models, gltfScene.player);
 
 		this.renderer.init();

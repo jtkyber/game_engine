@@ -13,42 +13,42 @@ export default class Scene {
 	nodes: GLTFNode[];
 	modelNodeChunks: IModelNodeChunks;
 	device: GPUDevice;
+	allJoints: Set<number>;
 	models: Model[];
-	modelTransforms: Float32Array;
+	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
 	camera: Camera;
 	player: Player;
 	jointMatrixCompute: JointMatrices;
-	posTemp: Vec3;
 
-	constructor(nodes: GLTFNode[], modelNodeChunks: IModelNodeChunks, device: GPUDevice) {
+	constructor(
+		nodes: GLTFNode[],
+		modelNodeChunks: IModelNodeChunks,
+		device: GPUDevice,
+		allJoints: Set<number>
+	) {
 		this.nodes = nodes;
 		this.modelNodeChunks = modelNodeChunks;
 		this.device = device;
+		this.allJoints = allJoints;
 		this.models = [];
-		this.modelTransforms = new Float32Array(16 * this.nodes.length);
+		this.nodeTransforms = new Float32Array(16 * this.nodes.length);
 		this.normalTransforms = new Float32Array(16 * this.nodes.length);
 		this.jointMatricesBufferList = [];
 		this.jointMatrixCompute = new JointMatrices(device);
-
-		this.posTemp = vec3.create(0, 0, 0);
 	}
 
 	update() {
 		this.camera.update();
 		this.update_models();
-		this.posTemp[0] += 0.001;
 
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
-			// if (node.name === 'RightArm') {
-			// 	mat4.translation(this.posTemp, node.transform);
-			// }
 
-			const modelMatrix: Mat4 = this.get_model_transform(node, node.transform);
+			const modelMatrix: Mat4 = this.get_node_transform(i, node.transform);
 			for (let j = 0; j < 16; j++) {
-				this.modelTransforms[i * 16 + j] = modelMatrix[j];
+				this.nodeTransforms[i * 16 + j] = modelMatrix[j];
 			}
 
 			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(modelMatrix));
@@ -59,7 +59,7 @@ export default class Scene {
 
 		this.jointMatricesBufferList = this.jointMatrixCompute.get_joint_matrices(
 			this.models,
-			this.modelTransforms
+			this.nodeTransforms
 		);
 		this.sortTransparent();
 	}
@@ -71,9 +71,15 @@ export default class Scene {
 		}
 	}
 
-	get_model_transform(node: GLTFNode, transform: Mat4): Mat4 {
-		const parent: GLTFNode = nodes[node?.parent] ?? null;
-		if (parent === null) {
+	get_node_transform(nodeIndex: number, transform: Mat4): Mat4 {
+		const node: GLTFNode = nodes[nodeIndex];
+		const parent: number = node?.parent ?? null;
+		const isJoint: boolean = this.allJoints.has(nodeIndex);
+		const parentIsJoint: boolean = this.allJoints.has(parent);
+
+		if (isJoint && !parentIsJoint) {
+			return transform;
+		} else if (parent === null) {
 			// If root node
 			return transform;
 		} else if (node.flag === moveableFlag.STATIC) {
@@ -86,8 +92,8 @@ export default class Scene {
 			return mat4.mul(parentMat, transform);
 		} else {
 			// Any part can move, so muliply all nodes by parent
-			const combinedTransform: Mat4 = mat4.mul(parent.transform, transform);
-			return this.get_model_transform(parent, combinedTransform);
+			const combinedTransform: Mat4 = mat4.mul(nodes[parent].transform, transform);
+			return this.get_node_transform(parent, combinedTransform);
 		}
 	}
 
@@ -114,7 +120,7 @@ export default class Scene {
 	get_render_data(): IRenderData {
 		return {
 			viewTransform: this.camera.get_view(),
-			modelTransforms: this.modelTransforms,
+			nodeTransforms: this.nodeTransforms,
 			normalTransforms: this.normalTransforms,
 			jointMatricesBufferList: this.jointMatricesBufferList,
 		};

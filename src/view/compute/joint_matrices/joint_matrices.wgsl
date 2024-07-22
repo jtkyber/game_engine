@@ -6,7 +6,7 @@
 @compute @workgroup_size(1, 1, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3u) {
     for (var i: u32 = 0; i < arrayLength(&inverseBindMatrices); i++) {
-        jointMatrices[i] = inverseGlobalTransform * globalJointTransforms[i] * inverseBindMatrices[i];
+        jointMatrices[i] = globalJointTransforms[i] * inverseBindMatrices[i];
         // jointMatrices[i] = mat4x4f(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
     }
 }

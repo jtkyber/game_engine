@@ -1,3 +1,4 @@
+import GLTFAnimation from '../view/gltf/animation';
 import { moveableFlag } from './enums';
 
 export interface Test {
@@ -14,7 +15,7 @@ declare global {
 
 export interface IRenderData {
 	viewTransform: Float32Array;
-	modelTransforms: Float32Array;
+	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
 }
@@ -41,3 +42,7 @@ export interface MoveSwitchBoard {
 	r: MoveSwitchValue;
 }
 export type MoveSwitchValue = 0 | 1;
+
+export interface IAnimations {
+	[key: string]: GLTFAnimation;
+}

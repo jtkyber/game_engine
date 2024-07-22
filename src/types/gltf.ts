@@ -114,3 +114,17 @@ export interface IGLTFScene {
 	lights: Light[];
 	modelNodeChunks: IModelNodeChunks;
 }
+
+export interface IGLTFAnimationSampler {
+	input: number;
+	interpolation: string;
+	output: number;
+}
+
+export interface IGLTFAnimationChannel {
+	sampler: number;
+	target: {
+		node: number;
+		path: string;
+	};
+}
