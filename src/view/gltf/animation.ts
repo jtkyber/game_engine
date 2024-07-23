@@ -14,4 +14,11 @@ export default class GLTFAnimation {
 			this.channels[i].play();
 		}
 	}
+
+	reset() {
+		for (let i = 0; i < this.channels.length; i++) {
+			this.channels[i].currentTime = 0;
+			this.channels[i].play();
+		}
+	}
 }

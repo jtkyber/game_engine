@@ -160,6 +160,7 @@ export default class Controller {
 				break;
 			case 'Space':
 				this.controlBoard.space = 0;
+				animations['Stretch'].reset();
 				break;
 		}
 	}
