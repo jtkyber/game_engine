@@ -1,5 +1,5 @@
 import { Vec3 } from 'wgpu-matrix';
-import { IGLTFAccessor } from '../../types/gltf';
+import { IGLTFAccessor, elementCountFromGLTFtype } from '../../types/gltf';
 import { gltfTypeSize, gltfVertexType, parseGltfType } from '../../utils/gltf';
 import GLTFBufferView from './bufferView';
 
@@ -9,8 +9,8 @@ export default class GLTFAccessor {
 	componentType: number;
 	gltfType: number;
 	byteOffset: number;
-	min: Vec3 = null;
-	max: Vec3 = null;
+	min: Float32Array = null;
+	max: Float32Array = null;
 
 	constructor(view: GLTFBufferView, accessor: IGLTFAccessor) {
 		this.bufferView = view;
@@ -39,5 +39,9 @@ export default class GLTFAccessor {
 	// Get the vertex attribute type for accessors that are used as vertex attributes
 	get elementType(): string {
 		return gltfVertexType(this.componentType, this.gltfType);
+	}
+
+	get elementCount(): number {
+		return elementCountFromGLTFtype(this.gltfType);
 	}
 }

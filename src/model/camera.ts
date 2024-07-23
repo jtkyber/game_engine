@@ -1,4 +1,5 @@
 import { Mat4, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
+import { nodes } from '../view/gltf/loader';
 import Model from './model';
 
 export class Camera {
@@ -28,9 +29,9 @@ export class Camera {
 	update() {
 		this.pitch = Math.min(Math.PI / 2 - 0.1, Math.max(-Math.PI / 2 + 0.1, this.pitch));
 		// Move camera to center of model
-		this.position[0] = this.targetModel.position[0];
-		this.position[1] = this.targetModel.position[1] + this.distAboveModel;
-		this.position[2] = this.targetModel.position[2];
+		this.position[0] = nodes[this.targetModel.nodeIndex].position[0];
+		this.position[1] = nodes[this.targetModel.nodeIndex].position[1] + this.distAboveModel;
+		this.position[2] = nodes[this.targetModel.nodeIndex].position[2];
 
 		// Make quat from pitch and yaw
 		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'yxz');

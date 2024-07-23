@@ -1,7 +1,8 @@
 import { Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Player from '../model/player';
-import { MoveSwitchBoard } from '../types/types';
+import { ControlBoard } from '../types/types';
+import { animations } from '../view/gltf/loader';
 
 export default class Controller {
 	canvas: HTMLCanvasElement;
@@ -9,11 +10,12 @@ export default class Controller {
 	player: Player;
 	pointerLocked: boolean;
 	moveVec: number[] = [0, 0];
-	moveSwitchBoard: MoveSwitchBoard = {
+	controlBoard: ControlBoard = {
 		f: 0,
 		b: 0,
 		l: 0,
 		r: 0,
+		space: 0,
 	};
 	spinInterpolationCoefficient: number;
 	scrollInterpolationCoefficient: number;
@@ -45,8 +47,8 @@ export default class Controller {
 		this.scrollInterpolationCoefficient += 0.01;
 		this.spinInterpolationCoefficient += 0.01;
 
-		this.moveVec[0] = this.moveSwitchBoard.f - this.moveSwitchBoard.b;
-		this.moveVec[1] = this.moveSwitchBoard.r - this.moveSwitchBoard.l;
+		this.moveVec[0] = this.controlBoard.f - this.controlBoard.b;
+		this.moveVec[1] = this.controlBoard.r - this.controlBoard.l;
 
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
@@ -55,6 +57,10 @@ export default class Controller {
 		}
 
 		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
+
+		if (this.controlBoard.space) {
+			animations['Stretch'].play();
+		}
 	}
 
 	get_rotated_direction_with_forward(forward: Vec3): Vec3 {
@@ -114,20 +120,24 @@ export default class Controller {
 
 		switch (e.code) {
 			case 'KeyW':
-				if (this.moveSwitchBoard.f) return;
-				this.moveSwitchBoard.f = 1;
+				if (this.controlBoard.f) return;
+				this.controlBoard.f = 1;
 				break;
 			case 'KeyS':
-				if (this.moveSwitchBoard.b) return;
-				this.moveSwitchBoard.b = 1;
+				if (this.controlBoard.b) return;
+				this.controlBoard.b = 1;
 				break;
 			case 'KeyA':
-				if (this.moveSwitchBoard.l) return;
-				this.moveSwitchBoard.l = 1;
+				if (this.controlBoard.l) return;
+				this.controlBoard.l = 1;
 				break;
 			case 'KeyD':
-				if (this.moveSwitchBoard.r) return;
-				this.moveSwitchBoard.r = 1;
+				if (this.controlBoard.r) return;
+				this.controlBoard.r = 1;
+				break;
+			case 'Space':
+				if (this.controlBoard.space) return;
+				this.controlBoard.space = 1;
 				break;
 		}
 	}
@@ -137,16 +147,19 @@ export default class Controller {
 
 		switch (e.code) {
 			case 'KeyW':
-				this.moveSwitchBoard.f = 0;
+				this.controlBoard.f = 0;
 				break;
 			case 'KeyS':
-				this.moveSwitchBoard.b = 0;
+				this.controlBoard.b = 0;
 				break;
 			case 'KeyA':
-				this.moveSwitchBoard.l = 0;
+				this.controlBoard.l = 0;
 				break;
 			case 'KeyD':
-				this.moveSwitchBoard.r = 0;
+				this.controlBoard.r = 0;
+				break;
+			case 'Space':
+				this.controlBoard.space = 0;
 				break;
 		}
 	}

@@ -20,6 +20,7 @@ import {
 	IGLTFPrimitive,
 	IGLTFScene,
 	IModelNodeChunks,
+	typedArrayFromComponentType,
 } from '../../types/gltf';
 import { getMoveableFlagType } from '../../types/types';
 import { fromRotationTranslationScale, getRotation } from '../../utils/matrix';
@@ -462,6 +463,13 @@ export default class GTLFLoader {
 				this.allJoints.add(this.skins[i].joints[j]);
 			}
 		}
+
+		for (let a in animations) {
+			for (let i = 0; i < animations[a].channels.length; i++) {
+				const channel: GLTFAnimationChannel = animations[a].channels[i];
+				channel.targetNode = this.indexSwapBoard[channel.targetNode];
+			}
+		}
 	}
 
 	load_nodes(
@@ -473,11 +481,14 @@ export default class GTLFLoader {
 	) {
 		const node: IGLTFNode = allNodes[n];
 		const matrix: Mat4 = this.get_node_matrix(node);
+		let scale: Vec3 = node['scale'] ?? vec3.create(1, 1, 1);
+		let rotation: Quat = node['rotation'] ?? vec4.create(0, 0, 0, 1);
+		let translation: Vec3 = node['translation'] ?? vec3.create(0, 0, 0);
 		const name: string = node.name;
 		const mesh: GLTFMesh = this.meshes[node['mesh']] ?? null;
 		const skin: GLTFSkin = this.skins[node['skin']] ?? null;
 
-		nodes.push(new GLTFNode(name, flag, parentNode, matrix, mesh, skin));
+		nodes.push(new GLTFNode(name, flag, parentNode, translation, rotation, scale, matrix, mesh, skin));
 		const lastNodeIndex: number = nodes.length - 1;
 
 		this.indexSwapBoard[n] = lastNodeIndex;
@@ -534,7 +545,6 @@ export default class GTLFLoader {
 
 		for (let i = 0; i < this.models.length; i++) {
 			let model: Model = this.models[i];
-			const node: GLTFNode = nodes[model.nodeIndex];
 
 			if (model.name === 'Player' && !playerFound) {
 				this.player = new Player(model.name, model.moveableFlag, model.nodeIndex);
@@ -542,10 +552,6 @@ export default class GTLFLoader {
 				model = this.player;
 				playerFound = true;
 			}
-
-			model.scale = vec3.getScaling(node.transform);
-			model.quat = getRotation(node.transform);
-			model.position = vec3.getTranslation(node.transform);
 		}
 	}
 

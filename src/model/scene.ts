@@ -45,6 +45,7 @@ export default class Scene {
 
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
+			node.update();
 
 			const modelMatrix: Mat4 = this.get_node_transform(i, node.transform);
 			for (let j = 0; j < 16; j++) {
@@ -105,8 +106,14 @@ export default class Scene {
 
 	sortTransparent() {
 		this.modelNodeChunks.transparent = this.modelNodeChunks.transparent.sort((a, b) => {
-			const nodeAdist: number = vec3.dist(this.camera.position, this.models[a.nodeIndex].position);
-			const nodeBdist: number = vec3.dist(this.camera.position, this.models[b.nodeIndex].position);
+			const nodeAdist: number = vec3.dist(
+				this.camera.position,
+				nodes[this.models[a.nodeIndex].nodeIndex].position
+			);
+			const nodeBdist: number = vec3.dist(
+				this.camera.position,
+				nodes[this.models[b.nodeIndex].nodeIndex].position
+			);
 			return nodeBdist - nodeAdist;
 		});
 	}

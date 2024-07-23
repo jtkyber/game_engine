@@ -35,14 +35,26 @@ export type MoveSignFB = -1 | 0 | 1;
 export type MoveSignLR = -1 | 0 | 1;
 export type MoveVec = [MoveSignFB, MoveSignLR];
 
-export interface MoveSwitchBoard {
-	f: MoveSwitchValue;
-	b: MoveSwitchValue;
-	l: MoveSwitchValue;
-	r: MoveSwitchValue;
+export interface ControlBoard {
+	f: ControlBoardValue;
+	b: ControlBoardValue;
+	l: ControlBoardValue;
+	r: ControlBoardValue;
+	space: ControlBoardValue;
 }
-export type MoveSwitchValue = 0 | 1;
+export type ControlBoardValue = 0 | 1;
 
 export interface IAnimations {
 	[key: string]: GLTFAnimation;
 }
+
+export type TypedArray =
+	| Int8Array
+	| Uint8Array
+	| Uint8ClampedArray
+	| Int16Array
+	| Uint16Array
+	| Int32Array
+	| Uint32Array
+	| Float32Array
+	| Float64Array;

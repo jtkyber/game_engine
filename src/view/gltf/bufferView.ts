@@ -6,22 +6,23 @@ export default class GLTFBufferView {
 	view: Uint8Array;
 	byteLength: number;
 	byteStride: number;
+	viewOffset: number;
 	needsUpload: boolean;
 	gpuBuffer: GPUBuffer;
 	usage: number;
 
 	constructor(buffer: GLTFBuffer, view: IGLTFBufferView) {
+		this.buffer = buffer;
 		this.byteLength = view['byteLength'];
 		this.byteStride = 0;
 		if (view['byteStride'] !== undefined) {
 			this.byteStride = view['byteStride'];
 		}
 
-		let viewOffset = 0;
 		if (view['byteOffset'] !== undefined) {
-			viewOffset = view['byteOffset'];
+			this.viewOffset = view['byteOffset'];
 		}
-		this.view = buffer.buffer.subarray(viewOffset, viewOffset + this.byteLength);
+		this.view = buffer.buffer.subarray(this.viewOffset, this.viewOffset + this.byteLength);
 
 		this.needsUpload = false;
 		this.gpuBuffer = null;

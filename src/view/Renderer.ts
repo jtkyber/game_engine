@@ -301,7 +301,7 @@ export default class Renderer {
 
 		const vertexBuffersSkinned: GPUVertexBufferLayout[] = vertexBuffers.concat(
 			{
-				arrayStride: 8,
+				arrayStride: 4,
 				attributes: [
 					{
 						// joint

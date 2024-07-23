@@ -2,8 +2,7 @@ import { Mat4, Vec3, Vec4 } from 'wgpu-matrix';
 import Light from '../model/light';
 import Model from '../model/model';
 import Player from '../model/player';
-import GLTFNode from '../view/gltf/node';
-import { GLTFTextureFilter, GLTFTextureWrap } from './enums';
+import { GLTFComponentType, GLTFTextureFilter, GLTFTextureWrap, GLTFType } from './enums';
 
 export interface IGLTFNode {
 	name: string;
@@ -95,6 +94,46 @@ export function gltfAddressMode(mode: GLTFTextureWrap) {
 			return 'clamp-to-edge' as GPUAddressMode;
 		case GLTFTextureWrap.MIRRORED_REPEAT:
 			return 'mirror-repeat' as GPUAddressMode;
+	}
+}
+
+export function typedArrayFromComponentType(componentType: GLTFComponentType) {
+	switch (componentType) {
+		case GLTFComponentType.BYTE:
+			return Int8Array;
+		case GLTFComponentType.UNSIGNED_BYTE:
+			return Uint8Array;
+		case GLTFComponentType.SHORT:
+			return Int16Array;
+		case GLTFComponentType.UNSIGNED_SHORT:
+			return Uint16Array;
+		case GLTFComponentType.INT:
+			return Int32Array;
+		case GLTFComponentType.UNSIGNED_INT:
+			return Uint32Array;
+		case GLTFComponentType.FLOAT:
+			return Float32Array;
+		case GLTFComponentType.DOUBLE:
+			return Float64Array;
+	}
+}
+
+export function elementCountFromGLTFtype(type: GLTFType): number {
+	switch (type) {
+		case GLTFType.SCALAR:
+			return 1;
+		case GLTFType.VEC2:
+			return 2;
+		case GLTFType.VEC3:
+			return 3;
+		case GLTFType.VEC4:
+			return 4;
+		case GLTFType.MAT2:
+			return 4;
+		case GLTFType.MAT3:
+			return 9;
+		case GLTFType.MAT4:
+			return 16;
 	}
 }
 

@@ -1,4 +1,5 @@
 import { GLTFRenderMode } from '../../types/enums';
+import { typedArrayFromComponentType } from '../../types/gltf';
 import GLTFAccessor from './accessor';
 import GLTFMaterial from './materials';
 

@@ -10,6 +10,8 @@ export default class GLTFAnimation {
 	}
 
 	play() {
-		// Loop through channels and play animation
+		for (let i = 0; i < this.channels.length; i++) {
+			this.channels[i].play();
+		}
 	}
 }
