@@ -16,6 +16,7 @@ export default class GLTFAnimation {
 	}
 
 	reset() {
+		// lerp translation, rotation, scale back to starting position
 		for (let i = 0; i < this.channels.length; i++) {
 			this.channels[i].currentTime = 0;
 			this.channels[i].play();

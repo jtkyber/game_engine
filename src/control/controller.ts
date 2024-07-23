@@ -59,7 +59,7 @@ export default class Controller {
 		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
 
 		if (this.controlBoard.space) {
-			animations['Stretch'].play();
+			animations['spider basic'].play();
 		}
 	}
 
@@ -160,7 +160,7 @@ export default class Controller {
 				break;
 			case 'Space':
 				this.controlBoard.space = 0;
-				animations['Stretch'].reset();
+				animations['spider basic'].reset();
 				break;
 		}
 	}
