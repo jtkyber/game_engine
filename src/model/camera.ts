@@ -12,12 +12,10 @@ export class Camera {
 	rightMove: Vec3 = vec3.create();
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
-	distAboveModel: number = 1.5;
-	distFromModelStart: number = 8;
-	distFromModel: number = 8;
-	distFromModelMin: number = 1.5;
-	distFromModelMax: number = 20;
-	camDistLerpInc: number = 0;
+	distAboveModel: number = 2;
+	distFromModel: number = 15;
+	distFromModelMin: number = 5;
+	distFromModelMax: number = 50;
 	targetModel: Model;
 	pitch: number = 0;
 	yaw: number = 0;
@@ -27,6 +25,9 @@ export class Camera {
 	}
 
 	update() {
+		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
+		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
+
 		this.pitch = Math.min(Math.PI / 2 - 0.1, Math.max(-Math.PI / 2 + 0.1, this.pitch));
 		// Move camera to center of model
 		this.position[0] = nodes[this.targetModel.nodeIndex].position[0];
@@ -50,10 +51,8 @@ export class Camera {
 		// Don't let camera clip through ground
 		if (this.position[1] < 0.1) this.position[1] = 0.1;
 
-		// Get position to look at
 		this.target = vec3.add(this.position, this.forward);
 
-		// Create view matrix
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
 	}
 
@@ -67,15 +66,6 @@ export class Camera {
 		const moveAmt: number = sign * amt * window.myLib.deltaTime;
 
 		this.position = vec3.addScaled(this.position, this.rightMove, moveAmt);
-	}
-
-	lerp_cam_dist(lerpVal: number) {
-		const lerpAmt: number = lerpVal * window.myLib.deltaTime * 0.5;
-		if (lerpAmt >= 1 || lerpAmt <= -1) return;
-		this.distFromModel = this.distFromModelStart + lerpAmt * this.camDistLerpInc;
-
-		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
-		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 	}
 
 	get_view(): Mat4 {

@@ -11,8 +11,8 @@ export default class Player extends Model {
 	camera: Camera;
 	parent: Model = null;
 	zUP: Mat4;
-	speed: number = 0.01;
-	turnSpeed: number = 0.015;
+	speed: number = 0.005;
+	turnSpeed: number = 0.005;
 	forward: Vec3;
 	forwardMove: Vec3;
 	right: Vec3;

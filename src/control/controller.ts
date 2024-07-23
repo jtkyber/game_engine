@@ -18,14 +18,14 @@ export default class Controller {
 		space: 0,
 	};
 	spinInterpolationCoefficient: number;
-	scrollInterpolationCoefficient: number;
+	scrollAmt: number;
 
 	constructor(canvas: HTMLCanvasElement, camera: Camera, player: Player) {
 		this.canvas = canvas;
 		this.camera = camera;
 		this.player = player;
 		this.spinInterpolationCoefficient = 0;
-		this.scrollInterpolationCoefficient = 0;
+		this.scrollAmt = 0;
 
 		document.addEventListener('keydown', e => this.handleKeyDown(e));
 		document.addEventListener('keyup', e => this.handleKeyUp(e));
@@ -44,8 +44,8 @@ export default class Controller {
 	}
 
 	update() {
-		this.scrollInterpolationCoefficient += 0.01;
 		this.spinInterpolationCoefficient += 0.01;
+		this.camera.distFromModel += this.scrollAmt;
 
 		this.moveVec[0] = this.controlBoard.f - this.controlBoard.b;
 		this.moveVec[1] = this.controlBoard.r - this.controlBoard.l;
@@ -54,13 +54,13 @@ export default class Controller {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
 			this.player.spin_lerp(endDir);
 			this.player.move(vec3.mulScalar(this.player.forwardMove, -1), this.player.speed);
+
+			animations['walk'].play();
+		} else {
+			animations['static'].play();
 		}
 
-		this.camera.lerp_cam_dist(this.scrollInterpolationCoefficient);
-
-		if (this.controlBoard.space) {
-			animations['spider basic'].play();
-		}
+		this.scrollAmt = 0;
 	}
 
 	get_rotated_direction_with_forward(forward: Vec3): Vec3 {
@@ -160,7 +160,6 @@ export default class Controller {
 				break;
 			case 'Space':
 				this.controlBoard.space = 0;
-				animations['spider basic'].reset();
 				break;
 		}
 	}
@@ -181,9 +180,7 @@ export default class Controller {
 	handleScrollWheel(e: WheelEvent) {
 		if (!this.pointerLocked) return;
 
-		this.scrollInterpolationCoefficient = 0;
-		this.camera.camDistLerpInc = e.deltaY / 30;
-		this.camera.distFromModelStart = this.camera.distFromModel;
+		this.scrollAmt += e.deltaY / 50;
 	}
 
 	lockPointer() {

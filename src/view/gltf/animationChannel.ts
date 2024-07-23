@@ -23,10 +23,8 @@ export default class GLTFAnimationChannel {
 		const times = this.sampler.input;
 		const values = this.sampler.output;
 
-		const currentTimeTemp: number = this.currentTime + this.animationSpeed * window.myLib.deltaTime;
-		if (currentTimeTemp > max) this.currentTime = currentTimeTemp - max;
-		else if (currentTimeTemp < min) this.currentTime = currentTimeTemp + min;
-		else this.currentTime = currentTimeTemp;
+		if (this.currentTime > max) this.currentTime -= max;
+		if (this.currentTime < min) this.currentTime += min + 0.00001;
 
 		switch (this.path) {
 			case GLTFAnimationPath.TRANSLATION:
@@ -39,6 +37,8 @@ export default class GLTFAnimationChannel {
 				nodes[this.targetNode].scale = this.get_interpolated_value(3, times, values);
 				break;
 		}
+
+		this.currentTime += this.animationSpeed * window.myLib.deltaTime;
 	}
 
 	get_value(values: any, i: number, componentCount: number) {

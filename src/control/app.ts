@@ -35,7 +35,7 @@ export default class App {
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 		// console.log(nodes);
-		// console.log(animations);
+		console.log(animations);
 
 		this.scene = new Scene(nodes, gltfScene.modelNodeChunks, this.renderer.device, gltfLoader.allJoints);
 		this.scene.set_models(gltfScene.models, gltfScene.player);
