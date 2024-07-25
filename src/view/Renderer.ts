@@ -5,9 +5,11 @@ import { IRenderData } from '../types/types';
 import { nodes } from './gltf/loader';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
+import aabbShader from './shaders/aabb_shader.wgsl';
 import colorFragShader from './shaders/color_frag.wgsl';
 import colorVertShader from './shaders/color_vert.wgsl';
 import colorVertShaderSkinned from './shaders/color_vert_skinned.wgsl';
+import obbShader from './shaders/obb_shader.wgsl';
 
 export default class Renderer {
 	// Canvas
@@ -15,6 +17,10 @@ export default class Renderer {
 	context: GPUCanvasContext;
 	view: GPUTextureView;
 	identity: Mat4 = mat4.identity();
+
+	// Debug
+	showAABBs: boolean;
+	showOBBs: boolean;
 
 	// Nodes
 	modelNodeChunks: IModelNodeChunks;
@@ -31,6 +37,8 @@ export default class Renderer {
 	colorVertShaderModule: GPUShaderModule;
 	colorVertShaderModuleSkinned: GPUShaderModule;
 	colorFragShaderModule: GPUShaderModule;
+	obbShaderModule: GPUShaderModule;
+	aabbShaderModule: GPUShaderModule;
 
 	// Render Pass
 	renderPass: GPURenderPassEncoder;
@@ -41,12 +49,16 @@ export default class Renderer {
 	pipelineTransparent: GPURenderPipeline;
 	pipelineOpaqueSkinned: GPURenderPipeline;
 	pipelineTransparentSkinned: GPURenderPipeline;
+	OBBPipeline: GPURenderPipeline;
+	AABBPipeline: GPURenderPipeline;
 
 	frameBindGroupLayout: GPUBindGroupLayout;
 	frameBindGroup: GPUBindGroup;
 	materialBindGroupLayout: GPUBindGroupLayout;
 	materialBindGroup: GPUBindGroup;
 	jointBindGroupLayout: GPUBindGroupLayout;
+	boundingBoxBindGroupLayout: GPUBindGroupLayout;
+	boundingBoxBindGroup: GPUBindGroup;
 
 	// Depth buffer
 	depthTexture: GPUTexture;
@@ -62,8 +74,10 @@ export default class Renderer {
 	projViewTransformBuffer: GPUBuffer;
 	jointMatricesBuffers: GPUBuffer[];
 
-	constructor(canvas: HTMLCanvasElement) {
+	constructor(canvas: HTMLCanvasElement, showAABBs: boolean, showOBBs: boolean) {
 		this.canvas = canvas;
+		this.showAABBs = showAABBs;
+		this.showOBBs = showOBBs;
 		this.context = <GPUCanvasContext>canvas.getContext('webgpu');
 		this.fov = utils.degToRad(60);
 		this.aspect = canvas.width / canvas.height;
@@ -82,6 +96,12 @@ export default class Renderer {
 		);
 		this.colorFragShaderModule = <GPUShaderModule>(
 			this.device.createShaderModule({ label: 'colorFragShaderModule', code: colorFragShader })
+		);
+		this.obbShaderModule = <GPUShaderModule>(
+			this.device.createShaderModule({ label: 'obbShaderModule', code: obbShader })
+		);
+		this.aabbShaderModule = <GPUShaderModule>(
+			this.device.createShaderModule({ label: 'aabbShaderModule', code: aabbShader })
 		);
 
 		this.context.configure({
@@ -230,6 +250,19 @@ export default class Renderer {
 				},
 			],
 		});
+
+		this.boundingBoxBindGroupLayout = this.device.createBindGroupLayout({
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.VERTEX,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+			],
+		});
 	}
 
 	createBindGroups() {
@@ -250,6 +283,18 @@ export default class Renderer {
 				},
 				{
 					binding: 2,
+					resource: {
+						buffer: this.projViewTransformBuffer,
+					},
+				},
+			],
+		});
+
+		this.boundingBoxBindGroup = this.device.createBindGroup({
+			layout: this.boundingBoxBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
 					resource: {
 						buffer: this.projViewTransformBuffer,
 					},
@@ -427,6 +472,76 @@ export default class Renderer {
 				depthCompare: 'less',
 			},
 		});
+
+		this.OBBPipeline = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: [this.boundingBoxBindGroupLayout],
+			}),
+			vertex: {
+				module: this.obbShaderModule,
+				entryPoint: 'v_main',
+				buffers: [
+					{
+						arrayStride: 12,
+						attributes: [
+							{
+								shaderLocation: 0,
+								format: 'float32x3',
+								offset: 0,
+							},
+						],
+					},
+				],
+			},
+			fragment: {
+				module: this.obbShaderModule,
+				entryPoint: 'f_main',
+				targets: targets,
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			depthStencil: {
+				format: this.depthFormat,
+				depthWriteEnabled: false,
+				depthCompare: 'less',
+			},
+		});
+
+		this.AABBPipeline = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				bindGroupLayouts: [this.boundingBoxBindGroupLayout],
+			}),
+			vertex: {
+				module: this.aabbShaderModule,
+				entryPoint: 'v_main',
+				buffers: [
+					{
+						arrayStride: 12,
+						attributes: [
+							{
+								shaderLocation: 0,
+								format: 'float32x3',
+								offset: 0,
+							},
+						],
+					},
+				],
+			},
+			fragment: {
+				module: this.aabbShaderModule,
+				entryPoint: 'f_main',
+				targets: targets,
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			depthStencil: {
+				format: this.depthFormat,
+				depthWriteEnabled: false,
+				depthCompare: 'less',
+			},
+		});
 	}
 
 	set_joint_buffers(jointMatricesBufferList: GPUBuffer[], models: Model[]) {
@@ -522,6 +637,23 @@ export default class Renderer {
 		}
 	}
 
+	renderBoundingBoxes(modelNodeChunks: IModelNodeChunks, isAxisAligned: boolean) {
+		const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
+		for (let i = 0; i < modelIndices.length; i++) {
+			const modelIndexChunk = modelIndices[i];
+			const nodeIndex: number = modelIndexChunk.nodeIndex;
+			const primIndex: number = modelIndexChunk.primitiveIndex;
+			const node: GLTFNode = nodes[nodeIndex];
+			if (!node.mesh || node.name === 'Cube.001') continue;
+
+			this.renderPass.setVertexBuffer(
+				0,
+				isAxisAligned ? node.AABBBufferArray[primIndex] : node.OBBBufferArray[primIndex]
+			);
+			this.renderPass.draw(36);
+		}
+	}
+
 	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks, models: Model[]) => {
 		const projView = mat4.mul(this.projection, renderables.viewTransform);
 
@@ -549,6 +681,17 @@ export default class Renderer {
 		this.renderChunk('opaque', modelNodeChunks.opaque);
 		if (modelNodeChunks.transparent.length) {
 			this.renderChunk('transparent', modelNodeChunks.transparent);
+		}
+
+		if (this.showAABBs) {
+			this.renderPass.setPipeline(this.AABBPipeline);
+			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
+			this.renderBoundingBoxes(modelNodeChunks, true);
+		}
+		if (this.showOBBs) {
+			this.renderPass.setPipeline(this.OBBPipeline);
+			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
+			this.renderBoundingBoxes(modelNodeChunks, false);
 		}
 
 		this.renderPass.end();

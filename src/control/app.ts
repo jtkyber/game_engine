@@ -14,8 +14,8 @@ export default class App {
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
-	showAABBs: boolean = false;
-	showOBBs: boolean = false;
+	showAABBs: boolean = true;
+	showOBBs: boolean = true;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -27,7 +27,7 @@ export default class App {
 		window.myLib = window.myLib || {};
 		window.myLib.deltaTime = 0;
 
-		this.renderer = new Renderer(this.canvas);
+		this.renderer = new Renderer(this.canvas, this.showAABBs, this.showOBBs);
 		await this.renderer.setupDevice();
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);

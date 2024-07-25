@@ -1,4 +1,4 @@
-import { Vec3, Vec4, mat4, quat, utils, vec3, vec4 } from 'wgpu-matrix';
+import { Vec3, quat, utils, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { nodes } from '../view/gltf/loader';
 
@@ -13,8 +13,6 @@ export default class Model {
 	right: Vec3;
 	rightMove: Vec3;
 	up: Vec3;
-	OBBMin: number;
-	OBBMax: number;
 
 	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number) {
 		this.name = name;

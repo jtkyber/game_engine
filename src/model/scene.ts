@@ -51,6 +51,7 @@ export default class Scene {
 			for (let j = 0; j < 16; j++) {
 				this.nodeTransforms[i * 16 + j] = modelMatrix[j];
 			}
+			node.setBoundingBoxes(modelMatrix);
 
 			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(modelMatrix));
 			for (let j = 0; j < 16; j++) {

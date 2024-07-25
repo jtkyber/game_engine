@@ -487,8 +487,25 @@ export default class GTLFLoader {
 		const name: string = node.name;
 		const mesh: GLTFMesh = this.meshes[node['mesh']] ?? null;
 		const skin: GLTFSkin = this.skins[node['skin']] ?? null;
+		const minValues: Vec3[] = mesh?.primitives.map(p => p.positions.min) ?? null;
+		const maxValues: Vec3[] = mesh?.primitives.map(p => p.positions.max) ?? null;
 
-		nodes.push(new GLTFNode(name, flag, parentNode, translation, rotation, scale, matrix, mesh, skin));
+		nodes.push(
+			new GLTFNode(
+				this.device,
+				name,
+				flag,
+				parentNode,
+				translation,
+				rotation,
+				scale,
+				matrix,
+				mesh,
+				skin,
+				minValues,
+				maxValues
+			)
+		);
 		const lastNodeIndex: number = nodes.length - 1;
 
 		this.indexSwapBoard[n] = lastNodeIndex;
