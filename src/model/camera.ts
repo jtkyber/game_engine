@@ -61,8 +61,10 @@ export class Camera {
 	}
 
 	get_cam_heght(node: GLTFNode) {
-		this.distAboveModel += node.position[1];
-		if (node.parent) this.get_cam_heght(nodes[node.parent]);
+		if (node.parent !== null) this.get_cam_heght(nodes[node.parent]);
+		else {
+			this.distAboveModel += node.position[1];
+		}
 	}
 
 	move_FB(sign: number, amt: number) {

@@ -18,11 +18,13 @@ export default class GLTFNode {
 	transform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
+	mass: number = 1;
 	initialOBBs: IOBB[] = null;
 	OBBs: IOBB[] = null;
 	AABBs: IAABB[] = null;
 	previousPosition: Vec3;
-	currentVelocity: Vec3 = vec3.create(0, 0, 0);
+	currentSpeed: number = 0;
+	preTransformed: boolean[];
 
 	// For debug
 	initialOBBMeshes: Float32Array[] = null;
@@ -66,6 +68,7 @@ export default class GLTFNode {
 			this.OBBs = new Array(minValues.length);
 			this.AABBs = new Array(minValues.length);
 			this.AABBBufferArray = new Array(minValues.length);
+			this.preTransformed = new Array(minValues.length);
 
 			for (let i = 0; i < minValues.length; i++) {
 				this.OBBBufferArray[i] = device.createBuffer({
@@ -102,6 +105,8 @@ export default class GLTFNode {
 					min: null,
 					max: null,
 				};
+
+				this.preTransformed[i] = false;
 			}
 		}
 	}
@@ -116,13 +121,16 @@ export default class GLTFNode {
 
 		mat4.scale(this.transform, this.scale, this.transform);
 
-		this.currentVelocity = vec3.sub(this.position, this.previousPosition);
+		this.currentSpeed = vec3.dist(this.position, this.previousPosition);
 	}
 
 	apply_gravity(node: GLTFNode = this) {
-		if (node.parent) this.apply_gravity(nodes[node.parent]);
-		node.gravitySpeed += node.gravityAcc;
-		node.position[1] -= node.gravitySpeed;
+		if (node.parent !== null) this.apply_gravity(nodes[node.parent]);
+		else {
+			node.gravitySpeed += node.gravityAcc;
+			node.position[1] -= node.gravitySpeed;
+			if (node.position[1] < 0) node.position[1] = 0;
+		}
 	}
 
 	reset_gravity() {
@@ -155,7 +163,8 @@ export default class GLTFNode {
 		if (!this.initialOBBMeshes) return;
 
 		for (let i = 0; i < this.initialOBBMeshes.length; i++) {
-			// Transforms not working right
+			if (!this.preTransformed[i] && this.parent !== null) this.transform_to_local_space(transform, i);
+
 			this.transformOBB(transform, [...this.initialOBBs[i].vertices], i, true);
 			// const normalMatrix: Mat4 = mat4.transpose(mat4.invert(this.transform));
 			this.transformOBB(normalTransform, [...this.initialOBBs[i].normals], i, false);
@@ -255,5 +264,23 @@ export default class GLTFNode {
 		commandEncoder.copyBufferToBuffer(stagingBuffer, 0, this.AABBBufferArray[i], 0, stagingBuffer.size);
 		const commandBuffer = commandEncoder.finish();
 		this.device.queue.submit([commandBuffer]);
+	}
+
+	transform_to_local_space(transform: Mat4, i: number) {
+		const t: Mat4 = mat4.inverse(transform);
+
+		for (let j = 0; j < this.initialOBBs[i].vertices.length; j++) {
+			this.initialOBBs[i].vertices[j] = transformPosition(this.initialOBBs[i].vertices[j], t);
+		}
+
+		for (let j = 0; j < this.initialOBBMeshes[i].length / 3; j++) {
+			const v: Vec3 = this.initialOBBMeshes[i].slice(j * 3, j * 3 + 3);
+			const newPos: Vec3 = transformPosition(v, t);
+			this.initialOBBMeshes[i][j * 3] = newPos[0];
+			this.initialOBBMeshes[i][j * 3 + 1] = newPos[1];
+			this.initialOBBMeshes[i][j * 3 + 2] = newPos[2];
+		}
+
+		this.preTransformed[i] = true;
 	}
 }

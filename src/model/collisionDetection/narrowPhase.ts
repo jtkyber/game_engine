@@ -35,20 +35,35 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 			}
 		}
 
-		if (node1.name !== 'Cube.001' && node2.name !== 'Cube.001') {
-			offset_nodes(vec3.scale(mtvAxis, minOverlap), node1, node2);
+		const center1: Vec3 = get_center(vert1);
+		const center2: Vec3 = get_center(vert2);
+
+		const direction: Vec3 = vec3.sub(center2, center1);
+		let offsetVector = vec3.scale(mtvAxis, minOverlap);
+		if (vec3.dot(direction, offsetVector) > 0) {
+			vec3.negate(offsetVector, offsetVector);
 		}
+
+		offset_nodes(offsetVector, node1, node2);
 	}
 }
 
 function offset_nodes(offsetVector: Vec3, node1: GLTFNode, node2: GLTFNode) {
 	if (node1.name === 'Player') {
 		node1.position = vec3.add(node1.position, offsetVector);
-		console.log(1, offsetVector);
 	} else if (node2.name === 'Player') {
 		node2.position = vec3.add(node2.position, offsetVector);
-		console.log(2, offsetVector);
 	}
+}
+
+function get_center(vertices: Vec3[]) {
+	let sum: Vec3 = vec3.create(0, 0, 0);
+
+	for (let v of vertices) {
+		vec3.add(sum, v, sum);
+	}
+
+	return vec3.divScalar(sum, 8);
 }
 
 function ranges_overlap(range1: Vec2, range2: Vec2): boolean {
