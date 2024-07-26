@@ -6,6 +6,8 @@ import JointMatrices from '../view/compute/joint_matrices/joint_matrices';
 import { nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
+import { broad_phase } from './collisionDetection/broadPhase';
+import { narrow_phase } from './collisionDetection/narrowPhase';
 import Model from './model';
 import Player from './player';
 
@@ -46,17 +48,19 @@ export default class Scene {
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
 			node.update();
+			node.setPreviousPosition();
 
 			const modelMatrix: Mat4 = this.get_node_transform(i, node.transform);
 			for (let j = 0; j < 16; j++) {
 				this.nodeTransforms[i * 16 + j] = modelMatrix[j];
 			}
-			node.setBoundingBoxes(modelMatrix);
 
 			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(modelMatrix));
 			for (let j = 0; j < 16; j++) {
 				this.normalTransforms[i * 16 + j] = normalMatrix[j];
 			}
+
+			node.setBoundingBoxes(modelMatrix, normalMatrix);
 		}
 
 		this.jointMatricesBufferList = this.jointMatrixCompute.get_joint_matrices(
@@ -64,6 +68,9 @@ export default class Scene {
 			this.nodeTransforms
 		);
 		this.sortTransparent();
+
+		const broadPhaseIndices = broad_phase(this.modelNodeChunks);
+		narrow_phase(broadPhaseIndices);
 	}
 
 	update_models() {

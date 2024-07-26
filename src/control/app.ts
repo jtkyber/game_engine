@@ -14,7 +14,7 @@ export default class App {
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
-	showAABBs: boolean = true;
+	showAABBs: boolean = false;
 	showOBBs: boolean = true;
 
 	constructor(canvas: HTMLCanvasElement) {

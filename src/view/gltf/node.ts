@@ -1,7 +1,9 @@
-import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, mat4, quat, vec2, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../../types/enums';
+import { IAABB, IOBB } from '../../types/types';
 import { transformPosition } from '../../utils/matrix';
 import { getAABBverticesFromMinMax } from '../../utils/misc';
+import { nodes } from './loader';
 import GLTFMesh from './mesh';
 import GLTFSkin from './skin';
 
@@ -16,14 +18,20 @@ export default class GLTFNode {
 	transform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
-	initialOBBs: Float32Array[] = null;
-	OBBs: Float32Array[] = null;
-	AABBs: Float32Array[] = null;
+	initialOBBs: IOBB[] = null;
+	OBBs: IOBB[] = null;
+	AABBs: IAABB[] = null;
+	previousPosition: Vec3;
+	currentVelocity: Vec3 = vec3.create(0, 0, 0);
 
 	// For debug
 	initialOBBMeshes: Float32Array[] = null;
 	OBBBufferArray: GPUBuffer[] = null;
 	AABBBufferArray: GPUBuffer[] = null;
+
+	gravitySpeedStart: number = 0.001;
+	gravitySpeed: number = 0.001;
+	gravityAcc: number = 0.001;
 
 	constructor(
 		device: GPUDevice,
@@ -49,6 +57,7 @@ export default class GLTFNode {
 		this.transform = transform;
 		this.mesh = mesh;
 		this.skin = skin;
+		this.previousPosition = this.position;
 
 		if (minValues?.length && maxValues?.length) {
 			this.initialOBBMeshes = new Array(minValues.length);
@@ -72,20 +81,27 @@ export default class GLTFNode {
 				const min: Vec3 = minValues[i];
 				const max: Vec3 = maxValues[i];
 
-				this.initialOBBs[i] = new Float32Array(8 * 3);
+				this.initialOBBs[i] = {
+					vertices: new Array(8),
+					normals: new Array(6),
+				};
+
+				this.OBBs[i] = {
+					vertices: new Array(8),
+					normals: new Array(6),
+				};
+
+				this.setInitialOOB(i, min, max);
+
 				this.initialOBBMeshes[i] = getAABBverticesFromMinMax(min, max);
 
-				this.OBBs[i] = new Float32Array(8 * 3);
-				this.AABBs[i] = new Float32Array(8 * 3);
+				this.OBBs[i].vertices = [...this.initialOBBs[i].vertices];
+				this.OBBs[i].normals = [...this.initialOBBs[i].normals];
 
-				this.initialOBBs[i].set([min[0], min[1], min[2]], 0);
-				this.initialOBBs[i].set([min[0], min[1], max[2]], 3);
-				this.initialOBBs[i].set([min[0], max[1], min[2]], 6);
-				this.initialOBBs[i].set([min[0], max[1], max[2]], 9);
-				this.initialOBBs[i].set([max[0], min[1], min[2]], 12);
-				this.initialOBBs[i].set([max[0], min[1], max[2]], 15);
-				this.initialOBBs[i].set([max[0], max[1], min[2]], 18);
-				this.initialOBBs[i].set([max[0], max[1], max[2]], 21);
+				this.AABBs[i] = {
+					min: null,
+					max: null,
+				};
 			}
 		}
 	}
@@ -99,26 +115,55 @@ export default class GLTFNode {
 		mat4.rotate(this.transform, rotFromQuat.axis, rotFromQuat.angle, this.transform);
 
 		mat4.scale(this.transform, this.scale, this.transform);
+
+		this.currentVelocity = vec3.sub(this.position, this.previousPosition);
 	}
 
-	async setBoundingBoxes(transform: Mat4) {
+	apply_gravity(node: GLTFNode = this) {
+		if (node.parent) this.apply_gravity(nodes[node.parent]);
+		node.gravitySpeed += node.gravityAcc;
+		node.position[1] -= node.gravitySpeed;
+	}
+
+	reset_gravity() {
+		this.gravitySpeed = this.gravitySpeedStart;
+	}
+
+	setPreviousPosition() {
+		this.previousPosition = this.position;
+	}
+
+	setInitialOOB(i: number, min: Vec3, max: Vec3) {
+		this.initialOBBs[i].vertices[0] = vec3.create(min[0], min[1], min[2]);
+		this.initialOBBs[i].vertices[1] = vec3.create(max[0], min[1], min[2]);
+		this.initialOBBs[i].vertices[2] = vec3.create(max[0], max[1], min[2]);
+		this.initialOBBs[i].vertices[3] = vec3.create(min[0], max[1], min[2]);
+		this.initialOBBs[i].vertices[4] = vec3.create(min[0], min[1], max[2]);
+		this.initialOBBs[i].vertices[5] = vec3.create(max[0], min[1], max[2]);
+		this.initialOBBs[i].vertices[6] = vec3.create(max[0], max[1], max[2]);
+		this.initialOBBs[i].vertices[7] = vec3.create(min[0], max[1], max[2]);
+
+		this.initialOBBs[i].normals[0] = vec3.create(-1, 0, 0);
+		this.initialOBBs[i].normals[1] = vec3.create(1, 0, 0);
+		this.initialOBBs[i].normals[2] = vec3.create(0, -1, 0);
+		this.initialOBBs[i].normals[3] = vec3.create(0, 1, 0);
+		this.initialOBBs[i].normals[4] = vec3.create(0, 0, -1);
+		this.initialOBBs[i].normals[5] = vec3.create(0, 0, 1);
+	}
+
+	async setBoundingBoxes(transform: Mat4, normalTransform: Mat4) {
 		if (!this.initialOBBMeshes) return;
 
 		for (let i = 0; i < this.initialOBBMeshes.length; i++) {
-			this.transformOBB(transform, [...this.initialOBBs[i]], i);
+			// Transforms not working right
+			this.transformOBB(transform, [...this.initialOBBs[i].vertices], i, true);
+			// const normalMatrix: Mat4 = mat4.transpose(mat4.invert(this.transform));
+			this.transformOBB(normalTransform, [...this.initialOBBs[i].normals], i, false);
 
-			const minMax = this.getMinMax([...this.OBBs[i]]);
-			const min: Vec3 = minMax.min;
-			const max: Vec3 = minMax.max;
+			const minMax = this.getMinMax([...this.OBBs[i].vertices]);
 
-			this.AABBs[i].set([min[0], min[1], min[2]], 0);
-			this.AABBs[i].set([min[0], min[1], max[2]], 3);
-			this.AABBs[i].set([min[0], max[1], min[2]], 6);
-			this.AABBs[i].set([min[0], max[1], max[2]], 9);
-			this.AABBs[i].set([max[0], min[1], min[2]], 12);
-			this.AABBs[i].set([max[0], min[1], max[2]], 15);
-			this.AABBs[i].set([max[0], max[1], min[2]], 18);
-			this.AABBs[i].set([max[0], max[1], max[2]], 21);
+			this.AABBs[i].min = minMax.min;
+			this.AABBs[i].max = minMax.max;
 
 			// Only if debugging
 			const obbMesh = this.getTransformedOBBMesh(transform, [...this.initialOBBMeshes[i]]);
@@ -129,17 +174,16 @@ export default class GLTFNode {
 		}
 	}
 
-	transformOBB(transform: Mat4, OBB: number[], index: number) {
-		for (let i = 0; i < OBB.length / 3; i++) {
-			const pos: number[] = OBB.slice(i * 3, i * 3 + 3);
-			const newPos: Vec3 = transformPosition(pos, transform);
-			this.OBBs[index][i * 3] = newPos[0];
-			this.OBBs[index][i * 3 + 1] = newPos[1];
-			this.OBBs[index][i * 3 + 2] = newPos[2];
+	transformOBB(transform: Mat4, OBB: Vec3[], index: number, areVertices: boolean) {
+		for (let i = 0; i < OBB.length; i++) {
+			const v: Vec3 = OBB[i];
+			const newV: Vec3 = transformPosition(v, transform);
+			if (areVertices) this.OBBs[index].vertices[i] = newV;
+			else this.OBBs[index].normals[i] = vec3.normalize(newV);
 		}
 	}
 
-	getMinMax(values: number[]): { min: Vec3; max: Vec3 } {
+	getMinMax(values: Vec3[]): { min: Vec3; max: Vec3 } {
 		let minX: number = Infinity;
 		let minY: number = Infinity;
 		let minZ: number = Infinity;
@@ -148,10 +192,10 @@ export default class GLTFNode {
 		let maxY: number = -Infinity;
 		let maxZ: number = -Infinity;
 
-		for (let i = 0; i < values.length / 3; i++) {
-			const x: number = values[i * 3];
-			const y: number = values[i * 3 + 1];
-			const z: number = values[i * 3 + 2];
+		for (let i = 0; i < values.length; i++) {
+			const x: number = values[i][0];
+			const y: number = values[i][1];
+			const z: number = values[i][2];
 
 			if (x < minX) minX = x;
 			if (y < minY) minY = y;

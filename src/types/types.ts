@@ -1,3 +1,4 @@
+import { Vec2, Vec3 } from 'wgpu-matrix';
 import GLTFAnimation from '../view/gltf/animation';
 import { moveableFlag } from './enums';
 
@@ -58,3 +59,18 @@ export type TypedArray =
 	| Uint32Array
 	| Float32Array
 	| Float64Array;
+
+export interface IAABB {
+	min: Vec3;
+	max: Vec3;
+}
+
+export interface IOBB {
+	vertices: Vec3[];
+	normals: Vec3[];
+}
+
+export interface AABBResultPair {
+	nodeIndices: Vec2;
+	primIndices: Vec2;
+}

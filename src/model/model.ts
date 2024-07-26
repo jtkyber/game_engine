@@ -35,6 +35,8 @@ export default class Model {
 		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
 
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
+
+		nodes[this.nodeIndex].apply_gravity();
 	}
 
 	spin(rotationAxis: Vec3, angleOfRotationInc: number) {

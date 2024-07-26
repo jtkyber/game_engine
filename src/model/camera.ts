@@ -1,5 +1,6 @@
 import { Mat4, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
 import { nodes } from '../view/gltf/loader';
+import GLTFNode from '../view/gltf/node';
 import Model from './model';
 
 export class Camera {
@@ -12,7 +13,7 @@ export class Camera {
 	rightMove: Vec3 = vec3.create();
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
-	distAboveModel: number = 2;
+	distAboveModel: number = 0;
 	distFromModel: number = 15;
 	distFromModelMin: number = 5;
 	distFromModelMax: number = 50;
@@ -25,6 +26,9 @@ export class Camera {
 	}
 
 	update() {
+		this.distAboveModel = 0;
+		this.get_cam_heght(nodes[this.targetModel.nodeIndex]);
+
 		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
 		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 
@@ -54,6 +58,11 @@ export class Camera {
 		this.target = vec3.add(this.position, this.forward);
 
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
+	}
+
+	get_cam_heght(node: GLTFNode) {
+		this.distAboveModel += node.position[1];
+		if (node.parent) this.get_cam_heght(nodes[node.parent]);
 	}
 
 	move_FB(sign: number, amt: number) {
