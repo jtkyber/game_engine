@@ -13,7 +13,7 @@ export class Camera {
 	rightMove: Vec3 = vec3.create();
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
-	distAboveModel: number = 0;
+	distAboveModel: number = 2;
 	distFromModel: number = 15;
 	distFromModelMin: number = 5;
 	distFromModelMax: number = 50;
@@ -26,17 +26,14 @@ export class Camera {
 	}
 
 	update() {
-		this.distAboveModel = 0;
-		this.get_cam_heght(nodes[this.targetModel.nodeIndex]);
-
 		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
 		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 
 		this.pitch = Math.min(Math.PI / 2 - 0.1, Math.max(-Math.PI / 2 + 0.1, this.pitch));
 		// Move camera to center of model
-		this.position[0] = nodes[this.targetModel.nodeIndex].position[0];
-		this.position[1] = nodes[this.targetModel.nodeIndex].position[1] + this.distAboveModel;
-		this.position[2] = nodes[this.targetModel.nodeIndex].position[2];
+		this.position[0] = nodes[this.targetModel.rootNodeIndex].position[0];
+		this.position[1] = nodes[this.targetModel.rootNodeIndex].position[1] + this.distAboveModel;
+		this.position[2] = nodes[this.targetModel.rootNodeIndex].position[2];
 
 		// Make quat from pitch and yaw
 		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'yxz');
@@ -58,13 +55,6 @@ export class Camera {
 		this.target = vec3.add(this.position, this.forward);
 
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
-	}
-
-	get_cam_heght(node: GLTFNode) {
-		if (node.parent !== null) this.get_cam_heght(nodes[node.parent]);
-		else {
-			this.distAboveModel += node.position[1];
-		}
 	}
 
 	move_FB(sign: number, amt: number) {

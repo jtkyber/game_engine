@@ -15,6 +15,9 @@ export interface IGLTFNode {
 	camera?: number;
 	extensions?: { [key: string]: any };
 	skin: number;
+	extras?: {
+		mass?: number;
+	};
 }
 
 export interface IGLTFMesh {

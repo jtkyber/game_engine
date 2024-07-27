@@ -35,13 +35,6 @@ export function broad_phase(modelNodeChunks: IModelNodeChunks): AABBResultPair[]
 		}
 	}
 
-	// for (let i of passed) {
-	// 	const node1: GLTFNode = nodes[i[0]];
-	// 	const node2: GLTFNode = nodes[i[1]];
-	// 	console.log(node1.name, node2.name);
-	// }
-	// console.log('-------------------------------');
-
 	return passed;
 }
 
@@ -51,7 +44,7 @@ function intersecting(a: IAABB, b: IAABB): boolean {
 		a.max[0] >= b.min[0] &&
 		a.min[1] <= b.max[1] &&
 		a.max[1] >= b.min[1] &&
-		a.min[2] <= b.max[0] &&
+		a.min[2] <= b.max[2] &&
 		a.max[2] >= b.min[2]
 	) {
 		return true;

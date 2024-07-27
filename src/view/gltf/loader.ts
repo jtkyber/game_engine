@@ -477,6 +477,7 @@ export default class GTLFLoader {
 		n: number,
 		flag: number,
 		parentNode: number = null,
+		rootNode: number = null,
 		isRoot: boolean = true
 	) {
 		const node: IGLTFNode = allNodes[n];
@@ -489,6 +490,7 @@ export default class GTLFLoader {
 		const skin: GLTFSkin = this.skins[node['skin']] ?? null;
 		const minValues: Vec3[] = mesh?.primitives.map(p => p.positions.min) ?? null;
 		const maxValues: Vec3[] = mesh?.primitives.map(p => p.positions.max) ?? null;
+		const mass: number = node?.extras?.mass ?? null;
 
 		nodes.push(
 			new GLTFNode(
@@ -496,6 +498,7 @@ export default class GTLFLoader {
 				name,
 				flag,
 				parentNode,
+				rootNode,
 				translation,
 				rotation,
 				scale,
@@ -503,7 +506,8 @@ export default class GTLFLoader {
 				mesh,
 				skin,
 				minValues,
-				maxValues
+				maxValues,
+				mass
 			)
 		);
 		const lastNodeIndex: number = nodes.length - 1;
@@ -539,7 +543,7 @@ export default class GTLFLoader {
 			);
 		} else if (isRoot || mesh) {
 			// Is Model
-			this.models.push(new Model(name, flag, lastNodeIndex));
+			this.models.push(new Model(name, flag, lastNodeIndex, rootNode));
 
 			for (let i = 0; i < mesh?.primitives.length; i++) {
 				const prim: GLTFPrimitive = mesh.primitives[i];
@@ -550,9 +554,9 @@ export default class GTLFLoader {
 		}
 
 		if (node['children']) {
-			const parentNode = nodes.length - 1;
+			const pNode = nodes.length - 1;
 			for (let i = 0; i < node['children'].length; i++) {
-				this.load_nodes(allNodes, node['children'][i], flag, parentNode, false);
+				this.load_nodes(allNodes, node['children'][i], flag, pNode, isRoot ? pNode : rootNode, false);
 			}
 		}
 	}
@@ -564,7 +568,7 @@ export default class GTLFLoader {
 			let model: Model = this.models[i];
 
 			if (model.name === 'Player' && !playerFound) {
-				this.player = new Player(model.name, model.moveableFlag, model.nodeIndex);
+				this.player = new Player(model.name, model.moveableFlag, model.nodeIndex, model.rootNodeIndex);
 				this.models.splice(i, 1, this.player);
 				model = this.player;
 				playerFound = true;

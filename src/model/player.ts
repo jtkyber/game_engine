@@ -1,4 +1,4 @@
-import { Mat4, Vec3, Vec4, quat, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, quat, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { nodes } from '../view/gltf/loader';
 import { Camera } from './camera';
@@ -8,6 +8,7 @@ export default class Player extends Model {
 	name: string;
 	moveableFlag: moveableFlag;
 	nodeIndex: number;
+	rootNodeIndex: number;
 	camera: Camera;
 	parent: Model = null;
 	zUP: Mat4;
@@ -19,8 +20,8 @@ export default class Player extends Model {
 	rightMove: Vec3;
 	up: Vec3;
 
-	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number) {
-		super(name, moveableFlag, nodeIndex);
+	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number, rootNodeIndex: number) {
+		super(name, moveableFlag, nodeIndex, rootNodeIndex);
 	}
 
 	spin_lerp(endDir: Vec3) {

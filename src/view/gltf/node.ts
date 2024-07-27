@@ -12,18 +12,19 @@ export default class GLTFNode {
 	name: string;
 	flag: moveableFlag;
 	parent: number = null;
+	rootNode: number;
 	position: Vec3;
 	quat: Quat;
 	scale: Vec3;
 	transform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
-	mass: number = 1;
+	mass: number = null;
 	initialOBBs: IOBB[] = null;
 	OBBs: IOBB[] = null;
 	AABBs: IAABB[] = null;
 	previousPosition: Vec3;
-	currentSpeed: number = 0;
+	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
 	preTransformed: boolean[];
 
 	// For debug
@@ -31,15 +32,16 @@ export default class GLTFNode {
 	OBBBufferArray: GPUBuffer[] = null;
 	AABBBufferArray: GPUBuffer[] = null;
 
-	gravitySpeedStart: number = 0.001;
-	gravitySpeed: number = 0.001;
-	gravityAcc: number = 0.001;
+	gravitySpeedStart: number = 0;
+	gravitySpeed: number = 0;
+	gravityAcc: number = 0.01;
 
 	constructor(
 		device: GPUDevice,
 		name: string,
 		flag: any,
 		parent: number,
+		rootNode: number,
 		position: Vec3,
 		quat: Quat,
 		scale: Vec3,
@@ -47,19 +49,22 @@ export default class GLTFNode {
 		mesh: GLTFMesh,
 		skin: GLTFSkin,
 		minValues: Vec3[],
-		maxValues: Vec3[]
+		maxValues: Vec3[],
+		mass: number
 	) {
 		this.device = device;
 		this.name = name;
 		this.flag = flag;
 		this.parent = parent;
+		this.rootNode = rootNode;
 		this.position = position;
 		this.quat = quat;
 		this.scale = scale;
 		this.transform = transform;
 		this.mesh = mesh;
 		this.skin = skin;
-		this.previousPosition = this.position;
+		this.mass = mass;
+		this.previousPosition = vec3.fromValues(...this.position);
 
 		if (minValues?.length && maxValues?.length) {
 			this.initialOBBMeshes = new Array(minValues.length);
@@ -120,25 +125,47 @@ export default class GLTFNode {
 		mat4.rotate(this.transform, rotFromQuat.axis, rotFromQuat.angle, this.transform);
 
 		mat4.scale(this.transform, this.scale, this.transform);
-
-		this.currentSpeed = vec3.dist(this.position, this.previousPosition);
 	}
 
-	apply_gravity(node: GLTFNode = this) {
-		if (node.parent !== null) this.apply_gravity(nodes[node.parent]);
-		else {
-			node.gravitySpeed += node.gravityAcc;
-			node.position[1] -= node.gravitySpeed;
-			if (node.position[1] < 0) node.position[1] = 0;
+	get currentVelocity() {
+		if (this.parent === null) return this._currentVelocity;
+		else return nodes[this.rootNode]._currentVelocity;
+	}
+
+	set_current_velocity() {
+		if (this.parent === null) {
+			this._currentVelocity = vec3.sub(this.position, this.previousPosition);
+		}
+	}
+
+	apply_gravity() {
+		if (this.parent === null) {
+			this.gravitySpeed += this.gravityAcc;
+			this.position[1] -= this.gravitySpeed;
+			if (this.position[1] < 0) this.position[1] = 0;
+		}
+	}
+
+	offset_root_position(offset: Vec3) {
+		if (this.parent === null) {
+			vec3.add(this.position, offset, this.position);
+		} else {
+			vec3.add(nodes[this.rootNode].position, offset, nodes[this.rootNode].position);
 		}
 	}
 
 	reset_gravity() {
-		this.gravitySpeed = this.gravitySpeedStart;
+		if (this.parent === null) {
+			this.gravitySpeed = 0;
+		} else {
+			nodes[this.rootNode].gravitySpeed = 0;
+		}
 	}
 
-	setPreviousPosition() {
-		this.previousPosition = this.position;
+	set_previous_position() {
+		if (this.parent === null) {
+			this.previousPosition = vec3.fromValues(...this.position);
+		}
 	}
 
 	setInitialOOB(i: number, min: Vec3, max: Vec3) {

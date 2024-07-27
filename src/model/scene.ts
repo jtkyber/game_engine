@@ -1,4 +1,4 @@
-import { Mat4, Vec3, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, mat4, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
@@ -48,7 +48,6 @@ export default class Scene {
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
 			node.update();
-			node.setPreviousPosition();
 
 			const modelMatrix: Mat4 = this.get_node_transform(i, node.transform);
 			for (let j = 0; j < 16; j++) {
@@ -77,6 +76,9 @@ export default class Scene {
 		for (let i = 0; i < this.models.length; i++) {
 			const model: Model = this.models[i];
 			model.update();
+			nodes[model.nodeIndex].apply_gravity();
+			nodes[model.nodeIndex].set_current_velocity();
+			nodes[model.nodeIndex].set_previous_position();
 		}
 	}
 

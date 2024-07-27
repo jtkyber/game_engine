@@ -48,12 +48,57 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 	}
 }
 
-function offset_nodes(offsetVector: Vec3, node1: GLTFNode, node2: GLTFNode) {
-	if (node1.name === 'Player') {
-		node1.position = vec3.add(node1.position, offsetVector);
-	} else if (node2.name === 'Player') {
-		node2.position = vec3.add(node2.position, offsetVector);
+function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode) {
+	const velocityAlongMTV: number = get_relative_velocity_along_mtv(
+		node1.currentVelocity,
+		node2.currentVelocity,
+		mtv
+	);
+
+	if (velocityAlongMTV === 0) return;
+
+	const totalMass: number = node1.mass + node2.mass;
+
+	let massFactor1: number = (1 - node1.mass) / totalMass;
+	let massFactor2: number = (1 - node2.mass) / totalMass;
+
+	if (node1.mass === null && node2.mass !== null) {
+		massFactor1 = 0;
+		massFactor2 = 1;
+	} else if (node1.mass !== null && node2.mass === null) {
+		massFactor1 = 1;
+		massFactor2 = 0;
+	} else if (node1.mass === null && node2.mass === null) {
+		massFactor1 = 0;
+		massFactor2 = 0;
 	}
+
+	const velocityFactor1 = Math.abs(vec3.dot(node1.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);
+	const velocityFactor2 = Math.abs(vec3.dot(node2.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);
+
+	const totalFactor = massFactor1 + velocityFactor1 + massFactor2 + velocityFactor2;
+
+	const node1Proportion = (massFactor1 + velocityFactor1) / totalFactor;
+	const node2Proportion = (massFactor2 + velocityFactor2) / totalFactor;
+
+	const node1Offset = vec3.scale(mtv, node1Proportion);
+	const node2Offset = vec3.scale(mtv, -node2Proportion);
+
+	node1.offset_root_position(node1Offset);
+	node2.offset_root_position(node2Offset);
+
+	if (mtv[1] !== 0) {
+		if (node1.currentVelocity[1] < node2.currentVelocity[1]) {
+			node1.reset_gravity();
+		} else if (node2.currentVelocity[1] < node1.currentVelocity[1]) {
+			node2.reset_gravity();
+		}
+	}
+}
+
+function get_relative_velocity_along_mtv(v1: Vec3, v2: Vec3, mtv: Vec3): number {
+	let relativeVelocity = vec3.sub(v1, v2);
+	return vec3.dot(relativeVelocity, vec3.normalize(mtv));
 }
 
 function get_center(vertices: Vec3[]) {

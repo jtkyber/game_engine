@@ -6,6 +6,7 @@ export default class Model {
 	name: string;
 	moveableFlag: moveableFlag;
 	nodeIndex: number;
+	rootNodeIndex: number;
 	speed: number = 0.005;
 	turnSpeed: number = 0;
 	forward: Vec3;
@@ -14,10 +15,11 @@ export default class Model {
 	rightMove: Vec3;
 	up: Vec3;
 
-	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number) {
+	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number, rootNodeIndex: number) {
 		this.name = name;
 		this.moveableFlag = moveableFlag;
 		this.nodeIndex = nodeIndex;
+		this.rootNodeIndex = rootNodeIndex;
 	}
 
 	update() {
@@ -35,8 +37,6 @@ export default class Model {
 		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
 
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
-
-		nodes[this.nodeIndex].apply_gravity();
 	}
 
 	spin(rotationAxis: Vec3, angleOfRotationInc: number) {
@@ -49,7 +49,7 @@ export default class Model {
 
 	move(dir: Vec3, amt: number) {
 		amt *= window.myLib.deltaTime;
-		nodes[this.nodeIndex].position = vec3.addScaled(nodes[this.nodeIndex].position, dir, amt);
+		nodes[this.rootNodeIndex].position = vec3.addScaled(nodes[this.rootNodeIndex].position, dir, amt);
 	}
 
 	get_forward(): Vec3 {
