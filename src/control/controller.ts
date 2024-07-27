@@ -53,7 +53,7 @@ export default class Controller {
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
 			this.player.spin_lerp(endDir);
-			this.player.move(vec3.mulScalar(this.player.forwardMove, -1), this.player.speed);
+			this.player.move(vec3.mulScalar(this.player.forwardMove, -1));
 
 			animations['walk'].play();
 		} else {

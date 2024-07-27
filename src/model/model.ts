@@ -7,7 +7,6 @@ export default class Model {
 	moveableFlag: moveableFlag;
 	nodeIndex: number;
 	rootNodeIndex: number;
-	speed: number = 0.005;
 	turnSpeed: number = 0;
 	forward: Vec3;
 	forwardMove: Vec3;
@@ -47,8 +46,8 @@ export default class Model {
 		quat.fromAxisAngle(rotationAxis, angleOfRotation, nodes[this.nodeIndex].quat);
 	}
 
-	move(dir: Vec3, amt: number) {
-		amt *= window.myLib.deltaTime;
+	move(dir: Vec3) {
+		const amt = nodes[this.nodeIndex].speed * window.myLib.deltaTime;
 		nodes[this.rootNodeIndex].position = vec3.addScaled(nodes[this.rootNodeIndex].position, dir, amt);
 	}
 

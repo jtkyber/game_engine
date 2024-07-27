@@ -29,7 +29,6 @@ export class Camera {
 		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
 		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 
-		this.pitch = Math.min(Math.PI / 2 - 0.1, Math.max(-Math.PI / 2 + 0.1, this.pitch));
 		// Move camera to center of model
 		this.position[0] = nodes[this.targetModel.rootNodeIndex].position[0];
 		this.position[1] = nodes[this.targetModel.rootNodeIndex].position[1] + this.distAboveModel;

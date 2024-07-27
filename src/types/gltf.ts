@@ -17,6 +17,7 @@ export interface IGLTFNode {
 	skin: number;
 	extras?: {
 		mass?: number;
+		speed?: number;
 	};
 }
 

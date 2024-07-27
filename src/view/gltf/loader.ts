@@ -491,6 +491,7 @@ export default class GTLFLoader {
 		const minValues: Vec3[] = mesh?.primitives.map(p => p.positions.min) ?? null;
 		const maxValues: Vec3[] = mesh?.primitives.map(p => p.positions.max) ?? null;
 		const mass: number = node?.extras?.mass ?? null;
+		const speed: number = node?.extras?.speed ?? 0;
 
 		nodes.push(
 			new GLTFNode(
@@ -507,7 +508,8 @@ export default class GTLFLoader {
 				skin,
 				minValues,
 				maxValues,
-				mass
+				mass,
+				speed
 			)
 		);
 		const lastNodeIndex: number = nodes.length - 1;
@@ -572,6 +574,10 @@ export default class GTLFLoader {
 				this.models.splice(i, 1, this.player);
 				model = this.player;
 				playerFound = true;
+			}
+
+			if (nodes[model.nodeIndex].rootNode !== null) {
+				nodes[nodes[model.nodeIndex].rootNode].speed = nodes[model.nodeIndex].speed;
 			}
 		}
 	}

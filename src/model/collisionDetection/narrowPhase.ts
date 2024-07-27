@@ -69,8 +69,8 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode) {
 		massFactor1 = 1;
 		massFactor2 = 0;
 	} else if (node1.mass === null && node2.mass === null) {
-		massFactor1 = 0;
-		massFactor2 = 0;
+		massFactor1 = 1;
+		massFactor2 = 1;
 	}
 
 	const velocityFactor1 = Math.abs(vec3.dot(node1.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);

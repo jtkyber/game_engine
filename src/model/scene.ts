@@ -76,8 +76,8 @@ export default class Scene {
 		for (let i = 0; i < this.models.length; i++) {
 			const model: Model = this.models[i];
 			model.update();
-			nodes[model.nodeIndex].apply_gravity();
 			nodes[model.nodeIndex].set_current_velocity();
+			nodes[model.nodeIndex].apply_gravity();
 			nodes[model.nodeIndex].set_previous_position();
 		}
 	}

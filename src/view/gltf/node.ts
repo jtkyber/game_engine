@@ -20,6 +20,7 @@ export default class GLTFNode {
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
 	mass: number = null;
+	speed: number = null;
 	initialOBBs: IOBB[] = null;
 	OBBs: IOBB[] = null;
 	AABBs: IAABB[] = null;
@@ -50,7 +51,8 @@ export default class GLTFNode {
 		skin: GLTFSkin,
 		minValues: Vec3[],
 		maxValues: Vec3[],
-		mass: number
+		mass: number,
+		speed: number
 	) {
 		this.device = device;
 		this.name = name;
@@ -64,6 +66,7 @@ export default class GLTFNode {
 		this.mesh = mesh;
 		this.skin = skin;
 		this.mass = mass;
+		this.speed = speed;
 		this.previousPosition = vec3.fromValues(...this.position);
 
 		if (minValues?.length && maxValues?.length) {
@@ -134,15 +137,19 @@ export default class GLTFNode {
 
 	set_current_velocity() {
 		if (this.parent === null) {
-			this._currentVelocity = vec3.sub(this.position, this.previousPosition);
+			const moveDir: Vec3 = vec3.normalize(vec3.sub(this.position, this.previousPosition));
+			this._currentVelocity = vec3.scale(moveDir, this.speed);
 		}
 	}
 
 	apply_gravity() {
 		if (this.parent === null) {
+			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
 			this.position[1] -= this.gravitySpeed;
 			if (this.position[1] < 0) this.position[1] = 0;
+			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
+			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);
 		}
 	}
 
