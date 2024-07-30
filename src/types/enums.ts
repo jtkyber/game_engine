@@ -71,3 +71,9 @@ export enum GLTFAnimationPath {
 	SCALE,
 	WEIGHTS,
 }
+
+export enum LightType {
+	SPOT,
+	DIRECTIONAL,
+	POINT,
+}

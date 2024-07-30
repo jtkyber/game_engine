@@ -19,6 +19,14 @@ export interface IRenderData {
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
+	lightTypes: Float32Array;
+	lightPositions: Float32Array;
+	lightColors: Float32Array;
+	lightIntensities: Float32Array;
+	lightDirections: Float32Array;
+	lightAngleScales: Float32Array;
+	lightAngleOffsets: Float32Array;
+	lightViewProjMatrices: Float32Array;
 }
 
 export function getMoveableFlagType(name: string): moveableFlag | null {

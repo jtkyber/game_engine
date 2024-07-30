@@ -35,12 +35,19 @@ export default class App {
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 		// console.log(nodes);
+		// console.log(gltfLoader.lights);
 		// console.log(animations);
 
-		this.scene = new Scene(nodes, gltfScene.modelNodeChunks, this.renderer.device, gltfLoader.allJoints);
+		this.scene = new Scene(
+			nodes,
+			gltfScene.modelNodeChunks,
+			this.renderer.device,
+			gltfLoader.allJoints,
+			gltfLoader.lights
+		);
 		this.scene.set_models(gltfScene.models, gltfScene.player);
 
-		this.renderer.init();
+		this.renderer.init(gltfLoader.lights.length);
 
 		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
 	}

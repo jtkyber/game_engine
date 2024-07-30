@@ -17,6 +17,7 @@ export default class GLTFNode {
 	quat: Quat;
 	scale: Vec3;
 	transform: Mat4;
+	globalTransform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
 	mass: number = null;

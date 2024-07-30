@@ -1,4 +1,4 @@
-import { Mat4, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, mat4, Vec3, vec3 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
@@ -8,6 +8,7 @@ import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
 import { broad_phase } from './collisionDetection/broadPhase';
 import { narrow_phase } from './collisionDetection/narrowPhase';
+import Light from './light';
 import Model from './model';
 import Player from './player';
 
@@ -16,6 +17,7 @@ export default class Scene {
 	modelNodeChunks: IModelNodeChunks;
 	device: GPUDevice;
 	allJoints: Set<number>;
+	lights: Light[];
 	models: Model[];
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
@@ -23,22 +25,41 @@ export default class Scene {
 	camera: Camera;
 	player: Player;
 	jointMatrixCompute: JointMatrices;
+	lightTypes: Float32Array;
+	lightPositions: Float32Array;
+	lightColors: Float32Array;
+	lightIntensities: Float32Array;
+	lightDirections: Float32Array;
+	lightAngleScales: Float32Array;
+	lightAngleOffsets: Float32Array;
+	lightViewProjMatrices: Float32Array;
 
 	constructor(
 		nodes: GLTFNode[],
 		modelNodeChunks: IModelNodeChunks,
 		device: GPUDevice,
-		allJoints: Set<number>
+		allJoints: Set<number>,
+		lights: Light[]
 	) {
 		this.nodes = nodes;
 		this.modelNodeChunks = modelNodeChunks;
 		this.device = device;
 		this.allJoints = allJoints;
+		this.lights = lights;
 		this.models = [];
-		this.nodeTransforms = new Float32Array(16 * this.nodes.length);
-		this.normalTransforms = new Float32Array(16 * this.nodes.length);
+		this.nodeTransforms = new Float32Array(16 * nodes.length);
+		this.normalTransforms = new Float32Array(16 * nodes.length);
 		this.jointMatricesBufferList = [];
 		this.jointMatrixCompute = new JointMatrices(device);
+
+		this.lightTypes = new Float32Array(lights.length);
+		this.lightPositions = new Float32Array(lights.length * 4);
+		this.lightColors = new Float32Array(lights.length * 4);
+		this.lightIntensities = new Float32Array(lights.length);
+		this.lightDirections = new Float32Array(lights.length * 4);
+		this.lightAngleScales = new Float32Array(lights.length);
+		this.lightAngleOffsets = new Float32Array(lights.length);
+		this.lightViewProjMatrices = new Float32Array(lights.length * 16);
 	}
 
 	update() {
@@ -49,18 +70,20 @@ export default class Scene {
 			const node: GLTFNode = nodes[i];
 			node.update();
 
-			const modelMatrix: Mat4 = this.get_node_transform(i, node.transform);
+			node.globalTransform = this.get_node_transform(i, node.transform);
 			for (let j = 0; j < 16; j++) {
-				this.nodeTransforms[i * 16 + j] = modelMatrix[j];
+				this.nodeTransforms[i * 16 + j] = node.globalTransform[j];
 			}
 
-			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(modelMatrix));
+			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(node.globalTransform));
 			for (let j = 0; j < 16; j++) {
 				this.normalTransforms[i * 16 + j] = normalMatrix[j];
 			}
 
-			node.setBoundingBoxes(modelMatrix, normalMatrix);
+			node.setBoundingBoxes(node.globalTransform, normalMatrix);
 		}
+
+		for (let i = 0; i < this.lights.length; i++) this.set_light_data(i);
 
 		this.jointMatricesBufferList = this.jointMatrixCompute.get_joint_matrices(
 			this.models,
@@ -80,6 +103,18 @@ export default class Scene {
 			nodes[model.nodeIndex].apply_gravity();
 			nodes[model.nodeIndex].set_previous_position();
 		}
+	}
+
+	set_light_data(i: number) {
+		const light: Light = this.lights[i];
+		this.lightViewProjMatrices.set(light.get_light_view_proj_matrix(), i * 16);
+		this.lightTypes[i] = light.type;
+		this.lightPositions.set([...light.position, 0], i * 4);
+		this.lightColors.set([...light.color, 0], i * 4);
+		this.lightIntensities[i] = light.intensity;
+		this.lightDirections.set([...light.forward, 0], i * 4);
+		this.lightAngleScales[i] = light.angleScale;
+		this.lightAngleOffsets[i] = light.angleOffset;
 	}
 
 	get_node_transform(nodeIndex: number, transform: Mat4): Mat4 {
@@ -140,6 +175,14 @@ export default class Scene {
 			nodeTransforms: this.nodeTransforms,
 			normalTransforms: this.normalTransforms,
 			jointMatricesBufferList: this.jointMatricesBufferList,
+			lightTypes: this.lightTypes,
+			lightPositions: this.lightPositions,
+			lightColors: this.lightColors,
+			lightIntensities: this.lightIntensities,
+			lightDirections: this.lightDirections,
+			lightAngleScales: this.lightAngleScales,
+			lightAngleOffsets: this.lightAngleOffsets,
+			lightViewProjMatrices: this.lightViewProjMatrices,
 		};
 	}
 }

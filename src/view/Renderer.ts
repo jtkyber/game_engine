@@ -59,6 +59,8 @@ export default class Renderer {
 	jointBindGroupLayout: GPUBindGroupLayout;
 	boundingBoxBindGroupLayout: GPUBindGroupLayout;
 	boundingBoxBindGroup: GPUBindGroup;
+	lightingBindGroupLayout: GPUBindGroupLayout;
+	lightingBindGroup: GPUBindGroup;
 
 	// Depth buffer
 	depthTexture: GPUTexture;
@@ -73,6 +75,15 @@ export default class Renderer {
 	normalTransformBuffer: GPUBuffer;
 	projViewTransformBuffer: GPUBuffer;
 	jointMatricesBuffers: GPUBuffer[];
+
+	lightTypeBuffer: GPUBuffer;
+	lightPositionBuffer: GPUBuffer;
+	lightColorBuffer: GPUBuffer;
+	lightIntensityBuffer: GPUBuffer;
+	lightDirectionBuffer: GPUBuffer;
+	lightAngleScaleBuffer: GPUBuffer;
+	lightAngleOffsetBuffer: GPUBuffer;
+	lightViewProjBuffer: GPUBuffer;
 
 	constructor(canvas: HTMLCanvasElement, showAABBs: boolean, showOBBs: boolean) {
 		this.canvas = canvas;
@@ -111,15 +122,15 @@ export default class Renderer {
 		});
 	}
 
-	async init() {
-		this.createBuffers();
+	async init(lightNum: number) {
+		this.createBuffers(lightNum);
 		this.createDepthTexture();
 		this.createBindGroupLayouts();
 		this.createBindGroups();
 		this.createPipeline();
 	}
 
-	createBuffers() {
+	createBuffers(lightNum: number) {
 		this.modelTransformsBuffer = this.device.createBuffer({
 			label: 'Model Transform Buffer',
 			size: 4 * 16 * nodes.length,
@@ -135,6 +146,47 @@ export default class Renderer {
 		this.projViewTransformBuffer = this.device.createBuffer({
 			label: 'Proj-View Transform Buffer',
 			size: 4 * 16,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+
+		this.lightTypeBuffer = this.device.createBuffer({
+			label: 'lightTypeBuffer',
+			size: 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightPositionBuffer = this.device.createBuffer({
+			label: 'lightPositionBuffer',
+			size: 4 * 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightColorBuffer = this.device.createBuffer({
+			label: 'lightColorBuffer',
+			size: 4 * 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightIntensityBuffer = this.device.createBuffer({
+			label: 'lightIntensityBuffer',
+			size: 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightDirectionBuffer = this.device.createBuffer({
+			label: 'lightDirectionBuffer',
+			size: 4 * 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightAngleScaleBuffer = this.device.createBuffer({
+			label: 'lightAngleScaleBuffer',
+			size: 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightAngleOffsetBuffer = this.device.createBuffer({
+			label: 'lightAngleOffsetBuffer',
+			size: 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightViewProjBuffer = this.device.createBuffer({
+			label: 'lightViewProjBuffer',
+			size: 4 * 16 * lightNum,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 	}
@@ -263,10 +315,81 @@ export default class Renderer {
 				},
 			],
 		});
+
+		this.lightingBindGroupLayout = this.device.createBindGroupLayout({
+			label: 'lightingBindGroupLayout',
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 1,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 2,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 3,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 4,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 5,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 6,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					binding: 7,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+			],
+		});
 	}
 
 	createBindGroups() {
 		this.frameBindGroup = this.device.createBindGroup({
+			label: 'frameBindGroup',
 			layout: this.frameBindGroupLayout,
 			entries: [
 				{
@@ -291,6 +414,7 @@ export default class Renderer {
 		});
 
 		this.boundingBoxBindGroup = this.device.createBindGroup({
+			label: 'boundingBoxBindGroup',
 			layout: this.boundingBoxBindGroupLayout,
 			entries: [
 				{
@@ -301,10 +425,69 @@ export default class Renderer {
 				},
 			],
 		});
+
+		this.lightingBindGroup = this.device.createBindGroup({
+			label: 'lightingBindGroup',
+			layout: this.lightingBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.lightTypeBuffer,
+					},
+				},
+				{
+					binding: 1,
+					resource: {
+						buffer: this.lightPositionBuffer,
+					},
+				},
+				{
+					binding: 2,
+					resource: {
+						buffer: this.lightColorBuffer,
+					},
+				},
+				{
+					binding: 3,
+					resource: {
+						buffer: this.lightIntensityBuffer,
+					},
+				},
+				{
+					binding: 4,
+					resource: {
+						buffer: this.lightDirectionBuffer,
+					},
+				},
+				{
+					binding: 5,
+					resource: {
+						buffer: this.lightAngleScaleBuffer,
+					},
+				},
+				{
+					binding: 6,
+					resource: {
+						buffer: this.lightAngleOffsetBuffer,
+					},
+				},
+				{
+					binding: 7,
+					resource: {
+						buffer: this.lightViewProjBuffer,
+					},
+				},
+			],
+		});
 	}
 
 	createPipeline() {
-		const bindGroupLayouts: GPUBindGroupLayout[] = [this.frameBindGroupLayout, this.materialBindGroupLayout];
+		const bindGroupLayouts: GPUBindGroupLayout[] = [
+			this.frameBindGroupLayout,
+			this.materialBindGroupLayout,
+			this.lightingBindGroupLayout,
+		];
 
 		const bindGroupLayoutsSkinned: GPUBindGroupLayout[] = bindGroupLayouts.concat(this.jointBindGroupLayout);
 
@@ -387,6 +570,7 @@ export default class Renderer {
 
 		this.pipelineOpaque = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
+				label: 'pipelineOpaque',
 				bindGroupLayouts: bindGroupLayouts,
 			}),
 			vertex: {
@@ -407,6 +591,7 @@ export default class Renderer {
 
 		this.pipelineOpaqueSkinned = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
+				label: 'pipelineOpaqueSkinned',
 				bindGroupLayouts: bindGroupLayoutsSkinned,
 			}),
 			vertex: {
@@ -427,6 +612,7 @@ export default class Renderer {
 
 		this.pipelineTransparent = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
+				label: 'pipelineTransparent',
 				bindGroupLayouts: bindGroupLayouts,
 			}),
 			vertex: {
@@ -451,6 +637,7 @@ export default class Renderer {
 
 		this.pipelineTransparentSkinned = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
+				label: 'pipelineTransparentSkinned',
 				bindGroupLayouts: bindGroupLayoutsSkinned,
 			}),
 			vertex: {
@@ -475,6 +662,7 @@ export default class Renderer {
 
 		this.OBBPipeline = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
+				label: 'OBBPipeline',
 				bindGroupLayouts: [this.boundingBoxBindGroupLayout],
 			}),
 			vertex: {
@@ -510,6 +698,7 @@ export default class Renderer {
 
 		this.AABBPipeline = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
+				label: 'AABBPipeline',
 				bindGroupLayouts: [this.boundingBoxBindGroupLayout],
 			}),
 			vertex: {
@@ -575,7 +764,7 @@ export default class Renderer {
 					this.renderPass.setPipeline(this.pipelineOpaqueSkinned);
 				}
 
-				this.renderPass.setBindGroup(2, node.skin.jointBindGroup);
+				this.renderPass.setBindGroup(3, node.skin.jointBindGroup);
 
 				this.renderPass.setVertexBuffer(
 					3,
@@ -600,6 +789,7 @@ export default class Renderer {
 
 			this.renderPass.setBindGroup(0, this.frameBindGroup);
 			this.renderPass.setBindGroup(1, p.material.bindGroup);
+			this.renderPass.setBindGroup(2, this.lightingBindGroup);
 
 			this.renderPass.setVertexBuffer(
 				0,
@@ -677,6 +867,15 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
 		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
+
+		this.device.queue.writeBuffer(this.lightTypeBuffer, 0, renderables.lightTypes);
+		this.device.queue.writeBuffer(this.lightPositionBuffer, 0, renderables.lightPositions);
+		this.device.queue.writeBuffer(this.lightColorBuffer, 0, renderables.lightColors);
+		this.device.queue.writeBuffer(this.lightIntensityBuffer, 0, renderables.lightIntensities);
+		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
+		this.device.queue.writeBuffer(this.lightAngleScaleBuffer, 0, renderables.lightAngleScales);
+		this.device.queue.writeBuffer(this.lightAngleOffsetBuffer, 0, renderables.lightAngleOffsets);
+		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
 
 		this.renderChunk('opaque', modelNodeChunks.opaque);
 		if (modelNodeChunks.transparent.length) {

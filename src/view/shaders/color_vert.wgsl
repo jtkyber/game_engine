@@ -27,9 +27,11 @@ fn extractMat3FromMat4(m: mat4x4f) -> mat3x3f {
 @vertex
 fn v_main(vert: VertexInput) -> VertexOutput {
     var out: VertexOutput;
+    
+    let worldPos = model_transforms[vert.i_id] * vec4f(vert.position, 1.0);
 
-    out.position = proj_view_transform * model_transforms[vert.i_id] * vec4f(vert.position, 1.0);
-    out.world_pos = vert.position.xyz;
+    out.position = proj_view_transform * worldPos;
+    out.world_pos = worldPos.xyz;
     out.normal = extractMat3FromMat4(normal_transforms[vert.i_id]) * vert.normal;
     out.texcoords = vert.texcoords;
     return out;
