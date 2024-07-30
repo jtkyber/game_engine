@@ -1,4 +1,4 @@
-import { Mat4, mat4, Vec3, vec3 } from 'wgpu-matrix';
+import { Mat4, mat4, Vec3, vec3, vec4 } from 'wgpu-matrix';
 import { moveableFlag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
@@ -183,6 +183,7 @@ export default class Scene {
 			lightAngleScales: this.lightAngleScales,
 			lightAngleOffsets: this.lightAngleOffsets,
 			lightViewProjMatrices: this.lightViewProjMatrices,
+			cameraPosition: vec4.create(...this.camera.position, 0),
 		};
 	}
 }

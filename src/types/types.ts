@@ -1,4 +1,4 @@
-import { Vec2, Vec3 } from 'wgpu-matrix';
+import { Vec2, Vec3, Vec4 } from 'wgpu-matrix';
 import GLTFAnimation from '../view/gltf/animation';
 import { moveableFlag } from './enums';
 
@@ -27,6 +27,7 @@ export interface IRenderData {
 	lightAngleScales: Float32Array;
 	lightAngleOffsets: Float32Array;
 	lightViewProjMatrices: Float32Array;
+	cameraPosition: Vec4;
 }
 
 export function getMoveableFlagType(name: string): moveableFlag | null {

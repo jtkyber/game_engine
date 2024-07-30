@@ -84,6 +84,7 @@ export default class Renderer {
 	lightAngleScaleBuffer: GPUBuffer;
 	lightAngleOffsetBuffer: GPUBuffer;
 	lightViewProjBuffer: GPUBuffer;
+	cameraPositionBuffer: GPUBuffer;
 
 	constructor(canvas: HTMLCanvasElement, showAABBs: boolean, showOBBs: boolean) {
 		this.canvas = canvas;
@@ -188,6 +189,11 @@ export default class Renderer {
 			label: 'lightViewProjBuffer',
 			size: 4 * 16 * lightNum,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.cameraPositionBuffer = this.device.createBuffer({
+			label: 'cameraPositionBuffer',
+			size: 4 * 4,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 	}
 
@@ -383,6 +389,14 @@ export default class Renderer {
 						hasDynamicOffset: false,
 					},
 				},
+				{
+					binding: 8,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'uniform',
+						hasDynamicOffset: false,
+					},
+				},
 			],
 		});
 	}
@@ -476,6 +490,12 @@ export default class Renderer {
 					binding: 7,
 					resource: {
 						buffer: this.lightViewProjBuffer,
+					},
+				},
+				{
+					binding: 8,
+					resource: {
+						buffer: this.cameraPositionBuffer,
 					},
 				},
 			],
@@ -876,6 +896,7 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.lightAngleScaleBuffer, 0, renderables.lightAngleScales);
 		this.device.queue.writeBuffer(this.lightAngleOffsetBuffer, 0, renderables.lightAngleOffsets);
 		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
+		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.cameraPosition);
 
 		this.renderChunk('opaque', modelNodeChunks.opaque);
 		if (modelNodeChunks.transparent.length) {
