@@ -17,7 +17,7 @@ export default class GLTFAnimationChannel {
 		this.path = path;
 	}
 
-	play() {
+	play(speed: number) {
 		const min = this.sampler.min;
 		const max = this.sampler.max;
 		const times = this.sampler.input;
@@ -38,7 +38,7 @@ export default class GLTFAnimationChannel {
 				break;
 		}
 
-		this.currentTime += this.animationSpeed * window.myLib.deltaTime;
+		this.currentTime += this.animationSpeed * window.myLib.deltaTime * speed;
 	}
 
 	get_value(values: any, i: number, componentCount: number) {

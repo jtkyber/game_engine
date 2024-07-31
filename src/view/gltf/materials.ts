@@ -109,12 +109,12 @@ export default class GLTFMaterial {
 		const texture = device.createTexture({
 			label: 'Default Texture',
 			size: { width: 1, height: 1 },
-			format: 'rgba8unorm',
+			format: 'rgba8unorm-srgb',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
 		defaultTextureView = texture.createView({
-			format: 'rgba8unorm',
+			format: 'rgba8unorm-srgb',
 			dimension: '2d',
 			aspect: 'all',
 			baseMipLevel: 0,

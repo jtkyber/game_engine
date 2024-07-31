@@ -14,15 +14,21 @@ export class Camera {
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
 	distAboveModel: number = 2;
-	distFromModel: number = 15;
-	distFromModelMin: number = 5;
-	distFromModelMax: number = 50;
+	distFromModel: number = 4;
+	distFromModelMin: number = 1;
+	distFromModelMax: number = 8;
 	targetModel: Model;
 	pitch: number = 0;
 	yaw: number = 0;
 
 	constructor(targetModel: Model) {
 		this.targetModel = targetModel;
+
+		const height: number = nodes[this.targetModel.nodeIndex].height;
+		this.distAboveModel = height / 2;
+		this.distFromModel = height * 4;
+		this.distFromModelMin = height * 2;
+		this.distFromModelMax = height * 8;
 	}
 
 	update() {

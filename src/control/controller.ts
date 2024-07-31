@@ -180,7 +180,7 @@ export default class Controller {
 	handleScrollWheel(e: WheelEvent) {
 		if (!this.pointerLocked) return;
 
-		this.scrollAmt += e.deltaY / 50;
+		this.scrollAmt += e.deltaY / 100;
 	}
 
 	lockPointer() {

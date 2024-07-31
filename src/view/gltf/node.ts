@@ -25,6 +25,7 @@ export default class GLTFNode {
 	initialOBBs: IOBB[] = null;
 	OBBs: IOBB[] = null;
 	AABBs: IAABB[] = null;
+	height: number;
 	previousPosition: Vec3;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
 	preTransformed: boolean[];
@@ -90,8 +91,8 @@ export default class GLTFNode {
 					size: 4 * 36 * 3,
 					usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 				});
-				const min: Vec3 = minValues[i];
-				const max: Vec3 = maxValues[i];
+				const min = minValues[i];
+				const max = maxValues[i];
 
 				this.initialOBBs[i] = {
 					vertices: new Array(8),
@@ -117,6 +118,8 @@ export default class GLTFNode {
 
 				this.preTransformed[i] = false;
 			}
+
+			this.height = this.getHeight(minValues, maxValues);
 		}
 	}
 
@@ -129,6 +132,16 @@ export default class GLTFNode {
 		mat4.rotate(this.transform, rotFromQuat.axis, rotFromQuat.angle, this.transform);
 
 		mat4.scale(this.transform, this.scale, this.transform);
+	}
+
+	getHeight(minValues: Vec3[], maxValues: Vec3[]): number {
+		let minY = Infinity;
+		let maxY = -Infinity;
+		for (let i = 0; i < minValues.length; i++) {
+			if (minValues[i][1] < minY) minY = minValues[i][1];
+			if (maxValues[i][1] > maxY) maxY = maxValues[i][1];
+		}
+		return maxY - minY;
 	}
 
 	get currentVelocity() {

@@ -17,7 +17,7 @@ struct MaterialParams {
 @group(1) @binding(3) var metallic_roughness_sampler: sampler;
 @group(1) @binding(4) var metallic_roughness_texture: texture_2d<f32>;
 
-@group(2) @binding(0) var<storage, read> lightTypes: array<u32>;
+@group(2) @binding(0) var<storage, read> lightTypes: array<f32>;
 @group(2) @binding(1) var<storage, read> lightPositions: array<vec3f>;
 @group(2) @binding(2) var<storage, read> lightColors: array<vec3f>;
 @group(2) @binding(3) var<storage, read> lightIntensities: array<f32>;
@@ -27,10 +27,14 @@ struct MaterialParams {
 @group(2) @binding(7) var<storage, read> lightViewProj: array<mat4x4f>;
 @group(2) @binding(8) var<uniform> cameraPosition: vec3f;
 
+/* lIGHT TYPES  
+    0: spot
+    1: directional
+    2: point
+*/
 
 const PI = 3.14159265359; 
-const lightIntensityAdjustment = 10.0;
-const gammaValue = 1.6;
+const lightIntensityAdjustment = 0.001;
 
 @fragment
 fn f_main(in: VertexOutput) -> @location(0) vec4f {
@@ -51,18 +55,11 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
 
     if (hasColorTexture) {
         base_color = material_params.base_color_factor * base_texture_color;
-        base_color.r = linear_to_srgb(base_color.r);
-        base_color.g = linear_to_srgb(base_color.g);
-        base_color.b = linear_to_srgb(base_color.b);
-        base_color.a = base_color.a;
 
         metallic *= metallic_roughness.b;
         roughness *= metallic_roughness.g;
     } else {
-        base_color.r = linear_to_srgb(material_params.base_color_factor.r);
-        base_color.g = linear_to_srgb(material_params.base_color_factor.g);
-        base_color.b = linear_to_srgb(material_params.base_color_factor.b);
-        base_color.a = material_params.base_color_factor.a;
+        base_color = material_params.base_color_factor;
     }
 
     var color = base_color.rgb;
@@ -71,18 +68,35 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     let N = normalize(in.normal);
     let V = normalize(cameraPosition - in.world_pos);
     let albedo = color;
+    let F0 = mix(vec3f(0.04), albedo, metallic);
 
     // Apply lighting ----------------------------------------------------
     var Lo = vec3f(0.0);
     for (var i: u32 = 0; i < arrayLength(&lightTypes); i++) {
-        let F0 = mix(vec3f(0.04), albedo, metallic);
+        let lightType = u32(lightTypes[i]);
 
         // calculate radiance per light
-        let L = normalize(lightPositions[i] - in.world_pos);
+        var L: vec3f;
+        if (lightType == 1) { L = normalize(lightDirections[i]); }
+        else { L = normalize(lightPositions[i] - in.world_pos); }
+
         let H = normalize(V + L);
-        let distance = length(lightPositions[i] - in.world_pos);
-        let attenuation = 1.0 / (distance * distance * lightIntensityAdjustment);
-        let radiance = lightColors[i] * lightIntensities[i] * attenuation;
+
+        var distance: f32;
+        if (lightType == 1) { distance = 1.0; }
+        else { distance = length(lightPositions[i] - in.world_pos); }
+
+        let attenuation = 1.0 / (distance * distance);
+
+        var angularAttenuation = 1.0;
+        if (lightType == 0) {
+            let cd = dot(lightDirections[i], L);
+            angularAttenuation = saturate(cd * lightAngleScales[i] + lightAngleOffsets[i]);
+            angularAttenuation *= angularAttenuation;
+        }
+        if (attenuation <= 0 || angularAttenuation <= 0) { continue; }
+
+        let radiance = lightColors[i] * lightIntensities[i] * attenuation * angularAttenuation * lightIntensityAdjustment;
 
         // cook-torrance brdf
         let NDF = distributionGGX(N, H, roughness);
@@ -104,8 +118,11 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
 
     let ambient = vec3f(0.03) * albedo;
     color = ambient + Lo;
-    color /= color + vec3f(1.0);
-    color = pow(color, vec3f(1.0 / gammaValue));
+    // color = color / (color + vec3f(1.0));
+    // color = pow(color, vec3f(1.0 / 2.2));
+    color[0] = linear_to_srgb(color[0]);
+    color[1] = linear_to_srgb(color[1]);
+    color[2] = linear_to_srgb(color[2]);
 
     return vec4f(color, alpha);
 }
@@ -118,7 +135,6 @@ fn linear_to_srgb(x: f32) -> f32 {
 }
 
 fn fresnelSchlick(cosTheta: f32, F0: vec3f) -> vec3f {
-    // F0 - surface reflection amt when looking directly at surface
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 

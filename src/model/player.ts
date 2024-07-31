@@ -12,7 +12,7 @@ export default class Player extends Model {
 	camera: Camera;
 	parent: Model = null;
 	zUP: Mat4;
-	turnSpeed: number = 0.005;
+	turnSpeed: number = 0.008;
 	forward: Vec3;
 	forwardMove: Vec3;
 	right: Vec3;
@@ -21,6 +21,16 @@ export default class Player extends Model {
 
 	constructor(name: string, moveableFlag: moveableFlag, nodeIndex: number, rootNodeIndex: number) {
 		super(name, moveableFlag, nodeIndex, rootNodeIndex);
+	}
+
+	update() {
+		this.forward = vec3.normalize(vec3.transformQuat([0, 0, -1], nodes[this.rootNodeIndex].quat));
+		this.forwardMove = vec3.normalize(vec3.create(this.forward[0], 0, this.forward[2]));
+
+		this.right = vec3.normalize(vec3.cross(this.forward, [0, 1, 0]));
+		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
+
+		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 	}
 
 	spin_lerp(endDir: Vec3) {
@@ -33,6 +43,6 @@ export default class Player extends Model {
 
 		if (angleToTurn <= spinAmt + 1) spinAmt *= angleToTurn * 0.8;
 
-		quat.rotateY(nodes[this.nodeIndex].quat, sign * spinAmt, nodes[this.nodeIndex].quat);
+		quat.rotateY(nodes[this.rootNodeIndex].quat, sign * spinAmt, nodes[this.rootNodeIndex].quat);
 	}
 }

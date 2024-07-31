@@ -107,7 +107,9 @@ export default class Scene {
 
 	set_light_data(i: number) {
 		const light: Light = this.lights[i];
-		this.lightViewProjMatrices.set(light.get_light_view_proj_matrix(), i * 16);
+		light.update();
+
+		this.lightViewProjMatrices.set(light.lightViewProj, i * 16);
 		this.lightTypes[i] = light.type;
 		this.lightPositions.set([...light.position, 0], i * 4);
 		this.lightColors.set([...light.color, 0], i * 4);

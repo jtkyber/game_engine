@@ -877,7 +877,7 @@ export default class Renderer {
 				{
 					view: this.view,
 					loadOp: 'clear',
-					clearValue: [0.0, 0.0, 0.0, 1.0],
+					clearValue: [0.0, 0.6, 1.0, 1.0],
 					storeOp: 'store',
 				},
 			],
