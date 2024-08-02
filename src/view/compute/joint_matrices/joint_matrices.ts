@@ -1,5 +1,5 @@
 import { Mat4, mat4 } from 'wgpu-matrix';
-import Model from '../../../model/model';
+import { IModelNodeChunks, IModelNodeIndices } from '../../../types/gltf';
 import { nodes } from '../../gltf/loader';
 import GLTFNode from '../../gltf/node';
 import shader from './joint_matrices.wgsl';
@@ -31,14 +31,15 @@ export default class JointMatrices {
 		this.shaderModule = <GPUShaderModule>this.device.createShaderModule({ label: 'shader', code: shader });
 	}
 
-	get_joint_matrices(models: Model[], modelTransforms: Float32Array): GPUBuffer[] {
+	get_joint_matrices(modelNodeChunks: IModelNodeChunks, modelTransforms: Float32Array): GPUBuffer[] {
+		const modelIndices: IModelNodeIndices[] = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
 		this.jointMatricesBufferList = [];
 		this.createBindGroupLayouts();
 
 		let count: number = 0;
-		for (let i = 0; i < models.length; i++) {
-			const model: Model = models[i];
-			const node: GLTFNode = nodes[model.nodeIndex];
+		for (let i = 0; i < modelIndices.length; i++) {
+			const nodeIndex: number = modelIndices[i].nodeIndex;
+			const node: GLTFNode = nodes[nodeIndex];
 			if (!node.skin) {
 				this.jointMatricesBufferList.push(null);
 				continue;
@@ -46,7 +47,7 @@ export default class JointMatrices {
 
 			this.setInverseBindMatricesForModel(node);
 
-			this.setInverseGlobalTransformForModel(model.nodeIndex, modelTransforms);
+			this.setInverseGlobalTransformForModel(nodeIndex, modelTransforms);
 
 			this.setGlobalJointTransformsForModel(node, modelTransforms);
 

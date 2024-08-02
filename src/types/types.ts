@@ -1,6 +1,6 @@
 import { Vec2, Vec3, Vec4 } from 'wgpu-matrix';
 import GLTFAnimation from '../view/gltf/animation';
-import { moveableFlag } from './enums';
+import { Flag } from './enums';
 
 export interface Test {
 	test: string;
@@ -30,12 +30,12 @@ export interface IRenderData {
 	cameraPosition: Vec4;
 }
 
-export function getMoveableFlagType(name: string): moveableFlag | null {
+export function getFlagType(name: string): Flag | null {
 	switch (name) {
 		case 'static':
-			return moveableFlag.STATIC;
+			return Flag.STATIC;
 		case 'moveableRoot':
-			return moveableFlag.MOVEABLE_ROOT;
+			return Flag.MOVEABLE_ROOT;
 		default:
 			return null;
 	}
@@ -82,4 +82,9 @@ export interface IOBB {
 export interface AABBResultPair {
 	nodeIndices: Vec2;
 	primIndices: Vec2;
+}
+
+export interface IDebug {
+	showAABBs: boolean;
+	showOBBs: boolean;
 }

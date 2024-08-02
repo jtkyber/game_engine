@@ -1,5 +1,6 @@
-import { Mat4, Quat, Vec3, mat4, quat, vec2, vec3 } from 'wgpu-matrix';
-import { moveableFlag } from '../../types/enums';
+import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
+import { debugging } from '../../control/app';
+import { Flag } from '../../types/enums';
 import { IAABB, IOBB } from '../../types/types';
 import { transformPosition } from '../../utils/matrix';
 import { getAABBverticesFromMinMax } from '../../utils/misc';
@@ -10,7 +11,7 @@ import GLTFSkin from './skin';
 export default class GLTFNode {
 	device: GPUDevice;
 	name: string;
-	flag: moveableFlag;
+	flag: Flag;
 	parent: number = null;
 	rootNode: number;
 	position: Vec3;
@@ -20,14 +21,16 @@ export default class GLTFNode {
 	globalTransform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
-	mass: number = null;
-	speed: number = null;
+	_mass: number = null;
+	_speed: number = null;
+	_currentSpeed: number = 0;
+	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
+	turnSpeed: number = 0.008;
 	initialOBBs: IOBB[] = null;
 	OBBs: IOBB[] = null;
 	AABBs: IAABB[] = null;
 	height: number;
 	previousPosition: Vec3;
-	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
 	preTransformed: boolean[];
 
 	// For debug
@@ -39,10 +42,16 @@ export default class GLTFNode {
 	gravitySpeed: number = 0;
 	gravityAcc: number = 0.01;
 
+	forward: Vec3;
+	forwardMove: Vec3;
+	right: Vec3;
+	rightMove: Vec3;
+	up: Vec3;
+
 	constructor(
 		device: GPUDevice,
 		name: string,
-		flag: any,
+		flag: Flag,
 		parent: number,
 		rootNode: number,
 		position: Vec3,
@@ -67,8 +76,8 @@ export default class GLTFNode {
 		this.transform = transform;
 		this.mesh = mesh;
 		this.skin = skin;
-		this.mass = mass;
-		this.speed = speed;
+		this._mass = mass;
+		this._speed = speed;
 		this.previousPosition = vec3.fromValues(...this.position);
 
 		if (minValues?.length && maxValues?.length) {
@@ -81,18 +90,26 @@ export default class GLTFNode {
 			this.preTransformed = new Array(minValues.length);
 
 			for (let i = 0; i < minValues.length; i++) {
-				this.OBBBufferArray[i] = device.createBuffer({
-					label: `${name} node OBBBuffer`,
-					size: 4 * 36 * 3,
-					usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-				});
-				this.AABBBufferArray[i] = device.createBuffer({
-					label: `${name} node AABBBuffer`,
-					size: 4 * 36 * 3,
-					usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-				});
 				const min = minValues[i];
 				const max = maxValues[i];
+
+				if (debugging.showOBBs) {
+					this.OBBBufferArray[i] = device.createBuffer({
+						label: `${name} node OBBBuffer`,
+						size: 4 * 36 * 3,
+						usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+					});
+
+					this.initialOBBMeshes[i] = getAABBverticesFromMinMax(min, max);
+				}
+
+				if (debugging.showAABBs) {
+					this.AABBBufferArray[i] = device.createBuffer({
+						label: `${name} node AABBBuffer`,
+						size: 4 * 36 * 3,
+						usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+					});
+				}
 
 				this.initialOBBs[i] = {
 					vertices: new Array(8),
@@ -105,8 +122,6 @@ export default class GLTFNode {
 				};
 
 				this.setInitialOOB(i, min, max);
-
-				this.initialOBBMeshes[i] = getAABBverticesFromMinMax(min, max);
 
 				this.OBBs[i].vertices = [...this.initialOBBs[i].vertices];
 				this.OBBs[i].normals = [...this.initialOBBs[i].normals];
@@ -134,6 +149,34 @@ export default class GLTFNode {
 		mat4.scale(this.transform, this.scale, this.transform);
 	}
 
+	set_direction_vectors() {
+		this.forward = vec3.normalize(vec3.transformQuat([0, 0, -1], this.quat));
+		this.forwardMove = vec3.normalize(vec3.create(this.forward[0], 0, this.forward[2]));
+
+		this.right = vec3.normalize(vec3.cross(this.forward, [0, 1, 0]));
+		this.rightMove = vec3.normalize(vec3.create(this.right[0], 0, this.right[2]));
+
+		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
+	}
+
+	move(dir: Vec3) {
+		const amt = this.speed * window.myLib.deltaTime;
+		this.position = vec3.addScaled(this.position, dir, amt);
+	}
+
+	spin_lerp(endDir: Vec3) {
+		let spinAmt: number = this.turnSpeed * window.myLib.deltaTime;
+
+		vec3.mulScalar(endDir, -1, endDir);
+
+		const sign: number = -Math.sign(vec3.cross(endDir, this.forwardMove)[1]);
+		const angleToTurn: number = vec3.angle(endDir, this.forwardMove);
+
+		if (angleToTurn <= spinAmt + 1) spinAmt *= angleToTurn * 0.8;
+
+		quat.rotateY(this.quat, sign * spinAmt, this.quat);
+	}
+
 	getHeight(minValues: Vec3[], maxValues: Vec3[]): number {
 		let minY = Infinity;
 		let maxY = -Infinity;
@@ -145,19 +188,35 @@ export default class GLTFNode {
 	}
 
 	get currentVelocity() {
-		if (this.parent === null) return this._currentVelocity;
+		if (this.rootNode === null) return this._currentVelocity;
 		else return nodes[this.rootNode]._currentVelocity;
 	}
 
+	get currentSpeed() {
+		if (this.rootNode === null) return this._currentSpeed;
+		else return nodes[this.rootNode]._currentSpeed;
+	}
+
+	get mass() {
+		if (this.rootNode === null) return this._mass;
+		else return nodes[this.rootNode]._mass;
+	}
+
+	get speed() {
+		if (this.rootNode === null) return this._speed;
+		else return nodes[this.rootNode]._speed;
+	}
+
 	set_current_velocity() {
-		if (this.parent === null) {
+		if (this.rootNode === null) {
 			const moveDir: Vec3 = vec3.normalize(vec3.sub(this.position, this.previousPosition));
 			this._currentVelocity = vec3.scale(moveDir, this.speed);
+			this._currentSpeed = Math.abs(vec3.dist(this.position, this.previousPosition));
 		}
 	}
 
 	apply_gravity() {
-		if (this.parent === null) {
+		if (this.rootNode === null) {
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
 			this.position[1] -= this.gravitySpeed;
@@ -168,7 +227,7 @@ export default class GLTFNode {
 	}
 
 	offset_root_position(offset: Vec3) {
-		if (this.parent === null) {
+		if (this.rootNode === null) {
 			vec3.add(this.position, offset, this.position);
 		} else {
 			vec3.add(nodes[this.rootNode].position, offset, nodes[this.rootNode].position);
@@ -176,7 +235,7 @@ export default class GLTFNode {
 	}
 
 	reset_gravity() {
-		if (this.parent === null) {
+		if (this.rootNode === null) {
 			this.gravitySpeed = 0;
 		} else {
 			nodes[this.rootNode].gravitySpeed = 0;
@@ -184,9 +243,10 @@ export default class GLTFNode {
 	}
 
 	set_previous_position() {
-		if (this.parent === null) {
-			this.previousPosition = vec3.fromValues(...this.position);
-		}
+		if (this.rootNode === null) this.previousPosition = vec3.fromValues(...this.position);
+		// } else {
+		// 	nodes[this.rootNode].previousPosition = vec3.fromValues(...nodes[this.rootNode].position);
+		// }
 	}
 
 	setInitialOOB(i: number, min: Vec3, max: Vec3) {
@@ -208,13 +268,12 @@ export default class GLTFNode {
 	}
 
 	async setBoundingBoxes(transform: Mat4, normalTransform: Mat4) {
-		if (!this.initialOBBMeshes) return;
+		if (!this.initialOBBs) return;
 
-		for (let i = 0; i < this.initialOBBMeshes.length; i++) {
+		for (let i = 0; i < this.initialOBBs.length; i++) {
 			if (!this.preTransformed[i] && this.parent !== null) this.transform_to_local_space(transform, i);
 
 			this.transformOBB(transform, [...this.initialOBBs[i].vertices], i, true);
-			// const normalMatrix: Mat4 = mat4.transpose(mat4.invert(this.transform));
 			this.transformOBB(normalTransform, [...this.initialOBBs[i].normals], i, false);
 
 			const minMax = this.getMinMax([...this.OBBs[i].vertices]);
@@ -223,11 +282,15 @@ export default class GLTFNode {
 			this.AABBs[i].max = minMax.max;
 
 			// Only if debugging
-			const obbMesh = this.getTransformedOBBMesh(transform, [...this.initialOBBMeshes[i]]);
-			await this.updateOBBBuffer(obbMesh, i);
+			if (debugging.showOBBs) {
+				const obbMesh = this.getTransformedOBBMesh(transform, [...this.initialOBBMeshes[i]]);
+				await this.updateOBBBuffer(obbMesh, i);
+			}
 
-			const AABBMesh = getAABBverticesFromMinMax(minMax.min, minMax.max);
-			await this.updateAABBBuffer(AABBMesh, i);
+			if (debugging.showAABBs) {
+				const AABBMesh = getAABBverticesFromMinMax(minMax.min, minMax.max);
+				await this.updateAABBBuffer(AABBMesh, i);
+			}
 		}
 	}
 
@@ -321,12 +384,14 @@ export default class GLTFNode {
 			this.initialOBBs[i].vertices[j] = transformPosition(this.initialOBBs[i].vertices[j], t);
 		}
 
-		for (let j = 0; j < this.initialOBBMeshes[i].length / 3; j++) {
-			const v: Vec3 = this.initialOBBMeshes[i].slice(j * 3, j * 3 + 3);
-			const newPos: Vec3 = transformPosition(v, t);
-			this.initialOBBMeshes[i][j * 3] = newPos[0];
-			this.initialOBBMeshes[i][j * 3 + 1] = newPos[1];
-			this.initialOBBMeshes[i][j * 3 + 2] = newPos[2];
+		if (debugging.showOBBs) {
+			for (let j = 0; j < this.initialOBBMeshes[i].length / 3; j++) {
+				const v: Vec3 = this.initialOBBMeshes[i].slice(j * 3, j * 3 + 3);
+				const newPos: Vec3 = transformPosition(v, t);
+				this.initialOBBMeshes[i][j * 3] = newPos[0];
+				this.initialOBBMeshes[i][j * 3 + 1] = newPos[1];
+				this.initialOBBMeshes[i][j * 3 + 2] = newPos[2];
+			}
 		}
 
 		this.preTransformed[i] = true;

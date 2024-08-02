@@ -1,8 +1,14 @@
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
-import GTLFLoader, { animations, nodes } from '../view/gltf/loader';
+import { IDebug } from '../types/types';
+import GTLFLoader, { nodes } from '../view/gltf/loader';
 import Renderer from '../view/renderer';
 import Controller from './controller';
+
+export const debugging: IDebug = {
+	showAABBs: false,
+	showOBBs: false,
+};
 
 export default class App {
 	canvas: HTMLCanvasElement;
@@ -14,8 +20,6 @@ export default class App {
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
-	showAABBs: boolean = false;
-	showOBBs: boolean = false;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -27,14 +31,16 @@ export default class App {
 		window.myLib = window.myLib || {};
 		window.myLib.deltaTime = 0;
 
-		this.renderer = new Renderer(this.canvas, this.showAABBs, this.showOBBs);
+		this.renderer = new Renderer(this.canvas);
 		await this.renderer.setupDevice();
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);
 		await gltfLoader.parse_gltf('dist/scene');
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
+		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
+		// console.log(gltfLoader.models);
 		// console.log(gltfLoader.lights);
 		// console.log(animations);
 
@@ -67,7 +73,7 @@ export default class App {
 
 		this.controller.update();
 		this.scene.update();
-		this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks, this.scene.models);
+		this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
 
 		this.framerateChunk.push(window.myLib.deltaTime);
 		if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();

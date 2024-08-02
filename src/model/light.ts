@@ -17,6 +17,8 @@ export default class Light {
 	forward: Vec3;
 	position: Vec3 = vec3.create(0, 0, 0);
 	lightViewProj: Mat4;
+	lightViewProjPointArray: Mat4[];
+	projectionMatrix: Mat4;
 
 	constructor(
 		name: string,
@@ -48,6 +50,17 @@ export default class Light {
 		this.angleOffset = -Math.cos(outerConeAngle) * this.angleScale;
 
 		this.nodeIndex = nodeIndex;
+
+		switch (this.type) {
+			case LightType.SPOT:
+				this.projectionMatrix = mat4.perspectiveReverseZ(this.outerConeAngle, 1.0, 0.01, 100);
+				break;
+			case LightType.DIRECTIONAL:
+				this.projectionMatrix = mat4.ortho(-60.0, 60.0, -60.0, 60.0, 100, 1.0);
+				break;
+			case LightType.POINT:
+				break;
+		}
 	}
 
 	update() {
@@ -57,11 +70,10 @@ export default class Light {
 		this.forward = vec3.fromValues(transform[8], transform[9], transform[10]);
 		this.position = vec3.fromValues(transform[12], transform[13], transform[14]);
 
-		this.lightViewProj = mat4.mul(this.get_projection_matrix(), this.get_view_matrix());
-	}
-
-	get_projection_matrix(): Mat4 {
-		return mat4.perspectiveReverseZ(this.outerConeAngle, 1.0, 0.01, 1000);
+		if (this.type === LightType.POINT) {
+		} else {
+			this.lightViewProj = mat4.mul(this.projectionMatrix, this.get_view_matrix());
+		}
 	}
 
 	get_view_matrix(): Mat4 {

@@ -1,7 +1,5 @@
 import { Mat4, Vec3, Vec4 } from 'wgpu-matrix';
 import Light from '../model/light';
-import Model from '../model/model';
-import Player from '../model/player';
 import { GLTFComponentType, GLTFTextureFilter, GLTFTextureWrap, GLTFType } from './enums';
 
 export interface IGLTFNode {
@@ -152,8 +150,8 @@ export interface IModelNodeIndices {
 }
 
 export interface IGLTFScene {
-	models: Model[];
-	player: Player;
+	models: number[];
+	player: number;
 	lights: Light[];
 	modelNodeChunks: IModelNodeChunks;
 }

@@ -1,7 +1,5 @@
 import { Mat4, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
 import { nodes } from '../view/gltf/loader';
-import GLTFNode from '../view/gltf/node';
-import Model from './model';
 
 export class Camera {
 	position: Vec3 = vec3.create(0, 0, 0);
@@ -17,14 +15,15 @@ export class Camera {
 	distFromModel: number = 4;
 	distFromModelMin: number = 1;
 	distFromModelMax: number = 8;
-	targetModel: Model;
+	targetNode: number;
 	pitch: number = 0;
 	yaw: number = 0;
 
-	constructor(targetModel: Model) {
-		this.targetModel = targetModel;
+	constructor(targetNode: number) {
+		this.targetNode = targetNode;
 
-		const height: number = nodes[this.targetModel.nodeIndex].height;
+		// const height: number = nodes[this.targetModel.nodeIndex].height;
+		const height: number = 4;
 		this.distAboveModel = height / 2;
 		this.distFromModel = height * 4;
 		this.distFromModelMin = height * 2;
@@ -36,10 +35,11 @@ export class Camera {
 		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 
 		// Move camera to center of model
-		this.position[0] = nodes[this.targetModel.rootNodeIndex].position[0];
-		this.position[1] = nodes[this.targetModel.rootNodeIndex].position[1] + this.distAboveModel;
-		this.position[2] = nodes[this.targetModel.rootNodeIndex].position[2];
+		this.position[0] = nodes[this.targetNode].position[0];
+		this.position[1] = nodes[this.targetNode].position[1] + this.distAboveModel;
+		this.position[2] = nodes[this.targetNode].position[2];
 
+		this.pitch = Math.max(Math.min(this.pitch, Math.PI / 2 - 0.001), -Math.PI / 2 + 0.001);
 		// Make quat from pitch and yaw
 		this.quat = quat.fromEuler(this.pitch, this.yaw, 0, 'yxz');
 

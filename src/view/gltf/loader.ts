@@ -1,14 +1,12 @@
-import { Mat4, Quat, Vec3, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, mat4, Quat, Vec3, vec3, vec4 } from 'wgpu-matrix';
 import Light from '../../model/light';
-import Model from '../../model/model';
-import Player from '../../model/player';
 import {
+	Flag,
 	GLTFAnimationInterpolation,
 	GLTFAnimationPath,
 	GLTFRenderMode,
 	GLTFTextureFilter,
 	GLTFTextureWrap,
-	moveableFlag,
 } from '../../types/enums';
 import {
 	IGLTFAccessor,
@@ -20,10 +18,9 @@ import {
 	IGLTFPrimitive,
 	IGLTFScene,
 	IModelNodeChunks,
-	typedArrayFromComponentType,
 } from '../../types/gltf';
-import { getMoveableFlagType } from '../../types/types';
-import { fromRotationTranslationScale, getRotation } from '../../utils/matrix';
+import { getFlagType } from '../../types/types';
+import { fromRotationTranslationScale } from '../../utils/matrix';
 import GLTFAccessor from './accessor';
 import GLTFAnimation from './animation';
 import GLTFAnimationChannel from './animationChannel';
@@ -56,10 +53,10 @@ export default class GTLFLoader {
 	skins: GLTFSkin[];
 	meshes: GLTFMesh[];
 	lights: Light[];
-	models: Model[];
+	models: number[];
 	modelNodeChunks: IModelNodeChunks;
 	meshNode: GLTFNode;
-	player: Player;
+	player: number;
 	indexSwapBoard: {
 		[key: number]: number;
 	};
@@ -288,7 +285,7 @@ export default class GTLFLoader {
 	}
 
 	load_skins() {
-		for (let i = 0; i < this.jsonChunk['skins'].length; i++) {
+		for (let i = 0; i < this.jsonChunk?.['skins']?.length; i++) {
 			const skin = this.jsonChunk['skins'][i];
 			const name: string = skin.name;
 			const inverseBindMatrices: GLTFAccessor = this.accessors[skin.inverseBindMatrices];
@@ -359,7 +356,7 @@ export default class GTLFLoader {
 	}
 
 	load_animations() {
-		for (let i = 0; i < this.jsonChunk['animations'].length; i++) {
+		for (let i = 0; i < this.jsonChunk?.['animations']?.length; i++) {
 			const animation = this.jsonChunk['animations'][i];
 			const samplers: GLTFAnimationSampler[] = this.get_animation_samplers(animation['samplers']);
 			const channels: GLTFAnimationChannel[] = this.get_animation_channels(animation['channels'], samplers);
@@ -428,10 +425,10 @@ export default class GTLFLoader {
 
 		for (let i = 0; i < baseNodeRefs.length; i++) {
 			const node = allNodes[baseNodeRefs[i]];
-			let flag: moveableFlag;
+			let flag: Flag;
 
 			const lastIndex: number = node['name'].lastIndexOf('_');
-			flag = getMoveableFlagType(node['name'].substring(lastIndex + 1));
+			flag = getFlagType(node['name'].substring(lastIndex + 1));
 
 			if (flag !== null) node['name'] = node['name'].substring(0, lastIndex);
 
@@ -439,10 +436,10 @@ export default class GTLFLoader {
 		}
 
 		// Pre-multiply transforms based on flag
-		for (let i = 0; i < nodes.length; i++) {
-			const modelMatrix: Mat4 = this.transform_matrices(<GLTFNode>nodes[i], nodes[i].transform);
-			nodes[i].transform = modelMatrix;
-		}
+		// for (let i = 0; i < nodes.length; i++) {
+		// 	const modelMatrix: Mat4 = this.transform_matrices(<GLTFNode>nodes[i], nodes[i].transform);
+		// 	nodes[i].transform = modelMatrix;
+		// }
 
 		this.remap_joint_indices();
 		this.setup_models();
@@ -475,7 +472,7 @@ export default class GTLFLoader {
 	load_nodes(
 		allNodes: IGLTFNode[],
 		n: number,
-		flag: number,
+		flag: Flag,
 		parentNode: number = null,
 		rootNode: number = null,
 		isRoot: boolean = true
@@ -543,16 +540,15 @@ export default class GTLFLoader {
 					lastNodeIndex
 				)
 			);
-		} else if (isRoot || mesh) {
-			// Is Model
-			this.models.push(new Model(name, flag, lastNodeIndex, rootNode));
+		} else if (isRoot) {
+			this.models.push(lastNodeIndex);
+		}
 
-			for (let i = 0; i < mesh?.primitives.length; i++) {
-				const prim: GLTFPrimitive = mesh.primitives[i];
-				if (prim.material.isTransparent) {
-					this.modelNodeChunks.transparent.push({ nodeIndex: lastNodeIndex, primitiveIndex: i });
-				} else this.modelNodeChunks.opaque.push({ nodeIndex: lastNodeIndex, primitiveIndex: i });
-			}
+		for (let i = 0; i < mesh?.primitives.length; i++) {
+			const prim: GLTFPrimitive = mesh.primitives[i];
+			if (prim?.material?.isTransparent) {
+				this.modelNodeChunks.transparent.push({ nodeIndex: lastNodeIndex, primitiveIndex: i });
+			} else this.modelNodeChunks.opaque.push({ nodeIndex: lastNodeIndex, primitiveIndex: i });
 		}
 
 		if (node['children']) {
@@ -567,44 +563,38 @@ export default class GTLFLoader {
 		let playerFound: boolean = false;
 
 		for (let i = 0; i < this.models.length; i++) {
-			let model: Model = this.models[i];
+			let model: GLTFNode = nodes[this.models[i]];
 
 			if (model.name === 'Player' && !playerFound) {
-				this.player = new Player(model.name, model.moveableFlag, model.nodeIndex, model.rootNodeIndex);
-				this.models.splice(i, 1, this.player);
-				model = this.player;
+				this.player = this.models[i];
 				playerFound = true;
 			}
-
-			if (nodes[model.nodeIndex].rootNode !== null) {
-				nodes[nodes[model.nodeIndex].rootNode].speed = nodes[model.nodeIndex].speed;
-			}
 		}
 	}
 
-	transform_matrices(node: GLTFNode, transform: Mat4): Mat4 {
-		if (node.parent === null) {
-			// If root node
-			return transform;
-		} else if (node.flag === moveableFlag.STATIC) {
-			// Multiply up the parent chain, including root node
-			let parentMat: Mat4 = nodes[node.parent].transform;
-			const combinedTransform: Mat4 = mat4.mul(parentMat, transform);
-			return combinedTransform;
-		} else if (node.flag === moveableFlag.MOVEABLE_ROOT) {
-			// Multiply up the parent chain, excluding root node
-			if (nodes[node.parent].parent === null) {
-				// If parent is root node
-				return transform;
-			} else {
-				const combinedTransform: Mat4 = mat4.mul(nodes[node.parent].transform, transform);
-				return this.transform_matrices(nodes[node.parent], combinedTransform);
-			}
-		} else {
-			// No Pre-multiplication up the parent chain
-			return transform;
-		}
-	}
+	// transform_matrices(node: GLTFNode, transform: Mat4): Mat4 {
+	// 	if (node.parent === null) {
+	// 		// If root node
+	// 		return transform;
+	// 	} else if (node.flag === Flag.STATIC) {
+	// 		// Multiply up the parent chain, including root node
+	// 		let parentMat: Mat4 = nodes[node.parent].transform;
+	// 		const combinedTransform: Mat4 = mat4.mul(parentMat, transform);
+	// 		return combinedTransform;
+	// 	} else if (node.flag === Flag.MOVEABLE_ROOT) {
+	// 		// Multiply up the parent chain, excluding root node
+	// 		if (nodes[node.parent].parent === null) {
+	// 			// If parent is root node
+	// 			return transform;
+	// 		} else {
+	// 			const combinedTransform: Mat4 = mat4.mul(nodes[node.parent].transform, transform);
+	// 			return this.transform_matrices(nodes[node.parent], combinedTransform);
+	// 		}
+	// 	} else {
+	// 		// No Pre-multiplication up the parent chain
+	// 		return transform;
+	// 	}
+	// }
 
 	get_node_matrix(node: IGLTFNode): Mat4 {
 		if (node['matrix']) {

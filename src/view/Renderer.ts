@@ -1,5 +1,5 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
-import Model from '../model/model';
+import { debugging } from '../control/app';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import { nodes } from './gltf/loader';
@@ -17,10 +17,6 @@ export default class Renderer {
 	context: GPUCanvasContext;
 	view: GPUTextureView;
 	identity: Mat4 = mat4.identity();
-
-	// Debug
-	showAABBs: boolean;
-	showOBBs: boolean;
 
 	// Nodes
 	modelNodeChunks: IModelNodeChunks;
@@ -86,14 +82,12 @@ export default class Renderer {
 	lightViewProjBuffer: GPUBuffer;
 	cameraPositionBuffer: GPUBuffer;
 
-	constructor(canvas: HTMLCanvasElement, showAABBs: boolean, showOBBs: boolean) {
+	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
-		this.showAABBs = showAABBs;
-		this.showOBBs = showOBBs;
 		this.context = <GPUCanvasContext>canvas.getContext('webgpu');
 		this.fov = utils.degToRad(60);
 		this.aspect = canvas.width / canvas.height;
-		this.projection = mat4.perspective(this.fov, this.aspect, 0.01, 1000);
+		this.projection = mat4.perspectiveReverseZ(this.fov, this.aspect, 0.01, 1000);
 	}
 
 	async setupDevice() {
@@ -203,7 +197,7 @@ export default class Renderer {
 		this.depthStencilState = {
 			format: this.depthFormat,
 			depthWriteEnabled: true,
-			depthCompare: 'less',
+			depthCompare: 'greater-equal',
 		};
 
 		this.depthTexture = this.device.createTexture({
@@ -220,7 +214,7 @@ export default class Renderer {
 
 		this.depthStencilAttachment = {
 			view: this.depthStencilView,
-			depthClearValue: 1.0,
+			depthClearValue: 0.0,
 			depthLoadOp: 'clear',
 			depthStoreOp: 'store',
 		};
@@ -651,7 +645,7 @@ export default class Renderer {
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
-				depthCompare: 'less',
+				depthCompare: 'greater-equal',
 			},
 		});
 
@@ -676,7 +670,7 @@ export default class Renderer {
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
-				depthCompare: 'less',
+				depthCompare: 'greater-equal',
 			},
 		});
 
@@ -712,7 +706,7 @@ export default class Renderer {
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
-				depthCompare: 'less',
+				depthCompare: 'greater-equal',
 			},
 		});
 
@@ -748,14 +742,16 @@ export default class Renderer {
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
-				depthCompare: 'less',
+				depthCompare: 'greater-equal',
 			},
 		});
 	}
 
-	set_joint_buffers(jointMatricesBufferList: GPUBuffer[], models: Model[]) {
-		for (let i = 0; i < models.length; i++) {
-			const node: GLTFNode = nodes[models[i].nodeIndex];
+	set_joint_buffers(jointMatricesBufferList: GPUBuffer[], modelNodeChunks: IModelNodeChunks) {
+		const modelIndices: IModelNodeIndices[] = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
+
+		for (let i = 0; i < modelIndices.length; i++) {
+			const node: GLTFNode = nodes[modelIndices[i].nodeIndex];
 			if (!node.skin) continue;
 
 			this.encoder.copyBufferToBuffer(
@@ -777,7 +773,7 @@ export default class Renderer {
 
 			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 
-			if (node.skin) {
+			if (node.skin !== null) {
 				if (chunkType === 'transparent') {
 					this.renderPass.setPipeline(this.pipelineTransparentSkinned);
 				} else {
@@ -864,20 +860,20 @@ export default class Renderer {
 		}
 	}
 
-	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks, models: Model[]) => {
+	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
 		const projView = mat4.mul(this.projection, renderables.viewTransform);
 
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();
 
-		this.set_joint_buffers(renderables.jointMatricesBufferList, models);
+		this.set_joint_buffers(renderables.jointMatricesBufferList, modelNodeChunks);
 
 		this.renderPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
 			colorAttachments: [
 				{
 					view: this.view,
 					loadOp: 'clear',
-					clearValue: [0.0, 0.6, 1.0, 1.0],
+					clearValue: [0.0, 0.0, 0.0, 0.0],
 					storeOp: 'store',
 				},
 			],
@@ -903,12 +899,12 @@ export default class Renderer {
 			this.renderChunk('transparent', modelNodeChunks.transparent);
 		}
 
-		if (this.showAABBs) {
+		if (debugging.showAABBs) {
 			this.renderPass.setPipeline(this.AABBPipeline);
 			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
 			this.renderBoundingBoxes(modelNodeChunks, true);
 		}
-		if (this.showOBBs) {
+		if (debugging.showOBBs) {
 			this.renderPass.setPipeline(this.OBBPipeline);
 			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
 			this.renderBoundingBoxes(modelNodeChunks, false);

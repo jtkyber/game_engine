@@ -1,13 +1,12 @@
 import { Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
-import Player from '../model/player';
 import { ControlBoard } from '../types/types';
-import { animations } from '../view/gltf/loader';
+import { animations, nodes } from '../view/gltf/loader';
 
 export default class Controller {
 	canvas: HTMLCanvasElement;
 	camera: Camera;
-	player: Player;
+	player: number;
 	pointerLocked: boolean;
 	moveVec: number[] = [0, 0];
 	controlBoard: ControlBoard = {
@@ -20,7 +19,7 @@ export default class Controller {
 	spinInterpolationCoefficient: number;
 	scrollAmt: number;
 
-	constructor(canvas: HTMLCanvasElement, camera: Camera, player: Player) {
+	constructor(canvas: HTMLCanvasElement, camera: Camera, player: number) {
 		this.canvas = canvas;
 		this.camera = camera;
 		this.player = player;
@@ -52,10 +51,10 @@ export default class Controller {
 
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
 			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
-			this.player.spin_lerp(endDir);
-			this.player.move(vec3.mulScalar(this.player.forwardMove, -1));
+			nodes[this.player].spin_lerp(endDir);
+			nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1));
 
-			animations['walk'].play();
+			animations['walk'].play(nodes[this.player].currentSpeed * 9);
 		} else {
 			animations['static'].play();
 		}

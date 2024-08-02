@@ -1,5 +1,5 @@
-import { Mat4, mat4, Vec3, vec3, vec4 } from 'wgpu-matrix';
-import { moveableFlag } from '../types/enums';
+import { Mat4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { Flag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import JointMatrices from '../view/compute/joint_matrices/joint_matrices';
@@ -9,8 +9,6 @@ import { Camera } from './camera';
 import { broad_phase } from './collisionDetection/broadPhase';
 import { narrow_phase } from './collisionDetection/narrowPhase';
 import Light from './light';
-import Model from './model';
-import Player from './player';
 
 export default class Scene {
 	nodes: GLTFNode[];
@@ -18,12 +16,12 @@ export default class Scene {
 	device: GPUDevice;
 	allJoints: Set<number>;
 	lights: Light[];
-	models: Model[];
+	models: number[];
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
 	camera: Camera;
-	player: Player;
+	player: number;
 	jointMatrixCompute: JointMatrices;
 	lightTypes: Float32Array;
 	lightPositions: Float32Array;
@@ -86,7 +84,7 @@ export default class Scene {
 		for (let i = 0; i < this.lights.length; i++) this.set_light_data(i);
 
 		this.jointMatricesBufferList = this.jointMatrixCompute.get_joint_matrices(
-			this.models,
+			this.modelNodeChunks,
 			this.nodeTransforms
 		);
 		this.sortTransparent();
@@ -97,11 +95,12 @@ export default class Scene {
 
 	update_models() {
 		for (let i = 0; i < this.models.length; i++) {
-			const model: Model = this.models[i];
-			model.update();
-			nodes[model.nodeIndex].set_current_velocity();
-			nodes[model.nodeIndex].apply_gravity();
-			nodes[model.nodeIndex].set_previous_position();
+			const model: number = this.models[i];
+
+			nodes[model].set_direction_vectors();
+			nodes[model].set_current_velocity();
+			nodes[model].apply_gravity();
+			nodes[model].set_previous_position();
 		}
 	}
 
@@ -130,10 +129,10 @@ export default class Scene {
 		} else if (parent === null) {
 			// If root node
 			return transform;
-		} else if (node.flag === moveableFlag.STATIC) {
+		} else if (node.flag === Flag.STATIC) {
 			// Never moves, so just return pre-multiplied matrix
 			return transform;
-		} else if (node.flag === moveableFlag.MOVEABLE_ROOT) {
+		} else if (node.flag === Flag.MOVEABLE_ROOT) {
 			// Only moves as single chunk, so multiply by root
 			// Non-root nodes pre-multiplied
 			const parentMat: Mat4 = this.get_root_matrix(node.parent);
@@ -153,19 +152,13 @@ export default class Scene {
 
 	sortTransparent() {
 		this.modelNodeChunks.transparent = this.modelNodeChunks.transparent.sort((a, b) => {
-			const nodeAdist: number = vec3.dist(
-				this.camera.position,
-				nodes[this.models[a.nodeIndex].nodeIndex].position
-			);
-			const nodeBdist: number = vec3.dist(
-				this.camera.position,
-				nodes[this.models[b.nodeIndex].nodeIndex].position
-			);
+			const nodeAdist: number = vec3.dist(this.camera.position, nodes[a.nodeIndex].position);
+			const nodeBdist: number = vec3.dist(this.camera.position, nodes[b.nodeIndex].position);
 			return nodeBdist - nodeAdist;
 		});
 	}
 
-	set_models(models: Model[], player: Player) {
+	set_models(models: number[], player: number) {
 		this.models = models;
 		this.player = player;
 		this.camera = new Camera(this.player);

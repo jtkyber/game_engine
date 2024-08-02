@@ -54,7 +54,7 @@ export enum ImageUsage {
 	EMISSION,
 }
 
-export enum moveableFlag {
+export enum Flag {
 	STATIC,
 	MOVEABLE_ROOT,
 }
