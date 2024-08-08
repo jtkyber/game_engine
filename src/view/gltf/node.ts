@@ -1,10 +1,12 @@
-import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, Vec4, mat4, quat, vec3 } from 'wgpu-matrix';
 import { debugging } from '../../control/app';
 import { Flag } from '../../types/enums';
-import { IAABB, IOBB } from '../../types/types';
+import { typedArrayFromComponentType } from '../../types/gltf';
+import { IAABB, IOBB, TypedArray } from '../../types/types';
 import { transformPosition } from '../../utils/matrix';
-import { getAABBverticesFromMinMax } from '../../utils/misc';
-import { nodes } from './loader';
+import { getAABBverticesFromMinMax, getPixel } from '../../utils/misc';
+import GLTFAccessor from './accessor';
+import { nodes, terrainHeightMap, terrainHeightMapSize } from './loader';
 import GLTFMesh from './mesh';
 import GLTFSkin from './skin';
 
@@ -21,17 +23,22 @@ export default class GLTFNode {
 	globalTransform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
+	minValues: Vec3[];
+	maxValues: Vec3[];
 	_mass: number = null;
 	_speed: number = null;
+	hasBoundingBox: boolean = true;
 	_currentSpeed: number = 0;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
-	turnSpeed: number = 0.008;
+	turnSpeed: number = 0.012;
 	initialOBBs: IOBB[] = null;
 	OBBs: IOBB[] = null;
 	AABBs: IAABB[] = null;
 	height: number;
 	previousPosition: Vec3;
 	preTransformed: boolean[];
+	terrainNodeIndex: number = null;
+	terrainPositions: TypedArray = null;
 
 	// For debug
 	initialOBBMeshes: Float32Array[] = null;
@@ -63,7 +70,8 @@ export default class GLTFNode {
 		minValues: Vec3[],
 		maxValues: Vec3[],
 		mass: number,
-		speed: number
+		speed: number,
+		hasBoundingBox: boolean
 	) {
 		this.device = device;
 		this.name = name;
@@ -76,11 +84,23 @@ export default class GLTFNode {
 		this.transform = transform;
 		this.mesh = mesh;
 		this.skin = skin;
+		this.minValues = minValues;
+		this.maxValues = maxValues;
 		this._mass = mass;
 		this._speed = speed;
+		this.hasBoundingBox = hasBoundingBox;
 		this.previousPosition = vec3.fromValues(...this.position);
 
-		if (minValues?.length && maxValues?.length) {
+		if (name === 'Terrain') {
+			const positionAccessor: GLTFAccessor = this.mesh.primitives[0].positions;
+			this.terrainPositions = new (typedArrayFromComponentType(positionAccessor.componentType))(
+				positionAccessor.bufferView.view.buffer,
+				positionAccessor.bufferView.view.byteOffset,
+				positionAccessor.bufferView.view.byteLength / 4
+			);
+		}
+
+		if (hasBoundingBox && minValues?.length && maxValues?.length) {
 			this.initialOBBMeshes = new Array(minValues.length);
 			this.OBBBufferArray = new Array(minValues.length);
 			this.initialOBBs = new Array(minValues.length);
@@ -216,13 +236,41 @@ export default class GLTFNode {
 	}
 
 	apply_gravity() {
+		if (this.name === 'Terrain') return;
+
 		if (this.rootNode === null) {
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
 			this.position[1] -= this.gravitySpeed;
-			if (this.position[1] < 0) this.position[1] = 0;
+			this.limit_height_to_terrain();
 			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
 			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);
+		}
+	}
+
+	limit_height_to_terrain(): void {
+		if (this.name === 'Terrain') return;
+
+		const mapLength: number =
+			nodes[this.terrainNodeIndex].maxValues[0][0] - nodes[this.terrainNodeIndex].minValues[0][0];
+		const mapWidth: number =
+			nodes[this.terrainNodeIndex].maxValues[0][2] - nodes[this.terrainNodeIndex].minValues[0][2];
+
+		const nFractAlongMeshX: number =
+			(this.position[0] - nodes[this.terrainNodeIndex].minValues[0][0]) / mapLength;
+		const nFractAlongMeshY: number =
+			(this.position[2] - nodes[this.terrainNodeIndex].minValues[0][2]) / mapWidth;
+
+		const col: number = Math.floor(nFractAlongMeshX * terrainHeightMapSize);
+		const row: number = Math.floor(nFractAlongMeshY * terrainHeightMapSize);
+
+		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize);
+		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
+
+		if (terrainHeightAbovePlayer > 0) {
+			if (terrainHeightAbovePlayer < 0.25) this.position[1] = terrainHeight;
+			else this.position = this.previousPosition;
+			this.reset_gravity();
 		}
 	}
 

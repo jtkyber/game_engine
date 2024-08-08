@@ -1,3 +1,4 @@
+import { WebGPURecorder } from 'webgpu_recorder/webgpu_recorder.js';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
@@ -20,6 +21,8 @@ export default class App {
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
+	firstFrameCompleted: boolean = false;
+	terrainNodeIndex: number = null;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -38,6 +41,9 @@ export default class App {
 		await gltfLoader.parse_gltf('dist/scene');
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
+
+		await gltfLoader.get_terrain_height_map('dist/terrain_height_map.png');
+		this.terrainNodeIndex = gltfLoader.terrainNodeIndex;
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
 		// console.log(gltfLoader.models);
@@ -45,13 +51,15 @@ export default class App {
 		// console.log(animations);
 
 		this.scene = new Scene(
-			nodes,
 			gltfScene.modelNodeChunks,
 			this.renderer.device,
 			gltfLoader.allJoints,
-			gltfLoader.lights
+			gltfLoader.lights,
+			this.terrainNodeIndex
 		);
 		this.scene.set_models(gltfScene.models, gltfScene.player);
+
+		// new WebGPURecorder();
 
 		this.renderer.init(gltfLoader.lights.length);
 
@@ -71,9 +79,12 @@ export default class App {
 		window.myLib.deltaTime = this.now - this.then;
 		this.then = performance.now();
 
-		this.controller.update();
-		this.scene.update();
-		this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
+		if (this.controller.pointerLocked || !this.firstFrameCompleted) {
+			this.controller.update();
+			this.scene.update();
+			this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks, this.terrainNodeIndex);
+			this.firstFrameCompleted = true;
+		}
 
 		this.framerateChunk.push(window.myLib.deltaTime);
 		if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();

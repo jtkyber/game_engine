@@ -71,6 +71,7 @@ export default class GLTFAnimationChannel {
 						return prevValue;
 					case GLTFAnimationInterpolation.LINEAR:
 						const interpolationValue: number = (this.currentTime - prevTime) / (nextTime - prevTime);
+
 						return this.get_lerped_value(prevValue, nextValue, interpolationValue);
 				}
 			}

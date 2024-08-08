@@ -1,4 +1,5 @@
 import { IGLTFBufferView } from '../../types/gltf';
+import { TypedArray } from '../../types/types';
 import { GLTFBuffer } from './buffer';
 
 export default class GLTFBufferView {
@@ -49,5 +50,23 @@ export default class GLTFBufferView {
 		buf.unmap();
 		this.gpuBuffer = buf;
 		this.needsUpload = false;
+	}
+
+	modifyBuffer(device: GPUDevice, array: TypedArray) {
+		const buf: GPUBuffer = device.createBuffer({
+			label: 'Buffer View Buffer',
+			size: this.alignTo(this.view.byteLength, 4),
+			usage: GPUBufferUsage.COPY_SRC,
+			mappedAtCreation: true,
+		});
+
+		new (<any>this.view.constructor)(buf.getMappedRange()).set(
+			new Uint8Array(array.buffer, this.view.byteOffset, this.view.byteLength)
+		);
+		buf.unmap();
+
+		const encoder = <GPUCommandEncoder>device.createCommandEncoder();
+		encoder.copyBufferToBuffer(buf, 0, this.gpuBuffer, 0, this.gpuBuffer.size);
+		device.queue.submit([encoder.finish()]);
 	}
 }

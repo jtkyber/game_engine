@@ -54,7 +54,8 @@ export default class Controller {
 			nodes[this.player].spin_lerp(endDir);
 			nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1));
 
-			animations['walk'].play(nodes[this.player].currentSpeed * 9);
+			// animations['walk'].play(nodes[this.player].currentSpeed * 9);
+			animations['walk'].play(3.5);
 		} else {
 			animations['static'].play();
 		}

@@ -3,6 +3,7 @@ struct VertexOutput {
     @location(1) world_pos: vec3f,
     @location(2) normal: vec3f,
     @location(3) texcoords: vec2f,
+    @location(4) @interpolate(flat) isTerrain: u32,
 };
 
 struct MaterialParams {
@@ -64,6 +65,10 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
 
     var color = base_color.rgb;
     let alpha = base_color.a;
+
+    if (in.isTerrain == 1) {
+        color = mix(vec3f(0.107, 0.091, 0.051), vec3f(in.world_pos[1] * in.world_pos[1] * 0.001), 0.5);
+    }
 
     let N = normalize(in.normal);
     let V = normalize(cameraPosition - in.world_pos);

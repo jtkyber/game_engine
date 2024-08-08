@@ -12,11 +12,14 @@ struct VertexOutput {
     @location(1) world_pos: vec3f,
     @location(2) normal: vec3f,
     @location(3) texcoords: vec2f,
+    @location(4) @interpolate(flat) isTerrain: u32
 };
 
 @group(0) @binding(0) var<storage, read> model_transforms: array<mat4x4f>;
 @group(0) @binding(1) var<storage, read> normal_transforms: array<mat4x4f>;
 @group(0) @binding(2) var<storage, read> proj_view_transform: mat4x4f;
+@group(0) @binding(3) var<storage, read> terrain: array<u32>;
+@group(0) @binding(4) var<uniform> isTerrain: u32;
 
 @group(3) @binding(0) var<storage, read> jointMatrices: array<mat4x4f>;
 
@@ -47,5 +50,6 @@ fn v_main(vert: VertexInput) -> VertexOutput {
     out.world_pos = worldPos.xyz;
     out.normal = extractMat3FromMat4(normal_transforms[vert.i_id]) * vert.normal;
     out.texcoords = vert.texcoords;
+    out.isTerrain = 0;
     return out;
 }

@@ -1,5 +1,4 @@
 import { GLTFRenderMode } from '../../types/enums';
-import { typedArrayFromComponentType } from '../../types/gltf';
 import GLTFAccessor from './accessor';
 import GLTFMaterial from './materials';
 
@@ -36,10 +35,10 @@ export default class GLTFPrimitive {
 		this.topology = topology;
 
 		this.positions.bufferView.needsUpload = true;
-		this.positions.bufferView.addUsage(GPUBufferUsage.VERTEX);
+		this.positions.bufferView.addUsage(GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
 
 		this.normals.bufferView.needsUpload = true;
-		this.normals.bufferView.addUsage(GPUBufferUsage.VERTEX);
+		this.normals.bufferView.addUsage(GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
 
 		if (this.indices) {
 			this.indices.bufferView.needsUpload = true;

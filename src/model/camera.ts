@@ -1,5 +1,6 @@
 import { Mat4, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
-import { nodes } from '../view/gltf/loader';
+import { getPixel } from '../utils/misc';
+import { nodes, terrainHeightMap, terrainHeightMapSize } from '../view/gltf/loader';
 
 export class Camera {
 	position: Vec3 = vec3.create(0, 0, 0);
@@ -23,14 +24,14 @@ export class Camera {
 		this.targetNode = targetNode;
 
 		// const height: number = nodes[this.targetModel.nodeIndex].height;
-		const height: number = 4;
+		const height: number = 1;
 		this.distAboveModel = height / 2;
 		this.distFromModel = height * 4;
 		this.distFromModelMin = height * 2;
-		this.distFromModelMax = height * 8;
+		this.distFromModelMax = height * 20;
 	}
 
-	update() {
+	update(terrainNodeIndex: number) {
 		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
 		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
 
@@ -54,12 +55,29 @@ export class Camera {
 
 		// Move camera back out along forward vector
 		this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
-		// Don't let camera clip through ground
-		if (this.position[1] < 0.1) this.position[1] = 0.1;
+		// Don't let camera clip through terrain
+		this.limit_height_to_terrain(terrainNodeIndex);
 
 		this.target = vec3.add(this.position, this.forward);
 
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
+	}
+
+	limit_height_to_terrain(terrainNodeIndex: number): void {
+		const mapLength: number =
+			nodes[terrainNodeIndex].maxValues[0][0] - nodes[terrainNodeIndex].minValues[0][0];
+		const mapWidth: number =
+			nodes[terrainNodeIndex].maxValues[0][2] - nodes[terrainNodeIndex].minValues[0][2];
+
+		const nFractAlongMeshX: number = (this.position[0] - nodes[terrainNodeIndex].minValues[0][0]) / mapLength;
+		const nFractAlongMeshY: number = (this.position[2] - nodes[terrainNodeIndex].minValues[0][2]) / mapWidth;
+
+		const col: number = Math.floor(nFractAlongMeshX * terrainHeightMapSize);
+		const row: number = Math.floor(nFractAlongMeshY * terrainHeightMapSize);
+
+		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize);
+
+		if (this.position[1] < terrainHeight + 0.5) this.position[1] = terrainHeight + 0.5;
 	}
 
 	move_FB(sign: number, amt: number) {

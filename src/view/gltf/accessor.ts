@@ -1,4 +1,3 @@
-import { Vec3 } from 'wgpu-matrix';
 import { IGLTFAccessor, elementCountFromGLTFtype } from '../../types/gltf';
 import { gltfTypeSize, gltfVertexType, parseGltfType } from '../../utils/gltf';
 import GLTFBufferView from './bufferView';

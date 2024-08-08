@@ -13,7 +13,7 @@ export function broad_phase(modelNodeChunks: IModelNodeChunks): AABBResultPair[]
 		const nodeIndex1: number = modelIndexChunk1.nodeIndex;
 		const primIndex1: number = modelIndexChunk1.primitiveIndex;
 		const node1: GLTFNode = nodes[nodeIndex1];
-		if (!node1.mesh) continue;
+		if (!node1.hasBoundingBox || !node1.mesh) continue;
 
 		const AABB1: IAABB = node1.AABBs[primIndex1];
 
@@ -23,7 +23,7 @@ export function broad_phase(modelNodeChunks: IModelNodeChunks): AABBResultPair[]
 			const primIndex2: number = modelIndexChunk2.primitiveIndex;
 			const node2: GLTFNode = nodes[nodeIndex2];
 			const sameRoot: boolean = node1.rootNode === node2.rootNode && node1.rootNode !== null;
-			if (!node2.mesh || nodeIndex1 === nodeIndex2 || sameRoot) continue;
+			if (!node2.hasBoundingBox || !node2.mesh || nodeIndex1 === nodeIndex2 || sameRoot) continue;
 
 			const AABB2: IAABB = node2.AABBs[primIndex2];
 

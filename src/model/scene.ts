@@ -2,20 +2,20 @@ import { Mat4, mat4, vec3, vec4 } from 'wgpu-matrix';
 import { Flag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
-import JointMatrices from '../view/compute/joint_matrices/joint_matrices';
 import { nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
+import JointMatrices from '../view/joint_matrices';
 import { Camera } from './camera';
 import { broad_phase } from './collisionDetection/broadPhase';
 import { narrow_phase } from './collisionDetection/narrowPhase';
 import Light from './light';
 
 export default class Scene {
-	nodes: GLTFNode[];
 	modelNodeChunks: IModelNodeChunks;
 	device: GPUDevice;
 	allJoints: Set<number>;
 	lights: Light[];
+	terrainNodeIndex: number;
 	models: number[];
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
@@ -33,17 +33,17 @@ export default class Scene {
 	lightViewProjMatrices: Float32Array;
 
 	constructor(
-		nodes: GLTFNode[],
 		modelNodeChunks: IModelNodeChunks,
 		device: GPUDevice,
 		allJoints: Set<number>,
-		lights: Light[]
+		lights: Light[],
+		terrainNodeIndex: number
 	) {
-		this.nodes = nodes;
 		this.modelNodeChunks = modelNodeChunks;
 		this.device = device;
 		this.allJoints = allJoints;
 		this.lights = lights;
+		this.terrainNodeIndex = terrainNodeIndex;
 		this.models = [];
 		this.nodeTransforms = new Float32Array(16 * nodes.length);
 		this.normalTransforms = new Float32Array(16 * nodes.length);
@@ -61,7 +61,7 @@ export default class Scene {
 	}
 
 	update() {
-		this.camera.update();
+		this.camera.update(this.terrainNodeIndex);
 		this.update_models();
 
 		for (let i = 0; i < nodes.length; i++) {
@@ -96,11 +96,12 @@ export default class Scene {
 	update_models() {
 		for (let i = 0; i < this.models.length; i++) {
 			const model: number = this.models[i];
+			const node: GLTFNode = nodes[model];
 
-			nodes[model].set_direction_vectors();
-			nodes[model].set_current_velocity();
-			nodes[model].apply_gravity();
-			nodes[model].set_previous_position();
+			node.set_direction_vectors();
+			node.set_current_velocity();
+			node.apply_gravity();
+			node.set_previous_position();
 		}
 	}
 

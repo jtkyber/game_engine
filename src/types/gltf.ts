@@ -16,6 +16,7 @@ export interface IGLTFNode {
 	extras?: {
 		mass?: number;
 		speed?: number;
+		hasBoundingBox?: boolean;
 	};
 }
 

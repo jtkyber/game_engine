@@ -1,3 +1,4 @@
+import { Image as ImageJS } from 'image-js';
 import { Mat4, mat4, Quat, Vec3, vec3, vec4 } from 'wgpu-matrix';
 import Light from '../../model/light';
 import {
@@ -18,9 +19,11 @@ import {
 	IGLTFPrimitive,
 	IGLTFScene,
 	IModelNodeChunks,
+	typedArrayFromComponentType,
 } from '../../types/gltf';
-import { getFlagType } from '../../types/types';
+import { getFlagType, TypedArray } from '../../types/types';
 import { fromRotationTranslationScale } from '../../utils/matrix';
+import { getPixel } from '../../utils/misc';
 import GLTFAccessor from './accessor';
 import GLTFAnimation from './animation';
 import GLTFAnimationChannel from './animationChannel';
@@ -38,6 +41,8 @@ import { GLTFTexture } from './texture';
 
 export const nodes: GLTFNode[] = [];
 export const animations: { [key: string]: GLTFAnimation } = {};
+export let terrainHeightMap: Float32Array;
+export let terrainHeightMapSize: number;
 
 export default class GTLFLoader {
 	device: GPUDevice;
@@ -61,6 +66,7 @@ export default class GTLFLoader {
 		[key: number]: number;
 	};
 	allJoints: Set<number>;
+	terrainNodeIndex: number;
 
 	constructor(device: GPUDevice) {
 		this.device = device;
@@ -81,6 +87,108 @@ export default class GTLFLoader {
 		};
 		this.indexSwapBoard = {};
 		this.allJoints = new Set();
+	}
+
+	async get_terrain_height_map(url: string) {
+		const img = await ImageJS.load(url);
+		if (img.width !== img.height) {
+			throw new Error('Height map image must be a square');
+		}
+		const imgData = img.data;
+		const imgChannels = img.channels;
+		const maxValue = img.bitDepth === 8 ? 255 : 65535;
+
+		terrainHeightMap = new Float32Array(img.data.length / imgChannels);
+		terrainHeightMapSize = img.width;
+
+		for (let i = 0; i < terrainHeightMap.length; i++) {
+			terrainHeightMap[i] = (imgData[i * imgChannels] / maxValue) * 25;
+		}
+
+		await this.load_terrain();
+
+		console.log('terrain height map loaded');
+	}
+
+	async load_terrain() {
+		const node: GLTFNode = nodes[this.terrainNodeIndex];
+		const meshBufferView: GLTFBufferView = node.mesh.primitives[0].positions.bufferView;
+		const mesh: Float32Array = new Float32Array(
+			meshBufferView.view.buffer,
+			meshBufferView.view.byteOffset,
+			meshBufferView.view.byteLength / 4
+		);
+
+		this.createGridMesh(terrainHeightMap, terrainHeightMapSize, mesh);
+		meshBufferView.modifyBuffer(this.device, mesh);
+
+		this.load_terrain_normals(mesh);
+	}
+
+	async load_terrain_normals(positionMesh: Float32Array) {
+		const node: GLTFNode = nodes[this.terrainNodeIndex];
+		const meshNormalsBufferView: GLTFBufferView = node.mesh.primitives[0].normals.bufferView;
+		const meshIndicesBufferView: GLTFBufferView = node.mesh.primitives[0].indices.bufferView;
+		const meshNormals: Float32Array = new Float32Array(
+			meshNormalsBufferView.view.buffer,
+			meshNormalsBufferView.view.byteOffset,
+			meshNormalsBufferView.view.byteLength / 4
+		);
+		const meshIndices: Uint16Array = new Uint16Array(
+			meshIndicesBufferView.view.buffer,
+			meshIndicesBufferView.view.byteOffset,
+			meshIndicesBufferView.view.byteLength / 2
+		);
+
+		for (let i = 0; i < meshNormals.length; i++) meshNormals[i] = 0;
+
+		for (let i = 0; i < meshIndices.length; i += 3) {
+			const i1 = meshIndices[i] * 3;
+			const i2 = meshIndices[i + 1] * 3;
+			const i3 = meshIndices[i + 2] * 3;
+
+			const p1: Vec3 = vec3.fromValues(positionMesh[i1], positionMesh[i1 + 1], positionMesh[i1 + 2]);
+			const p2: Vec3 = vec3.fromValues(positionMesh[i2], positionMesh[i2 + 1], positionMesh[i2 + 2]);
+			const p3: Vec3 = vec3.fromValues(positionMesh[i3], positionMesh[i3 + 1], positionMesh[i3 + 2]);
+
+			const dir1: Vec3 = vec3.sub(p2, p1);
+			const dir2: Vec3 = vec3.sub(p3, p1);
+
+			const n: Vec3 = vec3.normalize(vec3.cross(dir1, dir2));
+
+			for (let j = 0; j < 3; j++) {
+				meshNormals[i1 + j] += n[j];
+				meshNormals[i2 + j] += n[j];
+				meshNormals[i3 + j] += n[j];
+			}
+		}
+
+		for (let i = 0; i < meshNormals.length; i += 3) {
+			const n = vec3.normalize(vec3.fromValues(meshNormals[i], meshNormals[i + 1], meshNormals[i + 2]));
+			meshNormals[i] = n[0];
+			meshNormals[i + 1] = n[1];
+			meshNormals[i + 2] = n[2];
+		}
+
+		meshNormalsBufferView.modifyBuffer(this.device, meshNormals);
+	}
+
+	createGridMesh(heightMap: Float32Array, heightMapSize: number, gridMesh: Float32Array) {
+		for (let i = 0; i < gridMesh.length; i += 3) {
+			const mapSize: number =
+				nodes[this.terrainNodeIndex].maxValues[0][0] - nodes[this.terrainNodeIndex].minValues[0][0];
+
+			const nFractAlongMeshX: number = (gridMesh[i] - nodes[this.terrainNodeIndex].minValues[0][0]) / mapSize;
+			const nFractAlongMeshY: number =
+				(gridMesh[i + 2] - nodes[this.terrainNodeIndex].minValues[0][2]) / mapSize;
+
+			const col: number = Math.floor(nFractAlongMeshX * heightMapSize);
+			const row: number = Math.floor(nFractAlongMeshY * heightMapSize);
+
+			const terrainHeight = getPixel(heightMap, row, col, heightMapSize);
+
+			gridMesh[i + 1] = terrainHeight;
+		}
 	}
 
 	async parse_gltf(url: string): Promise<void> {
@@ -299,9 +407,7 @@ export default class GTLFLoader {
 			let meshPrimitives = [];
 			for (let i = 0; i < mesh['primitives'].length; i++) {
 				const prim: IGLTFPrimitive = mesh['primitives'][i];
-				let topology = prim['mode'];
-
-				if (topology === undefined) topology = GLTFRenderMode.TRIANGLES;
+				let topology = prim['mode'] ?? GLTFRenderMode.TRIANGLES;
 
 				if (topology != GLTFRenderMode.TRIANGLES && topology != GLTFRenderMode.TRIANGLE_STRIP) {
 					throw Error(`Unsupported primitive mode ${prim['mode']}`);
@@ -467,6 +573,8 @@ export default class GTLFLoader {
 				channel.targetNode = this.indexSwapBoard[channel.targetNode];
 			}
 		}
+
+		this.terrainNodeIndex = this.indexSwapBoard[this.terrainNodeIndex];
 	}
 
 	load_nodes(
@@ -489,6 +597,7 @@ export default class GTLFLoader {
 		const maxValues: Vec3[] = mesh?.primitives.map(p => p.positions.max) ?? null;
 		const mass: number = node?.extras?.mass ?? null;
 		const speed: number = node?.extras?.speed ?? 0;
+		const hasBoundingBox: boolean = node?.extras?.hasBoundingBox ?? true;
 
 		nodes.push(
 			new GLTFNode(
@@ -506,10 +615,13 @@ export default class GTLFLoader {
 				minValues,
 				maxValues,
 				mass,
-				speed
+				speed,
+				hasBoundingBox
 			)
 		);
 		const lastNodeIndex: number = nodes.length - 1;
+
+		if (name === 'Terrain') this.terrainNodeIndex = lastNodeIndex;
 
 		this.indexSwapBoard[n] = lastNodeIndex;
 
@@ -570,6 +682,8 @@ export default class GTLFLoader {
 				playerFound = true;
 			}
 		}
+
+		for (let i = 0; i < nodes.length; i++) nodes[i].terrainNodeIndex = this.terrainNodeIndex;
 	}
 
 	// transform_matrices(node: GLTFNode, transform: Mat4): Mat4 {
