@@ -28,7 +28,7 @@ export class Camera {
 		this.distAboveModel = height / 2;
 		this.distFromModel = height * 4;
 		this.distFromModelMin = height * 2;
-		this.distFromModelMax = height * 20;
+		this.distFromModelMax = height * 50;
 	}
 
 	update(terrainNodeIndex: number) {
@@ -72,10 +72,10 @@ export class Camera {
 		const nFractAlongMeshX: number = (this.position[0] - nodes[terrainNodeIndex].minValues[0][0]) / mapLength;
 		const nFractAlongMeshY: number = (this.position[2] - nodes[terrainNodeIndex].minValues[0][2]) / mapWidth;
 
-		const col: number = Math.floor(nFractAlongMeshX * terrainHeightMapSize);
-		const row: number = Math.floor(nFractAlongMeshY * terrainHeightMapSize);
+		const col: number = Math.floor(nFractAlongMeshX * (terrainHeightMapSize - 1));
+		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));
 
-		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize);
+		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
 
 		if (this.position[1] < terrainHeight + 0.5) this.position[1] = terrainHeight + 0.5;
 	}

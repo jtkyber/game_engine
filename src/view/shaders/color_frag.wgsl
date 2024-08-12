@@ -66,9 +66,9 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     var color = base_color.rgb;
     let alpha = base_color.a;
 
-    if (in.isTerrain == 1) {
-        color = mix(vec3f(0.107, 0.091, 0.051), vec3f(in.world_pos[1] * in.world_pos[1] * 0.001), 0.5);
-    }
+    // if (in.isTerrain == 1) {
+    //     color = mix(vec3f(0.107, 0.091, 0.051), vec3f(in.world_pos[1] * in.world_pos[1] * 0.0005), 0.2);
+    // }
 
     let N = normalize(in.normal);
     let V = normalize(cameraPosition - in.world_pos);

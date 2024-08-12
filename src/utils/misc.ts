@@ -63,6 +63,9 @@ export function getAABBverticesFromMinMax(min: Vec3, max: Vec3): Float32Array {
 }
 
 export function getPixel(data: Float32Array, row: number, col: number, textureSize: number): number {
-	const index = row * textureSize + col;
-	return data[index];
+	if (row >= 0 && row < textureSize && col >= 0 && col < textureSize) {
+		const index = row * textureSize + col;
+		return data[index];
+	}
+	return null;
 }

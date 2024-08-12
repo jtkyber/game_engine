@@ -16,8 +16,6 @@ struct VertexOutput {
 @group(0) @binding(0) var<storage, read> model_transform: mat4x4f;
 @group(0) @binding(1) var<storage, read> normal_transform: mat4x4f;
 @group(0) @binding(2) var<storage, read> proj_view_transform: mat4x4f;
-@group(0) @binding(3) var<storage, read> height_map: array<f32>;
-@group(0) @binding(4) var<storage, read> meshMinMax: array<vec3f>;
 
 fn extractMat3FromMat4(m: mat4x4f) -> mat3x3f {
     return mat3x3(

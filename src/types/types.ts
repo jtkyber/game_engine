@@ -28,6 +28,7 @@ export interface IRenderData {
 	lightAngleOffsets: Float32Array;
 	lightViewProjMatrices: Float32Array;
 	cameraPosition: Vec4;
+	cameraDirections: Float32Array;
 }
 
 export function getFlagType(name: string): Flag | null {

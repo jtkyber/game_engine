@@ -2,8 +2,9 @@ import { WebGPURecorder } from 'webgpu_recorder/webgpu_recorder.js';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
-import GTLFLoader, { nodes } from '../view/gltf/loader';
+import GTLFLoader from '../view/gltf/loader';
 import Renderer from '../view/renderer';
+import { Skybox } from '../view/skybox';
 import Controller from './controller';
 
 export const debugging: IDebug = {
@@ -36,6 +37,10 @@ export default class App {
 
 		this.renderer = new Renderer(this.canvas);
 		await this.renderer.setupDevice();
+
+		const skybox = new Skybox();
+		await skybox.initialize(this.renderer.device, 'dist/skybox.png');
+		this.renderer.skybox = skybox;
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);
 		await gltfLoader.parse_gltf('dist/scene');

@@ -38,7 +38,6 @@ export default class GLTFNode {
 	previousPosition: Vec3;
 	preTransformed: boolean[];
 	terrainNodeIndex: number = null;
-	terrainPositions: TypedArray = null;
 
 	// For debug
 	initialOBBMeshes: Float32Array[] = null;
@@ -90,15 +89,6 @@ export default class GLTFNode {
 		this._speed = speed;
 		this.hasBoundingBox = hasBoundingBox;
 		this.previousPosition = vec3.fromValues(...this.position);
-
-		if (name === 'Terrain') {
-			const positionAccessor: GLTFAccessor = this.mesh.primitives[0].positions;
-			this.terrainPositions = new (typedArrayFromComponentType(positionAccessor.componentType))(
-				positionAccessor.bufferView.view.buffer,
-				positionAccessor.bufferView.view.byteOffset,
-				positionAccessor.bufferView.view.byteLength / 4
-			);
-		}
 
 		if (hasBoundingBox && minValues?.length && maxValues?.length) {
 			this.initialOBBMeshes = new Array(minValues.length);
@@ -261,10 +251,10 @@ export default class GLTFNode {
 		const nFractAlongMeshY: number =
 			(this.position[2] - nodes[this.terrainNodeIndex].minValues[0][2]) / mapWidth;
 
-		const col: number = Math.floor(nFractAlongMeshX * terrainHeightMapSize);
-		const row: number = Math.floor(nFractAlongMeshY * terrainHeightMapSize);
+		const col: number = Math.floor(nFractAlongMeshX * (terrainHeightMapSize - 1));
+		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));
 
-		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize);
+		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
 		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
 
 		if (terrainHeightAbovePlayer > 0) {
@@ -292,9 +282,6 @@ export default class GLTFNode {
 
 	set_previous_position() {
 		if (this.rootNode === null) this.previousPosition = vec3.fromValues(...this.position);
-		// } else {
-		// 	nodes[this.rootNode].previousPosition = vec3.fromValues(...nodes[this.rootNode].position);
-		// }
 	}
 
 	setInitialOOB(i: number, min: Vec3, max: Vec3) {

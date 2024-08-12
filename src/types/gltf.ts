@@ -121,6 +121,27 @@ export function typedArrayFromComponentType(componentType: GLTFComponentType) {
 	}
 }
 
+export function get8byteMultipleFromComponentType(componentType: GLTFComponentType): number {
+	switch (componentType) {
+		case GLTFComponentType.BYTE:
+			return 1;
+		case GLTFComponentType.UNSIGNED_BYTE:
+			return 1;
+		case GLTFComponentType.SHORT:
+			return 2;
+		case GLTFComponentType.UNSIGNED_SHORT:
+			return 2;
+		case GLTFComponentType.INT:
+			return 4;
+		case GLTFComponentType.UNSIGNED_INT:
+			return 4;
+		case GLTFComponentType.FLOAT:
+			return 4;
+		case GLTFComponentType.DOUBLE:
+			return 8;
+	}
+}
+
 export function elementCountFromGLTFtype(type: GLTFType): number {
 	switch (type) {
 		case GLTFType.SCALAR:

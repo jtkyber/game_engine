@@ -5,11 +5,13 @@ import {
 	Flag,
 	GLTFAnimationInterpolation,
 	GLTFAnimationPath,
+	GLTFComponentType,
 	GLTFRenderMode,
 	GLTFTextureFilter,
 	GLTFTextureWrap,
 } from '../../types/enums';
 import {
+	get8byteMultipleFromComponentType,
 	IGLTFAccessor,
 	IGLTFAnimationChannel,
 	IGLTFAnimationSampler,
@@ -98,11 +100,13 @@ export default class GTLFLoader {
 		const imgChannels = img.channels;
 		const maxValue = img.bitDepth === 8 ? 255 : 65535;
 
+		const tHeightMax: number = 10;
+
 		terrainHeightMap = new Float32Array(img.data.length / imgChannels);
 		terrainHeightMapSize = img.width;
 
 		for (let i = 0; i < terrainHeightMap.length; i++) {
-			terrainHeightMap[i] = (imgData[i * imgChannels] / maxValue) * 25;
+			terrainHeightMap[i] = (imgData[i * imgChannels] / maxValue) * tHeightMax;
 		}
 
 		await this.load_terrain();
@@ -112,32 +116,40 @@ export default class GTLFLoader {
 
 	async load_terrain() {
 		const node: GLTFNode = nodes[this.terrainNodeIndex];
-		const meshBufferView: GLTFBufferView = node.mesh.primitives[0].positions.bufferView;
-		const mesh: Float32Array = new Float32Array(
-			meshBufferView.view.buffer,
-			meshBufferView.view.byteOffset,
-			meshBufferView.view.byteLength / 4
-		);
 
-		this.createGridMesh(terrainHeightMap, terrainHeightMapSize, mesh);
-		meshBufferView.modifyBuffer(this.device, mesh);
+		for (let i = 0; i < node.mesh.primitives.length; i++) {
+			const meshBufferView: GLTFBufferView = node.mesh.primitives[i].positions.bufferView;
+			const componentType: GLTFComponentType = node.mesh.primitives[i].normals.componentType;
+			const mesh: TypedArray = new (typedArrayFromComponentType(componentType))(
+				meshBufferView.view.buffer,
+				meshBufferView.view.byteOffset,
+				meshBufferView.view.byteLength / get8byteMultipleFromComponentType(componentType)
+			);
 
-		this.load_terrain_normals(mesh);
+			this.createGridMesh(terrainHeightMap, terrainHeightMapSize, mesh);
+			meshBufferView.modifyBuffer(this.device, mesh);
+
+			this.load_terrain_normals(mesh, i);
+		}
 	}
 
-	async load_terrain_normals(positionMesh: Float32Array) {
+	async load_terrain_normals(positionMesh: TypedArray, pIndex: number) {
 		const node: GLTFNode = nodes[this.terrainNodeIndex];
-		const meshNormalsBufferView: GLTFBufferView = node.mesh.primitives[0].normals.bufferView;
-		const meshIndicesBufferView: GLTFBufferView = node.mesh.primitives[0].indices.bufferView;
-		const meshNormals: Float32Array = new Float32Array(
+		const meshNormalsBufferView: GLTFBufferView = node.mesh.primitives[pIndex].normals.bufferView;
+		const normalComponentType: GLTFComponentType = node.mesh.primitives[pIndex].normals.componentType;
+
+		const meshIndicesBufferView: GLTFBufferView = node.mesh.primitives[pIndex].indices.bufferView;
+		const indexComponentType: GLTFComponentType = node.mesh.primitives[pIndex].indices.componentType;
+
+		const meshNormals: TypedArray = new (typedArrayFromComponentType(normalComponentType))(
 			meshNormalsBufferView.view.buffer,
 			meshNormalsBufferView.view.byteOffset,
-			meshNormalsBufferView.view.byteLength / 4
+			meshNormalsBufferView.view.byteLength / get8byteMultipleFromComponentType(normalComponentType)
 		);
-		const meshIndices: Uint16Array = new Uint16Array(
+		const meshIndices: TypedArray = new (typedArrayFromComponentType(indexComponentType))(
 			meshIndicesBufferView.view.buffer,
 			meshIndicesBufferView.view.byteOffset,
-			meshIndicesBufferView.view.byteLength / 2
+			meshIndicesBufferView.view.byteLength / get8byteMultipleFromComponentType(indexComponentType)
 		);
 
 		for (let i = 0; i < meshNormals.length; i++) meshNormals[i] = 0;
@@ -173,7 +185,7 @@ export default class GTLFLoader {
 		meshNormalsBufferView.modifyBuffer(this.device, meshNormals);
 	}
 
-	createGridMesh(heightMap: Float32Array, heightMapSize: number, gridMesh: Float32Array) {
+	createGridMesh(heightMap: Float32Array, heightMapSize: number, gridMesh: TypedArray) {
 		for (let i = 0; i < gridMesh.length; i += 3) {
 			const mapSize: number =
 				nodes[this.terrainNodeIndex].maxValues[0][0] - nodes[this.terrainNodeIndex].minValues[0][0];
@@ -182,8 +194,8 @@ export default class GTLFLoader {
 			const nFractAlongMeshY: number =
 				(gridMesh[i + 2] - nodes[this.terrainNodeIndex].minValues[0][2]) / mapSize;
 
-			const col: number = Math.floor(nFractAlongMeshX * heightMapSize);
-			const row: number = Math.floor(nFractAlongMeshY * heightMapSize);
+			const col: number = Math.floor(nFractAlongMeshX * (heightMapSize - 1));
+			const row: number = Math.floor(nFractAlongMeshY * (heightMapSize - 1));
 
 			const terrainHeight = getPixel(heightMap, row, col, heightMapSize);
 

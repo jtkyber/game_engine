@@ -11,6 +11,7 @@ import colorVertShader from './shaders/color_vert.wgsl';
 import colorVertShaderSkinned from './shaders/color_vert_skinned.wgsl';
 import obbShader from './shaders/obb_shader.wgsl';
 import terrainShader from './shaders/terrain_vert.wgsl';
+import { Skybox } from './skybox';
 
 export default class Renderer {
 	// Canvas
@@ -21,6 +22,9 @@ export default class Renderer {
 
 	// Nodes
 	modelNodeChunks: IModelNodeChunks;
+
+	// Skybox
+	skybox: Skybox;
 
 	// Camera
 	fov: number;
@@ -50,6 +54,7 @@ export default class Renderer {
 	OBBPipeline: GPURenderPipeline;
 	AABBPipeline: GPURenderPipeline;
 	terrainPipeline: GPURenderPipeline;
+	skyboxPipeine: GPURenderPipeline;
 
 	frameBindGroupLayout: GPUBindGroupLayout;
 	materialBindGroupLayout: GPUBindGroupLayout;
@@ -77,10 +82,8 @@ export default class Renderer {
 	normalTransformBuffer: GPUBuffer;
 	projViewTransformBuffer: GPUBuffer;
 	jointMatricesBuffers: GPUBuffer[];
-	terrainHeightMapBuffer: GPUBuffer;
 	terrainModelTransformBuffer: GPUBuffer;
 	terrainNormalTransformBuffer: GPUBuffer;
-	terrainMeshMinMaxBuffer: GPUBuffer;
 
 	lightTypeBuffer: GPUBuffer;
 	lightPositionBuffer: GPUBuffer;
@@ -203,13 +206,6 @@ export default class Renderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		this.terrainHeightMapBuffer = this.device.createBuffer({
-			label: 'terrainHeightMapBuffer',
-			size: terrainHeightMap.byteLength,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this.device.queue.writeBuffer(this.terrainHeightMapBuffer, 0, terrainHeightMap);
-
 		this.terrainModelTransformBuffer = this.device.createBuffer({
 			label: 'terrainModelTransformBuffer',
 			size: 4 * 16,
@@ -218,11 +214,6 @@ export default class Renderer {
 		this.terrainNormalTransformBuffer = this.device.createBuffer({
 			label: 'terrainNormalTransformBuffer',
 			size: 4 * 16,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this.terrainMeshMinMaxBuffer = this.device.createBuffer({
-			label: 'terrainMeshMinMaxBuffer',
-			size: 4 * 4 * 2,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 	}
@@ -312,24 +303,6 @@ export default class Renderer {
 				{
 					// Proj-View matrix
 					binding: 2,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					// heightMap
-					binding: 3,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					// terrain min / max
-					binding: 4,
 					visibility: GPUShaderStage.VERTEX,
 					buffer: {
 						type: 'read-only-storage',
@@ -527,18 +500,6 @@ export default class Renderer {
 					binding: 2,
 					resource: {
 						buffer: this.projViewTransformBuffer,
-					},
-				},
-				{
-					binding: 3,
-					resource: {
-						buffer: this.terrainHeightMapBuffer,
-					},
-				},
-				{
-					binding: 4,
-					resource: {
-						buffer: this.terrainMeshMinMaxBuffer,
 					},
 				},
 			],
@@ -1028,6 +989,11 @@ export default class Renderer {
 			depthStencilAttachment: this.depthStencilAttachment,
 		});
 
+		this.device.queue.writeBuffer(this.skybox.camDirectionBuffer, 0, renderables.cameraDirections);
+		this.renderPass.setPipeline(this.skybox.pipeline);
+		this.renderPass.setBindGroup(0, this.skybox.bindGroup);
+		this.renderPass.draw(6, 1, 0, 0);
+
 		this.device.queue.writeBuffer(
 			this.terrainModelTransformBuffer,
 			0,
@@ -1037,14 +1003,6 @@ export default class Renderer {
 			this.terrainNormalTransformBuffer,
 			0,
 			renderables.normalTransforms.slice(16 * terrainNodeIndex, 16 * terrainNodeIndex + 16)
-		);
-
-		const terrainMin: Vec3 = nodes[terrainNodeIndex].minValues[0];
-		const terrainMax: Vec3 = nodes[terrainNodeIndex].maxValues[0];
-		this.device.queue.writeBuffer(
-			this.terrainMeshMinMaxBuffer,
-			0,
-			new Float32Array([...terrainMin, 1, ...terrainMax, 1])
 		);
 
 		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
@@ -1063,44 +1021,47 @@ export default class Renderer {
 
 		// Terrain -------------------------------------
 		this.renderPass.setPipeline(this.terrainPipeline);
-		const p: GLTFPrimitive = nodes[terrainNodeIndex].mesh.primitives[0];
 
-		this.renderPass.setBindGroup(0, this.terrainBindGroup);
-		this.renderPass.setBindGroup(1, p.material.bindGroup);
-		this.renderPass.setBindGroup(2, this.lightingBindGroup);
+		for (let i = 0; i < nodes[terrainNodeIndex].mesh.primitives.length; i++) {
+			const p: GLTFPrimitive = nodes[terrainNodeIndex].mesh.primitives[i];
 
-		this.renderPass.setVertexBuffer(
-			0,
-			p.positions.bufferView.gpuBuffer,
-			p.positions.byteOffset,
-			p.positions.byteLength
-		);
+			this.renderPass.setBindGroup(0, this.terrainBindGroup);
+			this.renderPass.setBindGroup(1, p.material.bindGroup);
+			this.renderPass.setBindGroup(2, this.lightingBindGroup);
 
-		this.renderPass.setVertexBuffer(
-			1,
-			p.normals.bufferView.gpuBuffer,
-			p.normals.byteOffset,
-			p.normals.byteLength
-		);
-
-		this.renderPass.setVertexBuffer(
-			2,
-			p.texCoords.bufferView.gpuBuffer,
-			p.texCoords.byteOffset,
-			p.texCoords.byteLength
-		);
-
-		if (p.indices) {
-			this.renderPass.setIndexBuffer(
-				<GPUBuffer>p.indices.bufferView.gpuBuffer,
-				<GPUIndexFormat>p.indices.elementType,
-				p.indices.byteOffset,
-				p.indices.byteLength
+			this.renderPass.setVertexBuffer(
+				0,
+				p.positions.bufferView.gpuBuffer,
+				p.positions.byteOffset,
+				p.positions.byteLength
 			);
 
-			this.renderPass.drawIndexed(p.indices.count);
-		} else {
-			this.renderPass.draw(p.positions.count);
+			this.renderPass.setVertexBuffer(
+				1,
+				p.normals.bufferView.gpuBuffer,
+				p.normals.byteOffset,
+				p.normals.byteLength
+			);
+
+			this.renderPass.setVertexBuffer(
+				2,
+				p.texCoords.bufferView.gpuBuffer,
+				p.texCoords.byteOffset,
+				p.texCoords.byteLength
+			);
+
+			if (p.indices) {
+				this.renderPass.setIndexBuffer(
+					<GPUBuffer>p.indices.bufferView.gpuBuffer,
+					<GPUIndexFormat>p.indices.elementType,
+					p.indices.byteOffset,
+					p.indices.byteLength
+				);
+
+				this.renderPass.drawIndexed(p.indices.count);
+			} else {
+				this.renderPass.draw(p.positions.count);
+			}
 		}
 		// -------------------------------
 

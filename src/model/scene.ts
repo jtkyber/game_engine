@@ -180,6 +180,14 @@ export default class Scene {
 			lightAngleOffsets: this.lightAngleOffsets,
 			lightViewProjMatrices: this.lightViewProjMatrices,
 			cameraPosition: vec4.create(...this.camera.position, 0),
+			cameraDirections: new Float32Array([
+				...this.camera.forward,
+				0.0,
+				...this.camera.right,
+				0.0,
+				...this.camera.up,
+				0.0,
+			]),
 		};
 	}
 }
