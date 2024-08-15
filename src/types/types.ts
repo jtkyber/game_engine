@@ -1,4 +1,5 @@
 import { Vec2, Vec3, Vec4 } from 'wgpu-matrix';
+import { Camera } from '../model/camera';
 import GLTFAnimation from '../view/gltf/animation';
 import { Flag } from './enums';
 
@@ -15,7 +16,7 @@ declare global {
 }
 
 export interface IRenderData {
-	viewTransform: Float32Array;
+	camera: Camera;
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
@@ -27,8 +28,6 @@ export interface IRenderData {
 	lightAngleScales: Float32Array;
 	lightAngleOffsets: Float32Array;
 	lightViewProjMatrices: Float32Array;
-	cameraPosition: Vec4;
-	cameraDirections: Float32Array;
 }
 
 export function getFlagType(name: string): Flag | null {

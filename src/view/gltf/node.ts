@@ -1,11 +1,9 @@
-import { Mat4, Quat, Vec3, Vec4, mat4, quat, vec3 } from 'wgpu-matrix';
+import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
 import { debugging } from '../../control/app';
 import { Flag } from '../../types/enums';
-import { typedArrayFromComponentType } from '../../types/gltf';
-import { IAABB, IOBB, TypedArray } from '../../types/types';
+import { IAABB, IOBB } from '../../types/types';
 import { transformPosition } from '../../utils/matrix';
 import { getAABBverticesFromMinMax, getPixel } from '../../utils/misc';
-import GLTFAccessor from './accessor';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from './loader';
 import GLTFMesh from './mesh';
 import GLTFSkin from './skin';
@@ -226,9 +224,7 @@ export default class GLTFNode {
 	}
 
 	apply_gravity() {
-		if (this.name === 'Terrain') return;
-
-		if (this.rootNode === null) {
+		if (this.rootNode === null && this.name !== 'Terrain') {
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
 			this.position[1] -= this.gravitySpeed;

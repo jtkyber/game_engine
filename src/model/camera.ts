@@ -24,11 +24,11 @@ export class Camera {
 		this.targetNode = targetNode;
 
 		// const height: number = nodes[this.targetModel.nodeIndex].height;
-		const height: number = 1;
+		const height: number = 0.57;
 		this.distAboveModel = height / 2;
 		this.distFromModel = height * 4;
 		this.distFromModelMin = height * 2;
-		this.distFromModelMax = height * 50;
+		this.distFromModelMax = height * 400;
 	}
 
 	update(terrainNodeIndex: number) {
@@ -77,7 +77,7 @@ export class Camera {
 
 		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
 
-		if (this.position[1] < terrainHeight + 0.5) this.position[1] = terrainHeight + 0.5;
+		if (this.position[1] < terrainHeight + 0.1) this.position[1] = terrainHeight + 0.1;
 	}
 
 	move_FB(sign: number, amt: number) {

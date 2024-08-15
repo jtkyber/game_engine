@@ -1,9 +1,8 @@
 struct VertexOutput {
     @builtin(position) position: vec4f,
-    @location(1) world_pos: vec3f,
+    @location(1) world_pos: vec4f,
     @location(2) normal: vec3f,
     @location(3) texcoords: vec2f,
-    @location(4) @interpolate(flat) isTerrain: u32,
 };
 
 struct MaterialParams {
@@ -11,6 +10,10 @@ struct MaterialParams {
     metallic_factor: f32,
     roughness_factor: f32,
 };
+
+@group(0) @binding(3) var shadowDepthTexture: texture_depth_2d_array;
+@group(0) @binding(4) var shadowDepthSampler: sampler_comparison;
+@group(0) @binding(5) var<storage, read> lightViewProjectionMat: array<mat4x4f>;
 
 @group(1) @binding(0) var<uniform> material_params: MaterialParams;
 @group(1) @binding(1) var base_color_sampler: sampler;
@@ -23,10 +26,11 @@ struct MaterialParams {
 @group(2) @binding(2) var<storage, read> lightColors: array<vec3f>;
 @group(2) @binding(3) var<storage, read> lightIntensities: array<f32>;
 @group(2) @binding(4) var<storage, read> lightDirections: array<vec3f>;
-@group(2) @binding(5) var<storage, read> lightAngleScales: array<f32>;
-@group(2) @binding(6) var<storage, read> lightAngleOffsets: array<f32>;
-@group(2) @binding(7) var<storage, read> lightViewProj: array<mat4x4f>;
-@group(2) @binding(8) var<uniform> cameraPosition: vec3f;
+// @group(2) @binding(5) var<uniform> lightAngleScales: array<f32>;
+// @group(2) @binding(6) var<uniform> lightAngleOffsets: array<f32>;
+@group(2) @binding(5) var<storage, read> lightAngleData: array<f32>; // scales | offsets
+@group(2) @binding(6) var<storage, read> lightViewProj: array<mat4x4f>;
+@group(2) @binding(7) var<uniform> cameraPosition: vec3f;
 
 /* lIGHT TYPES  
     0: spot
@@ -66,12 +70,8 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     var color = base_color.rgb;
     let alpha = base_color.a;
 
-    // if (in.isTerrain == 1) {
-    //     color = mix(vec3f(0.107, 0.091, 0.051), vec3f(in.world_pos[1] * in.world_pos[1] * 0.0005), 0.2);
-    // }
-
     let N = normalize(in.normal);
-    let V = normalize(cameraPosition - in.world_pos);
+    let V = normalize(cameraPosition - in.world_pos.xyz);
     let albedo = color;
     let F0 = mix(vec3f(0.04), albedo, metallic);
 
@@ -83,23 +83,23 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         // calculate radiance per light
         var L: vec3f;
         if (lightType == 1) { L = normalize(lightDirections[i]); }
-        else { L = normalize(lightPositions[i] - in.world_pos); }
+        else { L = normalize(lightPositions[i] - in.world_pos.xyz); }
 
         let H = normalize(V + L);
 
         var distance: f32;
         if (lightType == 1) { distance = 1.0; }
-        else { distance = length(lightPositions[i] - in.world_pos); }
+        else { distance = length(lightPositions[i] - in.world_pos.xyz); }
 
         let attenuation = 1.0 / (distance * distance);
 
         var angularAttenuation = 1.0;
         if (lightType == 0) {
             let cd = dot(lightDirections[i], L);
-            angularAttenuation = saturate(cd * lightAngleScales[i] + lightAngleOffsets[i]);
+            angularAttenuation = saturate(cd * lightAngleData[i] + lightAngleData[arrayLength(&lightTypes) / 2 + i]);
             angularAttenuation *= angularAttenuation;
         }
-        if (attenuation <= 0 || angularAttenuation <= 0) { continue; }
+        // if (attenuation <= 0 || angularAttenuation <= 0) { continue; }
 
         let radiance = lightColors[i] * lightIntensities[i] * attenuation * angularAttenuation * lightIntensityAdjustment;
 
@@ -116,9 +116,31 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
         let specular = numerator / denominator;
 
+         // Shadows ------------------
+        var visibility = 0.0;
+        var posFromLight = lightViewProjectionMat[i] * in.world_pos;
+        posFromLight *= posFromLight.w;
+        var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
+
+        let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
+        for (var y = -1; y <= 1; y++) {
+            for (var x = -1; x <= 1; x++) {
+                let offset = vec2f(vec2(x, y)) * oneOverShadowDepthTextureSize;
+
+                visibility += textureSampleCompare(
+                    shadowDepthTexture, shadowDepthSampler,
+                    shadowPos.xy + offset, i, shadowPos.z
+                );
+            }
+        }
+
+        visibility /= 9.0;
+        // visibility = 1.0;
+        // --------------------------
+
         // Accumulate radiance Lo
         let NdotL = max(dot(N, L), 0.0);
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
     }
 
     let ambient = vec3f(0.03) * albedo;
@@ -129,6 +151,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     color[1] = linear_to_srgb(color[1]);
     color[2] = linear_to_srgb(color[2]);
 
+   
     return vec4f(color, alpha);
 }
 

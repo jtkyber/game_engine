@@ -91,6 +91,14 @@ export default class GTLFLoader {
 		this.allJoints = new Set();
 	}
 
+	// srgb_to_linear(x: number): number {
+	// 	if (x <= 0.04045) {
+	// 		return x / 12.92;
+	// 	} else {
+	// 		return Math.pow((x + 0.055) / 1.055, 2.4);
+	// 	}
+	// }
+
 	async get_terrain_height_map(url: string) {
 		const img = await ImageJS.load(url);
 		if (img.width !== img.height) {
@@ -100,7 +108,7 @@ export default class GTLFLoader {
 		const imgChannels = img.channels;
 		const maxValue = img.bitDepth === 8 ? 255 : 65535;
 
-		const tHeightMax: number = 10;
+		const tHeightMax: number = 0;
 
 		terrainHeightMap = new Float32Array(img.data.length / imgChannels);
 		terrainHeightMapSize = img.width;

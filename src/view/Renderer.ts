@@ -1,8 +1,8 @@
-import { Mat4, mat4, utils, Vec3 } from 'wgpu-matrix';
+import { Mat4, mat4, utils } from 'wgpu-matrix';
 import { debugging } from '../control/app';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
-import { nodes, terrainHeightMap } from './gltf/loader';
+import { nodes } from './gltf/loader';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
 import aabbShader from './shaders/aabb_shader.wgsl';
@@ -10,7 +10,7 @@ import colorFragShader from './shaders/color_frag.wgsl';
 import colorVertShader from './shaders/color_vert.wgsl';
 import colorVertShaderSkinned from './shaders/color_vert_skinned.wgsl';
 import obbShader from './shaders/obb_shader.wgsl';
-import terrainShader from './shaders/terrain_vert.wgsl';
+import { Shadow } from './shadow';
 import { Skybox } from './skybox';
 
 export default class Renderer {
@@ -25,6 +25,8 @@ export default class Renderer {
 
 	// Skybox
 	skybox: Skybox;
+
+	shadow: Shadow;
 
 	// Camera
 	fov: number;
@@ -81,9 +83,6 @@ export default class Renderer {
 	modelTransformsBuffer: GPUBuffer;
 	normalTransformBuffer: GPUBuffer;
 	projViewTransformBuffer: GPUBuffer;
-	jointMatricesBuffers: GPUBuffer[];
-	terrainModelTransformBuffer: GPUBuffer;
-	terrainNormalTransformBuffer: GPUBuffer;
 
 	lightTypeBuffer: GPUBuffer;
 	lightPositionBuffer: GPUBuffer;
@@ -93,6 +92,7 @@ export default class Renderer {
 	lightAngleScaleBuffer: GPUBuffer;
 	lightAngleOffsetBuffer: GPUBuffer;
 	lightViewProjBuffer: GPUBuffer;
+	lightAngleDataBuffer: GPUBuffer;
 	cameraPositionBuffer: GPUBuffer;
 
 	constructor(canvas: HTMLCanvasElement) {
@@ -122,9 +122,6 @@ export default class Renderer {
 		this.aabbShaderModule = <GPUShaderModule>(
 			this.device.createShaderModule({ label: 'aabbShaderModule', code: aabbShader })
 		);
-		this.terrainShaderModule = <GPUShaderModule>(
-			this.device.createShaderModule({ label: 'terrainShaderModule', code: terrainShader })
-		);
 
 		this.context.configure({
 			device: this.device,
@@ -137,6 +134,10 @@ export default class Renderer {
 		this.createBuffers(lightNum);
 		this.createDepthTexture();
 		this.createBindGroupLayouts();
+
+		this.shadow = new Shadow(this.device, this.modelTransformsBuffer, this.lightViewProjBuffer, lightNum);
+		await this.shadow.init();
+
 		this.createBindGroups();
 		this.createPipeline();
 	}
@@ -165,6 +166,16 @@ export default class Renderer {
 			size: 4 * lightNum,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
+		this.lightIntensityBuffer = this.device.createBuffer({
+			label: 'lightIntensityBuffer',
+			size: 4 * lightNum,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightAngleDataBuffer = this.device.createBuffer({
+			label: 'lightAngleDataBuffer',
+			size: 4 * lightNum * 2,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
 		this.lightPositionBuffer = this.device.createBuffer({
 			label: 'lightPositionBuffer',
 			size: 4 * 4 * lightNum,
@@ -175,24 +186,9 @@ export default class Renderer {
 			size: 4 * 4 * lightNum,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		this.lightIntensityBuffer = this.device.createBuffer({
-			label: 'lightIntensityBuffer',
-			size: 4 * lightNum,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
 		this.lightDirectionBuffer = this.device.createBuffer({
 			label: 'lightDirectionBuffer',
 			size: 4 * 4 * lightNum,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this.lightAngleScaleBuffer = this.device.createBuffer({
-			label: 'lightAngleScaleBuffer',
-			size: 4 * lightNum,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this.lightAngleOffsetBuffer = this.device.createBuffer({
-			label: 'lightAngleOffsetBuffer',
-			size: 4 * lightNum,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this.lightViewProjBuffer = this.device.createBuffer({
@@ -204,17 +200,6 @@ export default class Renderer {
 			label: 'cameraPositionBuffer',
 			size: 4 * 4,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-
-		this.terrainModelTransformBuffer = this.device.createBuffer({
-			label: 'terrainModelTransformBuffer',
-			size: 4 * 16,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		});
-		this.terrainNormalTransformBuffer = this.device.createBuffer({
-			label: 'terrainNormalTransformBuffer',
-			size: 4 * 16,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 	}
 
@@ -249,6 +234,7 @@ export default class Renderer {
 
 	createBindGroupLayouts() {
 		this.frameBindGroupLayout = this.device.createBindGroupLayout({
+			label: 'frameBindGroupLayout',
 			entries: [
 				{
 					// Model matrices
@@ -277,33 +263,28 @@ export default class Renderer {
 						hasDynamicOffset: false,
 					},
 				},
-			],
-		});
-
-		this.terrainBindGroupLayout = this.device.createBindGroupLayout({
-			entries: [
 				{
-					// Model matrix
-					binding: 0,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
+					// shadow depth texture
+					binding: 3,
+					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+					texture: {
+						sampleType: 'depth',
+						viewDimension: '2d-array',
+						multisampled: false,
 					},
 				},
 				{
-					// Normal matrix
-					binding: 1,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
+					// shadow depth sampler
+					binding: 4,
+					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+					sampler: {
+						type: 'comparison',
 					},
 				},
 				{
-					// Proj-View matrix
-					binding: 2,
-					visibility: GPUShaderStage.VERTEX,
+					// light-view-proj matrix
+					binding: 5,
+					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
 					buffer: {
 						type: 'read-only-storage',
 						hasDynamicOffset: false,
@@ -313,6 +294,7 @@ export default class Renderer {
 		});
 
 		this.materialBindGroupLayout = this.device.createBindGroupLayout({
+			label: 'materialBindGroupLayout',
 			entries: [
 				{
 					// Material Params
@@ -350,6 +332,7 @@ export default class Renderer {
 		});
 
 		this.jointBindGroupLayout = this.device.createBindGroupLayout({
+			label: 'jointBindGroupLayout',
 			entries: [
 				{
 					// Joint matrices
@@ -363,6 +346,7 @@ export default class Renderer {
 		});
 
 		this.boundingBoxBindGroupLayout = this.device.createBindGroupLayout({
+			label: 'boundingBoxBindGroupLayout',
 			entries: [
 				{
 					binding: 0,
@@ -438,14 +422,6 @@ export default class Renderer {
 					binding: 7,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 8,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
 						type: 'uniform',
 						hasDynamicOffset: false,
 					},
@@ -477,29 +453,18 @@ export default class Renderer {
 						buffer: this.projViewTransformBuffer,
 					},
 				},
-			],
-		});
-
-		this.terrainBindGroup = this.device.createBindGroup({
-			label: 'terrainBindGroup',
-			layout: this.terrainBindGroupLayout,
-			entries: [
 				{
-					binding: 0,
-					resource: {
-						buffer: this.terrainModelTransformBuffer,
-					},
+					binding: 3,
+					resource: this.shadow.depthTextureView,
 				},
 				{
-					binding: 1,
-					resource: {
-						buffer: this.terrainNormalTransformBuffer,
-					},
+					binding: 4,
+					resource: this.shadow.depthSampler,
 				},
 				{
-					binding: 2,
+					binding: 5,
 					resource: {
-						buffer: this.projViewTransformBuffer,
+						buffer: this.lightViewProjBuffer,
 					},
 				},
 			],
@@ -555,23 +520,17 @@ export default class Renderer {
 				{
 					binding: 5,
 					resource: {
-						buffer: this.lightAngleScaleBuffer,
+						buffer: this.lightAngleDataBuffer,
 					},
 				},
 				{
 					binding: 6,
 					resource: {
-						buffer: this.lightAngleOffsetBuffer,
-					},
-				},
-				{
-					binding: 7,
-					resource: {
 						buffer: this.lightViewProjBuffer,
 					},
 				},
 				{
-					binding: 8,
+					binding: 7,
 					resource: {
 						buffer: this.cameraPositionBuffer,
 					},
@@ -829,31 +788,6 @@ export default class Renderer {
 				depthCompare: 'greater-equal',
 			},
 		});
-
-		this.terrainPipeline = this.device.createRenderPipeline({
-			layout: this.device.createPipelineLayout({
-				label: 'terrainPipeline',
-				bindGroupLayouts: [
-					this.terrainBindGroupLayout,
-					this.materialBindGroupLayout,
-					this.lightingBindGroupLayout,
-				],
-			}),
-			vertex: {
-				module: this.terrainShaderModule,
-				entryPoint: 'v_main',
-				buffers: vertexBuffers,
-			},
-			fragment: {
-				module: this.colorFragShaderModule,
-				entryPoint: 'f_main',
-				targets: targets,
-			},
-			primitive: {
-				topology: 'triangle-list',
-			},
-			depthStencil: this.depthStencilState,
-		});
 	}
 
 	set_joint_buffers(jointMatricesBufferList: GPUBuffer[], modelNodeChunks: IModelNodeChunks) {
@@ -878,7 +812,7 @@ export default class Renderer {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
 			const node: GLTFNode = nodes[nodeIndex];
-			if (!node.mesh || node.name === 'Terrain') continue;
+			if (!node.mesh) continue;
 
 			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 
@@ -959,7 +893,7 @@ export default class Renderer {
 			const nodeIndex: number = modelIndexChunk.nodeIndex;
 			const primIndex: number = modelIndexChunk.primitiveIndex;
 			const node: GLTFNode = nodes[nodeIndex];
-			if (!node.mesh || node.name === 'Ground') continue;
+			if (!node.mesh) continue;
 
 			this.renderPass.setVertexBuffer(
 				0,
@@ -969,11 +903,125 @@ export default class Renderer {
 		}
 	}
 
-	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks, terrainNodeIndex: number) => {
-		const projView = mat4.mul(this.projection, renderables.viewTransform);
+	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
+		const projView = mat4.mul(this.projection, renderables.camera.get_view());
 
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();
+
+		const dy = Math.tan(this.fov / 2);
+		const dx = dy * this.aspect;
+
+		this.device.queue.writeBuffer(
+			this.skybox.camDirectionBuffer,
+			0,
+			new Float32Array([
+				renderables.camera.forward[0],
+				renderables.camera.forward[1],
+				renderables.camera.forward[2],
+				0.0,
+				dx * renderables.camera.right[0],
+				dx * renderables.camera.right[1],
+				dx * renderables.camera.right[2],
+				0.0,
+				dy * renderables.camera.up[0],
+				dy * renderables.camera.up[1],
+				dy * renderables.camera.up[2],
+				0.0,
+			])
+		);
+
+		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
+		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
+		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
+
+		this.device.queue.writeBuffer(this.lightTypeBuffer, 0, renderables.lightTypes);
+		this.device.queue.writeBuffer(this.lightPositionBuffer, 0, renderables.lightPositions);
+		this.device.queue.writeBuffer(this.lightColorBuffer, 0, renderables.lightColors);
+		this.device.queue.writeBuffer(this.lightIntensityBuffer, 0, renderables.lightIntensities);
+		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
+		this.device.queue.writeBuffer(
+			this.lightAngleDataBuffer,
+			0,
+			new Float32Array([...renderables.lightAngleScales, ...renderables.lightAngleOffsets])
+		);
+
+		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
+		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
+
+		if (!debugging.showAABBs && !debugging.showOBBs) {
+			// Shadow Pass -------------------------------------------
+			const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
+
+			for (let i: number = 0; i < renderables.lightTypes.length; i++) {
+				const shadowPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
+					colorAttachments: [],
+					depthStencilAttachment: {
+						view: this.shadow.depthTextureViewArray[i],
+						depthClearValue: 0.0,
+						depthLoadOp: 'clear',
+						depthStoreOp: 'store',
+					},
+				});
+
+				for (let j = 0; j < modelIndices.length; j++) {
+					const modelIndexChunk = modelIndices[j];
+					const nodeIndex: number = modelIndexChunk.nodeIndex;
+					const primIndex: number = modelIndexChunk.primitiveIndex;
+					const node: GLTFNode = nodes[nodeIndex];
+					if (!node.mesh) continue;
+
+					const p: GLTFPrimitive = node.mesh.primitives[primIndex];
+
+					if (node.skin !== null) {
+						shadowPass.setPipeline(this.shadow.pipelineSkinned);
+						shadowPass.setBindGroup(0, this.shadow.bindGroup);
+						shadowPass.setBindGroup(1, node.skin.jointBindGroup);
+
+						shadowPass.setVertexBuffer(
+							1,
+							p.joints.bufferView.gpuBuffer,
+							p.joints.byteOffset,
+							p.joints.byteLength
+						);
+
+						shadowPass.setVertexBuffer(
+							2,
+							p.weights.bufferView.gpuBuffer,
+							p.weights.byteOffset,
+							p.weights.byteLength
+						);
+					} else {
+						shadowPass.setPipeline(this.shadow.pipeline);
+						shadowPass.setBindGroup(0, this.shadow.bindGroup);
+					}
+
+					shadowPass.setVertexBuffer(
+						0,
+						p.positions.bufferView.gpuBuffer,
+						p.positions.byteOffset,
+						p.positions.byteLength
+					);
+
+					if (p.indices) {
+						shadowPass.setIndexBuffer(
+							<GPUBuffer>p.indices.bufferView.gpuBuffer,
+							<GPUIndexFormat>p.indices.elementType,
+							p.indices.byteOffset,
+							p.indices.byteLength
+						);
+
+						shadowPass.drawIndexed(p.indices.count, 1, 0, 0, (i << 16) | nodeIndex);
+					} else {
+						shadowPass.draw(p.positions.count, 1, 0, (i << 16) | nodeIndex);
+					}
+				}
+
+				shadowPass.end();
+			}
+
+			// -------------------------------------------------------
+		}
 
 		this.set_joint_buffers(renderables.jointMatricesBufferList, modelNodeChunks);
 
@@ -989,81 +1037,9 @@ export default class Renderer {
 			depthStencilAttachment: this.depthStencilAttachment,
 		});
 
-		this.device.queue.writeBuffer(this.skybox.camDirectionBuffer, 0, renderables.cameraDirections);
 		this.renderPass.setPipeline(this.skybox.pipeline);
 		this.renderPass.setBindGroup(0, this.skybox.bindGroup);
 		this.renderPass.draw(6, 1, 0, 0);
-
-		this.device.queue.writeBuffer(
-			this.terrainModelTransformBuffer,
-			0,
-			renderables.nodeTransforms.slice(16 * terrainNodeIndex, 16 * terrainNodeIndex + 16)
-		);
-		this.device.queue.writeBuffer(
-			this.terrainNormalTransformBuffer,
-			0,
-			renderables.normalTransforms.slice(16 * terrainNodeIndex, 16 * terrainNodeIndex + 16)
-		);
-
-		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
-		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
-		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
-
-		this.device.queue.writeBuffer(this.lightTypeBuffer, 0, renderables.lightTypes);
-		this.device.queue.writeBuffer(this.lightPositionBuffer, 0, renderables.lightPositions);
-		this.device.queue.writeBuffer(this.lightColorBuffer, 0, renderables.lightColors);
-		this.device.queue.writeBuffer(this.lightIntensityBuffer, 0, renderables.lightIntensities);
-		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
-		this.device.queue.writeBuffer(this.lightAngleScaleBuffer, 0, renderables.lightAngleScales);
-		this.device.queue.writeBuffer(this.lightAngleOffsetBuffer, 0, renderables.lightAngleOffsets);
-		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
-		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.cameraPosition);
-
-		// Terrain -------------------------------------
-		this.renderPass.setPipeline(this.terrainPipeline);
-
-		for (let i = 0; i < nodes[terrainNodeIndex].mesh.primitives.length; i++) {
-			const p: GLTFPrimitive = nodes[terrainNodeIndex].mesh.primitives[i];
-
-			this.renderPass.setBindGroup(0, this.terrainBindGroup);
-			this.renderPass.setBindGroup(1, p.material.bindGroup);
-			this.renderPass.setBindGroup(2, this.lightingBindGroup);
-
-			this.renderPass.setVertexBuffer(
-				0,
-				p.positions.bufferView.gpuBuffer,
-				p.positions.byteOffset,
-				p.positions.byteLength
-			);
-
-			this.renderPass.setVertexBuffer(
-				1,
-				p.normals.bufferView.gpuBuffer,
-				p.normals.byteOffset,
-				p.normals.byteLength
-			);
-
-			this.renderPass.setVertexBuffer(
-				2,
-				p.texCoords.bufferView.gpuBuffer,
-				p.texCoords.byteOffset,
-				p.texCoords.byteLength
-			);
-
-			if (p.indices) {
-				this.renderPass.setIndexBuffer(
-					<GPUBuffer>p.indices.bufferView.gpuBuffer,
-					<GPUIndexFormat>p.indices.elementType,
-					p.indices.byteOffset,
-					p.indices.byteLength
-				);
-
-				this.renderPass.drawIndexed(p.indices.count);
-			} else {
-				this.renderPass.draw(p.positions.count);
-			}
-		}
-		// -------------------------------
 
 		this.renderChunk('opaque', modelNodeChunks.opaque);
 		if (modelNodeChunks.transparent.length) {

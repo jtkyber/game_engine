@@ -114,7 +114,7 @@ export default class Scene {
 		this.lightPositions.set([...light.position, 0], i * 4);
 		this.lightColors.set([...light.color, 0], i * 4);
 		this.lightIntensities[i] = light.intensity;
-		this.lightDirections.set([...light.forward, 0], i * 4);
+		this.lightDirections.set([...light.get_light_direction(), 0], i * 4);
 		this.lightAngleScales[i] = light.angleScale;
 		this.lightAngleOffsets[i] = light.angleOffset;
 	}
@@ -163,11 +163,15 @@ export default class Scene {
 		this.models = models;
 		this.player = player;
 		this.camera = new Camera(this.player);
+		for (let i = 0; i < this.lights.length; i++) {
+			this.lights[i].camera = this.camera;
+			this.lights[i].player = this.player;
+		}
 	}
 
 	get_render_data(): IRenderData {
 		return {
-			viewTransform: this.camera.get_view(),
+			camera: this.camera,
 			nodeTransforms: this.nodeTransforms,
 			normalTransforms: this.normalTransforms,
 			jointMatricesBufferList: this.jointMatricesBufferList,
@@ -179,15 +183,6 @@ export default class Scene {
 			lightAngleScales: this.lightAngleScales,
 			lightAngleOffsets: this.lightAngleOffsets,
 			lightViewProjMatrices: this.lightViewProjMatrices,
-			cameraPosition: vec4.create(...this.camera.position, 0),
-			cameraDirections: new Float32Array([
-				...this.camera.forward,
-				0.0,
-				...this.camera.right,
-				0.0,
-				...this.camera.up,
-				0.0,
-			]),
 		};
 	}
 }
