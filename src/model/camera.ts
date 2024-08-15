@@ -77,7 +77,7 @@ export class Camera {
 
 		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
 
-		if (this.position[1] < terrainHeight + 0.1) this.position[1] = terrainHeight + 0.1;
+		if (this.position[1] < terrainHeight + 0.2) this.position[1] = terrainHeight + 0.2;
 	}
 
 	move_FB(sign: number, amt: number) {

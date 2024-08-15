@@ -59,7 +59,7 @@ export default class Light {
 				this.projectionMatrix = mat4.perspectiveReverseZ(this.outerConeAngle, 1.0, 0.01, 100);
 				break;
 			case LightType.DIRECTIONAL:
-				this.projectionMatrix = mat4.ortho(-20.0, 20.0, -20.0, 20.0, 10000, 1);
+				this.projectionMatrix = mat4.ortho(-20.0, 20.0, -20.0, 20.0, 1000, 1);
 				break;
 			case LightType.POINT:
 				break;

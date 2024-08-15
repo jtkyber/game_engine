@@ -47,7 +47,7 @@ export default class App {
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 
-		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap2.png');
+		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
 		this.terrainNodeIndex = gltfLoader.terrainNodeIndex;
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);

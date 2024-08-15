@@ -969,7 +969,7 @@ export default class Renderer {
 					const nodeIndex: number = modelIndexChunk.nodeIndex;
 					const primIndex: number = modelIndexChunk.primitiveIndex;
 					const node: GLTFNode = nodes[nodeIndex];
-					if (!node.mesh) continue;
+					if (!node.mesh || node.name === 'Terrain') continue;
 
 					const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 

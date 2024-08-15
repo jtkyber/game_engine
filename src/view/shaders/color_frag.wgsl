@@ -121,6 +121,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         var posFromLight = lightViewProjectionMat[i] * in.world_pos;
         posFromLight *= posFromLight.w;
         var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
+        shadowPos.z = clamp(shadowPos.z, 0.0, 1.0);
 
         let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
         for (var y = -1; y <= 1; y++) {
@@ -135,7 +136,9 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         }
 
         visibility /= 9.0;
-        // visibility = 1.0;
+        if (shadowPos.x < 0.0 || shadowPos.x > 1.0 || shadowPos.y < 0.0 || shadowPos.y > 1.0) {
+            visibility = 1.0;
+        }
         // --------------------------
 
         // Accumulate radiance Lo
