@@ -1,5 +1,6 @@
 import { Mat4, mat4, utils } from 'wgpu-matrix';
-import { debugging } from '../control/app';
+import { aspect, debugging } from '../control/app';
+import { LightType } from '../types/enums';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import { nodes } from './gltf/loader';
@@ -27,11 +28,6 @@ export default class Renderer {
 	skybox: Skybox;
 
 	shadow: Shadow;
-
-	// Camera
-	fov: number;
-	aspect: number;
-	projection: Mat4;
 
 	// Device
 	adapter: GPUAdapter;
@@ -82,7 +78,7 @@ export default class Renderer {
 	vertexBuffer: GPUBuffer;
 	modelTransformsBuffer: GPUBuffer;
 	normalTransformBuffer: GPUBuffer;
-	projViewTransformBuffer: GPUBuffer;
+	projectionViewBuffer: GPUBuffer;
 
 	lightTypeBuffer: GPUBuffer;
 	lightPositionBuffer: GPUBuffer;
@@ -93,14 +89,12 @@ export default class Renderer {
 	lightAngleOffsetBuffer: GPUBuffer;
 	lightViewProjBuffer: GPUBuffer;
 	lightAngleDataBuffer: GPUBuffer;
+	lightCascadeSplitsBuffer: GPUBuffer;
 	cameraPositionBuffer: GPUBuffer;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
 		this.context = <GPUCanvasContext>canvas.getContext('webgpu');
-		this.fov = utils.degToRad(60);
-		this.aspect = canvas.width / canvas.height;
-		this.projection = mat4.perspectiveReverseZ(this.fov, this.aspect, 0.01, 10000);
 	}
 
 	async setupDevice() {
@@ -155,10 +149,10 @@ export default class Renderer {
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 
-		this.projViewTransformBuffer = this.device.createBuffer({
-			label: 'Proj-View Transform Buffer',
-			size: 4 * 16,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		this.projectionViewBuffer = this.device.createBuffer({
+			label: 'projectionViewBuffer',
+			size: 4 * 16 * 2,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
 		this.lightTypeBuffer = this.device.createBuffer({
@@ -193,9 +187,15 @@ export default class Renderer {
 		});
 		this.lightViewProjBuffer = this.device.createBuffer({
 			label: 'lightViewProjBuffer',
-			size: 4 * 16 * lightNum,
+			size: 4 * 16 * lightNum * 6,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
+		this.lightCascadeSplitsBuffer = this.device.createBuffer({
+			label: 'lightCascadeSplits',
+			size: 4 * 4,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
 		this.cameraPositionBuffer = this.device.createBuffer({
 			label: 'cameraPositionBuffer',
 			size: 4 * 4,
@@ -257,9 +257,9 @@ export default class Renderer {
 				{
 					// Proj-View matrix
 					binding: 2,
-					visibility: GPUShaderStage.VERTEX,
+					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
 					buffer: {
-						type: 'read-only-storage',
+						type: 'uniform',
 						hasDynamicOffset: false,
 					},
 				},
@@ -352,7 +352,7 @@ export default class Renderer {
 					binding: 0,
 					visibility: GPUShaderStage.VERTEX,
 					buffer: {
-						type: 'read-only-storage',
+						type: 'uniform',
 						hasDynamicOffset: false,
 					},
 				},
@@ -426,6 +426,14 @@ export default class Renderer {
 						hasDynamicOffset: false,
 					},
 				},
+				{
+					binding: 8,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'uniform',
+						hasDynamicOffset: false,
+					},
+				},
 			],
 		});
 	}
@@ -450,7 +458,7 @@ export default class Renderer {
 				{
 					binding: 2,
 					resource: {
-						buffer: this.projViewTransformBuffer,
+						buffer: this.projectionViewBuffer,
 					},
 				},
 				{
@@ -477,7 +485,7 @@ export default class Renderer {
 				{
 					binding: 0,
 					resource: {
-						buffer: this.projViewTransformBuffer,
+						buffer: this.projectionViewBuffer,
 					},
 				},
 			],
@@ -533,6 +541,12 @@ export default class Renderer {
 					binding: 7,
 					resource: {
 						buffer: this.cameraPositionBuffer,
+					},
+				},
+				{
+					binding: 8,
+					resource: {
+						buffer: this.lightCascadeSplitsBuffer,
 					},
 				},
 			],
@@ -904,13 +918,11 @@ export default class Renderer {
 	}
 
 	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
-		const projView = mat4.mul(this.projection, renderables.camera.get_view());
-
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();
 
-		const dy = Math.tan(this.fov / 2);
-		const dx = dy * this.aspect;
+		const dy = Math.tan(renderables.camera.fov / 2);
+		const dx = dy * aspect;
 
 		this.device.queue.writeBuffer(
 			this.skybox.camDirectionBuffer,
@@ -933,7 +945,11 @@ export default class Renderer {
 
 		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
-		this.device.queue.writeBuffer(this.projViewTransformBuffer, 0, projView);
+		this.device.queue.writeBuffer(
+			this.projectionViewBuffer,
+			0,
+			new Float32Array([...renderables.camera.projection, ...renderables.camera.get_view()])
+		);
 
 		this.device.queue.writeBuffer(this.lightTypeBuffer, 0, renderables.lightTypes);
 		this.device.queue.writeBuffer(this.lightPositionBuffer, 0, renderables.lightPositions);
@@ -947,13 +963,21 @@ export default class Renderer {
 		);
 
 		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
+		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeSplits);
 		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
 
 		if (!debugging.showAABBs && !debugging.showOBBs) {
 			// Shadow Pass -------------------------------------------
 			const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
 
-			for (let i: number = 0; i < renderables.lightTypes.length; i++) {
+			for (let i: number = 0; i < renderables.lightTypes.length * 6; i++) {
+				const lightIndex: number = ~~(i / 6);
+				if (renderables.lightTypes[lightIndex] === LightType.DIRECTIONAL) {
+					if (i % 6 >= renderables.camera.cascadeCount) {
+						continue;
+					}
+				}
+
 				const shadowPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
 					colorAttachments: [],
 					depthStencilAttachment: {
@@ -969,7 +993,7 @@ export default class Renderer {
 					const nodeIndex: number = modelIndexChunk.nodeIndex;
 					const primIndex: number = modelIndexChunk.primitiveIndex;
 					const node: GLTFNode = nodes[nodeIndex];
-					if (!node.mesh || node.name === 'Terrain') continue;
+					if (!node.mesh) continue;
 
 					const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 

@@ -1,4 +1,5 @@
-import { Mat4, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, mat4, quat, utils, vec3 } from 'wgpu-matrix';
+import { aspect } from '../control/app';
 import { getPixel } from '../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from '../view/gltf/loader';
 
@@ -14,11 +15,20 @@ export class Camera {
 	target: Vec3 = vec3.create();
 	distAboveModel: number = 2;
 	distFromModel: number = 4;
+	distFromModelTemp: number = 4;
 	distFromModelMin: number = 1;
 	distFromModelMax: number = 8;
 	targetNode: number;
 	pitch: number = 0;
 	yaw: number = 0;
+	fov = utils.degToRad(60);
+	near: number = 0.01;
+	far: number = 10000;
+	shadowNear: number = 1;
+	shadowFar: number = 300;
+	projection = mat4.perspectiveReverseZ(this.fov, aspect, this.near, this.far);
+	cascadeCount: number = 4;
+	cascadeSplits: Float32Array = new Float32Array(this.cascadeCount);
 
 	constructor(targetNode: number) {
 		this.targetNode = targetNode;
@@ -29,11 +39,16 @@ export class Camera {
 		this.distFromModel = height * 4;
 		this.distFromModelMin = height * 2;
 		this.distFromModelMax = height * 400;
+
+		for (let i = 0; i < this.cascadeCount; i++) {
+			this.cascadeSplits[i] =
+				this.shadowNear * Math.pow(this.shadowFar / this.shadowNear, (i + 1) / this.cascadeCount);
+		}
+		// console.log(this.cascadeSplits);
 	}
 
 	update(terrainNodeIndex: number) {
-		if (this.distFromModel < this.distFromModelMin) this.distFromModel = this.distFromModelMin;
-		if (this.distFromModel > this.distFromModelMax) this.distFromModel = this.distFromModelMax;
+		this.distFromModel = this.clamp_dist_from_model(this.distFromModel);
 
 		// Move camera to center of model
 		this.position[0] = nodes[this.targetNode].position[0];
@@ -63,6 +78,12 @@ export class Camera {
 		this.view = mat4.lookAt(this.position, this.target, [0, 1, 0]);
 	}
 
+	clamp_dist_from_model(dist: number): number {
+		if (dist < this.distFromModelMin) return this.distFromModelMin;
+		if (dist > this.distFromModelMax) return this.distFromModelMax;
+		return dist;
+	}
+
 	limit_height_to_terrain(terrainNodeIndex: number): void {
 		const mapLength: number =
 			nodes[terrainNodeIndex].maxValues[0][0] - nodes[terrainNodeIndex].minValues[0][0];
@@ -78,6 +99,9 @@ export class Camera {
 		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
 
 		if (this.position[1] < terrainHeight + 0.2) this.position[1] = terrainHeight + 0.2;
+		// if (this.position[1] < terrainHeight + 0.2) {
+		// 	this.distFromModelTemp = this.clamp_dist_from_model(this.distFromModelTemp - 0.3);
+		// }
 	}
 
 	move_FB(sign: number, amt: number) {

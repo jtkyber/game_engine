@@ -108,7 +108,7 @@ export default class GTLFLoader {
 		const imgChannels = img.channels;
 		const maxValue = img.bitDepth === 8 ? 255 : 65535;
 
-		const tHeightMax: number = 46;
+		const tHeightMax: number = 0;
 
 		terrainHeightMap = new Float32Array(img.data.length / imgChannels);
 		terrainHeightMapSize = img.width;

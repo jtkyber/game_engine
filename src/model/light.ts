@@ -1,5 +1,7 @@
-import { Mat4, Vec3, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { aspect } from '../control/app';
 import { LightType } from '../types/enums';
+import { transformPosition } from '../utils/matrix';
 import { nodes } from '../view/gltf/loader';
 import { Camera } from './camera';
 
@@ -17,8 +19,7 @@ export default class Light {
 	right: Vec3;
 	forward: Vec3;
 	position: Vec3 = vec3.create(0, 0, 0);
-	lightViewProj: Mat4;
-	lightViewProjPointArray: Mat4[];
+	lightViewProjMatrices: Float32Array = new Float32Array(16 * 6);
 	projectionMatrix: Mat4;
 	camera: Camera;
 	player: number;
@@ -53,17 +54,6 @@ export default class Light {
 		this.angleOffset = -Math.cos(outerConeAngle) * this.angleScale;
 
 		this.nodeIndex = nodeIndex;
-
-		switch (this.type) {
-			case LightType.SPOT:
-				this.projectionMatrix = mat4.perspectiveReverseZ(this.outerConeAngle, 1.0, 0.01, 100);
-				break;
-			case LightType.DIRECTIONAL:
-				this.projectionMatrix = mat4.ortho(-20.0, 20.0, -20.0, 20.0, 1000, 1);
-				break;
-			case LightType.POINT:
-				break;
-		}
 	}
 
 	update() {
@@ -76,10 +66,116 @@ export default class Light {
 		// Move light with camera
 		this.position = vec3.add(this.position, this.camera.position);
 
-		if (this.type === LightType.POINT) {
-		} else {
-			this.lightViewProj = mat4.mul(this.projectionMatrix, this.get_view_matrix());
+		switch (this.type) {
+			case LightType.SPOT:
+			case LightType.DIRECTIONAL:
+				const splits: Float32Array = this.camera.cascadeSplits;
+				for (let i = 0; i < this.camera.cascadeCount; i++) {
+					const corners: Vec4[] = this.get_frustum_corners_world_space(splits[i], splits[i + 1]);
+
+					const view: Mat4 = this.get_view_matrix(corners);
+					this.lightViewProjMatrices.set(mat4.mul(this.get_proj_matrix(view, corners), view), i * 16);
+				}
+			case LightType.POINT:
 		}
+	}
+
+	get_frustum_corners_world_space(near: number, far: number): Vec4[] {
+		const proj: Mat4 = mat4.perspective(this.camera.fov, aspect, far, near);
+
+		const inv: Mat4 = mat4.inverse(mat4.mul(proj, this.camera.get_view()));
+
+		const directionalFrustumCorners: Vec4[] = [];
+		for (let x = 0; x < 2; x++) {
+			for (let y = 0; y < 2; y++) {
+				for (let z = 0; z < 2; z++) {
+					const temp: Vec4 = vec4.create(2 * x - 1, 2 * y - 1, 2 * z - 1, 1);
+					const point: Vec4 = vec4.transformMat4(temp, inv);
+					directionalFrustumCorners.push(vec4.divScalar(point, point[3]));
+				}
+			}
+		}
+		return directionalFrustumCorners;
+	}
+
+	get_proj_matrix(view: Mat4, directionalFrustumCorners: Vec4[]): Mat4 {
+		switch (this.type) {
+			case LightType.SPOT:
+				return mat4.perspectiveReverseZ(this.outerConeAngle, 1.0, 0.01, 100);
+			case LightType.DIRECTIONAL:
+				let minX: number = Infinity;
+				let maxX: number = -Infinity;
+				let minY: number = Infinity;
+				let maxY: number = -Infinity;
+				let minZ: number = Infinity;
+				let maxZ: number = -Infinity;
+
+				for (let v of directionalFrustumCorners) {
+					const trf: Vec3 = vec3.transformMat4(v, view);
+
+					minX = Math.min(minX, trf[0]);
+					maxX = Math.max(maxX, trf[0]);
+					minY = Math.min(minY, trf[1]);
+					maxY = Math.max(maxY, trf[1]);
+					minZ = Math.min(minZ, trf[2]);
+					maxZ = Math.max(maxZ, trf[2]);
+				}
+
+				const zMult: number = 10;
+				if (minZ < 0) minZ *= zMult;
+				else minZ /= zMult;
+
+				if (maxZ < 0) maxZ /= zMult;
+				else maxZ *= zMult;
+
+				return mat4.ortho(minX, maxX, minY, maxY, maxZ, minZ);
+			case LightType.POINT:
+				return;
+		}
+	}
+
+	get_view_matrix(directionalFrustumCorners: Vec4[]): Mat4 {
+		switch (this.type) {
+			case LightType.SPOT:
+				const viewMatrix: Mat4 = mat4.create();
+
+				viewMatrix[0] = this.right[0];
+				viewMatrix[1] = this.up[0];
+				viewMatrix[2] = this.forward[0];
+				viewMatrix[3] = 0;
+
+				viewMatrix[4] = this.right[1];
+				viewMatrix[5] = this.up[1];
+				viewMatrix[6] = this.forward[1];
+				viewMatrix[7] = 0;
+
+				viewMatrix[8] = this.right[2];
+				viewMatrix[9] = this.up[2];
+				viewMatrix[10] = this.forward[2];
+				viewMatrix[11] = 0;
+
+				viewMatrix[12] = -vec3.dot(this.right, this.position);
+				viewMatrix[13] = -vec3.dot(this.up, this.position);
+				viewMatrix[14] = -vec3.dot(this.forward, this.position);
+				viewMatrix[15] = 1;
+
+				return viewMatrix;
+			case LightType.DIRECTIONAL:
+				let center: Vec3 = vec3.create(0, 0, 0);
+
+				for (let v of directionalFrustumCorners) {
+					vec3.add(center, vec3.fromValues(v[0], v[1], v[2]), center);
+				}
+
+				vec3.divScalar(center, directionalFrustumCorners.length, center);
+
+				return mat4.lookAt(vec3.add(center, this.get_light_direction()), center, [0, 1, 0]);
+			case LightType.POINT:
+				return;
+		}
+
+		// const eye: Vec3 = vec3.addScaled(nodes[this.player].position, this.forward, -10);
+		// return mat4.lookAt(this.position, this.camera.position, [0, 1, 0]);
 	}
 
 	get_light_direction() {
@@ -91,34 +187,5 @@ export default class Light {
 			case LightType.POINT:
 				return [0, 0, 0];
 		}
-	}
-
-	get_view_matrix(): Mat4 {
-		// const viewMatrix: Mat4 = mat4.create();
-
-		// viewMatrix[0] = this.right[0];
-		// viewMatrix[1] = this.up[0];
-		// viewMatrix[2] = this.forward[0];
-		// viewMatrix[3] = 0;
-
-		// viewMatrix[4] = this.right[1];
-		// viewMatrix[5] = this.up[1];
-		// viewMatrix[6] = this.forward[1];
-		// viewMatrix[7] = 0;
-
-		// viewMatrix[8] = this.right[2];
-		// viewMatrix[9] = this.up[2];
-		// viewMatrix[10] = this.forward[2];
-		// viewMatrix[11] = 0;
-
-		// viewMatrix[12] = -vec3.dot(this.right, this.position);
-		// viewMatrix[13] = -vec3.dot(this.up, this.position);
-		// viewMatrix[14] = -vec3.dot(this.forward, this.position);
-		// viewMatrix[15] = 1;
-
-		// return viewMatrix;
-
-		// const eye: Vec3 = vec3.addScaled(nodes[this.player].position, this.forward, -10);
-		return mat4.lookAt(this.position, this.camera.position, [0, 1, 0]);
 	}
 }

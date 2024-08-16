@@ -16,7 +16,7 @@ struct VertexOutput {
 
 @group(0) @binding(0) var<storage, read> model_transforms: array<mat4x4f>;
 @group(0) @binding(1) var<storage, read> normal_transforms: array<mat4x4f>;
-@group(0) @binding(2) var<storage, read> proj_view_transform: mat4x4f;
+@group(0) @binding(2) var<uniform> proj_view: array<mat4x4f, 2>;
 @group(0) @binding(5) var<storage, read> lightViewProjectionMat: array<mat4x4f>;
 
 @group(3) @binding(0) var<storage, read> jointMatrices: array<mat4x4f>;
@@ -44,7 +44,7 @@ fn v_main(vert: VertexInput) -> VertexOutput {
     
     let worldPos = model_transforms[vert.i_id] * skinMatrix * vec4f(vert.position, 1.0);
 
-    out.position = proj_view_transform * worldPos;
+    out.position = proj_view[0] * proj_view[1] * worldPos;
     // out.position = lightViewProjectionMat[0] * worldPos;
     out.world_pos = worldPos;
     out.normal = extractMat3FromMat4(normal_transforms[vert.i_id]) * vert.normal;

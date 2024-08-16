@@ -1,4 +1,3 @@
-import { WebGPURecorder } from 'webgpu_recorder/webgpu_recorder.js';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
@@ -11,6 +10,8 @@ export const debugging: IDebug = {
 	showAABBs: false,
 	showOBBs: false,
 };
+
+export let aspect: number = 0;
 
 export default class App {
 	canvas: HTMLCanvasElement;
@@ -32,6 +33,7 @@ export default class App {
 	}
 
 	async init() {
+		aspect = this.canvas.width / this.canvas.height;
 		window.myLib = window.myLib || {};
 		window.myLib.deltaTime = 0;
 

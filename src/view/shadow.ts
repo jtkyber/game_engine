@@ -54,7 +54,7 @@ export class Shadow {
 	createTexture() {
 		this.depthTexture = this.device.createTexture({
 			label: 'shadow depth texture',
-			size: [this.depthTextureSize, this.depthTextureSize, this.lightNum],
+			size: [this.depthTextureSize, this.depthTextureSize, this.lightNum * 6],
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
 			format: 'depth24plus',
 		});
@@ -66,10 +66,10 @@ export class Shadow {
 			baseMipLevel: 0,
 			mipLevelCount: 1,
 			baseArrayLayer: 0,
-			arrayLayerCount: this.lightNum,
+			arrayLayerCount: this.lightNum * 6,
 		});
 
-		for (let i: number = 0; i < this.lightNum; i++) {
+		for (let i: number = 0; i < this.lightNum * 6; i++) {
 			this.depthTextureViewArray[i] = this.depthTexture.createView({
 				format: 'depth24plus',
 				dimension: '2d',
@@ -177,7 +177,7 @@ export class Shadow {
 			},
 			primitive: {
 				topology: 'triangle-list',
-				cullMode: 'front',
+				cullMode: 'back',
 			},
 		});
 
@@ -230,7 +230,7 @@ export class Shadow {
 			},
 			primitive: {
 				topology: 'triangle-list',
-				cullMode: 'front',
+				cullMode: 'back',
 			},
 		});
 	}

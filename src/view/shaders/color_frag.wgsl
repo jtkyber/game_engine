@@ -11,6 +11,7 @@ struct MaterialParams {
     roughness_factor: f32,
 };
 
+@group(0) @binding(2) var<uniform> proj_view: array<mat4x4f, 2>;
 @group(0) @binding(3) var shadowDepthTexture: texture_depth_2d_array;
 @group(0) @binding(4) var shadowDepthSampler: sampler_comparison;
 @group(0) @binding(5) var<storage, read> lightViewProjectionMat: array<mat4x4f>;
@@ -26,11 +27,10 @@ struct MaterialParams {
 @group(2) @binding(2) var<storage, read> lightColors: array<vec3f>;
 @group(2) @binding(3) var<storage, read> lightIntensities: array<f32>;
 @group(2) @binding(4) var<storage, read> lightDirections: array<vec3f>;
-// @group(2) @binding(5) var<uniform> lightAngleScales: array<f32>;
-// @group(2) @binding(6) var<uniform> lightAngleOffsets: array<f32>;
 @group(2) @binding(5) var<storage, read> lightAngleData: array<f32>; // scales | offsets
 @group(2) @binding(6) var<storage, read> lightViewProj: array<mat4x4f>;
 @group(2) @binding(7) var<uniform> cameraPosition: vec3f;
+@group(2) @binding(8) var<uniform> cascadeSplits: vec4f;
 
 /* lIGHT TYPES  
     0: spot
@@ -40,6 +40,7 @@ struct MaterialParams {
 
 const PI = 3.14159265359; 
 const lightIntensityAdjustment = 0.001;
+const cascadeCount = 4;
 
 @fragment
 fn f_main(in: VertexOutput) -> @location(0) vec4f {
@@ -116,12 +117,29 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
         let specular = numerator / denominator;
 
-         // Shadows ------------------
+        
+
+        // Shadows ------------------
+        let fragPosViewSpace = proj_view[1] * in.world_pos;
+        let depthValue = abs(fragPosViewSpace.z);
+        var layer = -1;
+
+        for (var j = 0; j < cascadeCount; j++) {
+            if (depthValue < cascadeSplits[j]) {
+                layer = j;
+                break;
+            }
+        }
+        if (layer == -1) { layer = cascadeCount - 1; }
+        let index = 6 * i32(i) + layer;
+
         var visibility = 0.0;
-        var posFromLight = lightViewProjectionMat[i] * in.world_pos;
+        var posFromLight = lightViewProjectionMat[index] * in.world_pos;
         posFromLight *= posFromLight.w;
         var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
         shadowPos.z = clamp(shadowPos.z, 0.0, 1.0);
+
+        let bias = max(0.0007 * (1.0 - dot(in.normal, L)), 0.00007);  
 
         let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
         for (var y = -1; y <= 1; y++) {
@@ -130,7 +148,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
 
                 visibility += textureSampleCompare(
                     shadowDepthTexture, shadowDepthSampler,
-                    shadowPos.xy + offset, i, shadowPos.z
+                    shadowPos.xy + offset, index, shadowPos.z + bias
                 );
             }
         }

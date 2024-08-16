@@ -57,7 +57,7 @@ export default class Scene {
 		this.lightDirections = new Float32Array(lights.length * 4);
 		this.lightAngleScales = new Float32Array(lights.length);
 		this.lightAngleOffsets = new Float32Array(lights.length);
-		this.lightViewProjMatrices = new Float32Array(lights.length * 16);
+		this.lightViewProjMatrices = new Float32Array(lights.length * 16 * 6);
 	}
 
 	update() {
@@ -109,7 +109,7 @@ export default class Scene {
 		const light: Light = this.lights[i];
 		light.update();
 
-		this.lightViewProjMatrices.set(light.lightViewProj, i * 16);
+		this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);
 		this.lightTypes[i] = light.type;
 		this.lightPositions.set([...light.position, 0], i * 4);
 		this.lightColors.set([...light.color, 0], i * 4);
