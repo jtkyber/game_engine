@@ -167,7 +167,7 @@ export default class Renderer {
 		});
 		this.lightAngleDataBuffer = this.device.createBuffer({
 			label: 'lightAngleDataBuffer',
-			size: 4 * lightNum * 2,
+			size: 4 * 2 * lightNum,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
 		this.lightPositionBuffer = this.device.createBuffer({
@@ -956,12 +956,7 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.lightColorBuffer, 0, renderables.lightColors);
 		this.device.queue.writeBuffer(this.lightIntensityBuffer, 0, renderables.lightIntensities);
 		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
-		this.device.queue.writeBuffer(
-			this.lightAngleDataBuffer,
-			0,
-			new Float32Array([...renderables.lightAngleScales, ...renderables.lightAngleOffsets])
-		);
-
+		this.device.queue.writeBuffer(this.lightAngleDataBuffer, 0, renderables.lightAngleData);
 		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
 		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeSplits);
 		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
@@ -970,12 +965,19 @@ export default class Renderer {
 			// Shadow Pass -------------------------------------------
 			const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
 
-			for (let i: number = 0; i < renderables.lightTypes.length * 6; i++) {
+			loop: for (let i: number = 0; i < renderables.lightTypes.length * 6; i++) {
 				const lightIndex: number = ~~(i / 6);
-				if (renderables.lightTypes[lightIndex] === LightType.DIRECTIONAL) {
-					if (i % 6 >= renderables.camera.cascadeCount) {
-						continue;
-					}
+				const layer: number = i % 6;
+
+				switch (renderables.lightTypes[lightIndex]) {
+					case LightType.SPOT:
+						if (layer > 0) continue loop;
+						break;
+					case LightType.DIRECTIONAL:
+						if (layer >= renderables.camera.cascadeCount) continue loop;
+						break;
+					case LightType.POINT:
+						break;
 				}
 
 				const shadowPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({

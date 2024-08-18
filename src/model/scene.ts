@@ -28,8 +28,7 @@ export default class Scene {
 	lightColors: Float32Array;
 	lightIntensities: Float32Array;
 	lightDirections: Float32Array;
-	lightAngleScales: Float32Array;
-	lightAngleOffsets: Float32Array;
+	lightAngleData: Float32Array; // [scale, offset]
 	lightViewProjMatrices: Float32Array;
 
 	constructor(
@@ -55,8 +54,7 @@ export default class Scene {
 		this.lightColors = new Float32Array(lights.length * 4);
 		this.lightIntensities = new Float32Array(lights.length);
 		this.lightDirections = new Float32Array(lights.length * 4);
-		this.lightAngleScales = new Float32Array(lights.length);
-		this.lightAngleOffsets = new Float32Array(lights.length);
+		this.lightAngleData = new Float32Array(lights.length * 2);
 		this.lightViewProjMatrices = new Float32Array(lights.length * 16 * 6);
 	}
 
@@ -115,8 +113,7 @@ export default class Scene {
 		this.lightColors.set([...light.color, 0], i * 4);
 		this.lightIntensities[i] = light.intensity;
 		this.lightDirections.set([...light.get_light_direction(), 0], i * 4);
-		this.lightAngleScales[i] = light.angleScale;
-		this.lightAngleOffsets[i] = light.angleOffset;
+		this.lightAngleData.set([light.angleScale, light.angleOffset], i * 2);
 	}
 
 	get_node_transform(nodeIndex: number, transform: Mat4): Mat4 {
@@ -180,8 +177,7 @@ export default class Scene {
 			lightColors: this.lightColors,
 			lightIntensities: this.lightIntensities,
 			lightDirections: this.lightDirections,
-			lightAngleScales: this.lightAngleScales,
-			lightAngleOffsets: this.lightAngleOffsets,
+			lightAngleData: this.lightAngleData,
 			lightViewProjMatrices: this.lightViewProjMatrices,
 		};
 	}

@@ -44,7 +44,6 @@ export class Camera {
 			this.cascadeSplits[i] =
 				this.shadowNear * Math.pow(this.shadowFar / this.shadowNear, (i + 1) / this.cascadeCount);
 		}
-		// console.log(this.cascadeSplits);
 	}
 
 	update(terrainNodeIndex: number) {

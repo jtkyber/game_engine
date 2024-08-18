@@ -25,8 +25,7 @@ export interface IRenderData {
 	lightColors: Float32Array;
 	lightIntensities: Float32Array;
 	lightDirections: Float32Array;
-	lightAngleScales: Float32Array;
-	lightAngleOffsets: Float32Array;
+	lightAngleData: Float32Array;
 	lightViewProjMatrices: Float32Array;
 }
 

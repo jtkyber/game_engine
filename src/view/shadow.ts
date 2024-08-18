@@ -80,6 +80,28 @@ export class Shadow {
 				arrayLayerCount: 1,
 			});
 		}
+
+		this.fill_depth_textures();
+	}
+
+	fill_depth_textures() {
+		const encoder = this.device.createCommandEncoder();
+
+		for (let i: number = 0; i < this.lightNum * 6; i++) {
+			const pass = encoder.beginRenderPass({
+				colorAttachments: [],
+				depthStencilAttachment: {
+					view: this.depthTextureViewArray[i],
+					depthClearValue: 0.0,
+					depthLoadOp: 'clear',
+					depthStoreOp: 'store',
+				},
+			});
+
+			pass.end();
+		}
+
+		this.device.queue.submit([encoder.finish()]);
 	}
 
 	createSampler() {

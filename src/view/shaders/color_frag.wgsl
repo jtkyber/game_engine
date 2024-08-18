@@ -14,7 +14,6 @@ struct MaterialParams {
 @group(0) @binding(2) var<uniform> proj_view: array<mat4x4f, 2>;
 @group(0) @binding(3) var shadowDepthTexture: texture_depth_2d_array;
 @group(0) @binding(4) var shadowDepthSampler: sampler_comparison;
-@group(0) @binding(5) var<storage, read> lightViewProjectionMat: array<mat4x4f>;
 
 @group(1) @binding(0) var<uniform> material_params: MaterialParams;
 @group(1) @binding(1) var base_color_sampler: sampler;
@@ -27,7 +26,7 @@ struct MaterialParams {
 @group(2) @binding(2) var<storage, read> lightColors: array<vec3f>;
 @group(2) @binding(3) var<storage, read> lightIntensities: array<f32>;
 @group(2) @binding(4) var<storage, read> lightDirections: array<vec3f>;
-@group(2) @binding(5) var<storage, read> lightAngleData: array<f32>; // scales | offsets
+@group(2) @binding(5) var<storage, read> lightAngleData: array<vec2f>; // [scale, offset]
 @group(2) @binding(6) var<storage, read> lightViewProj: array<mat4x4f>;
 @group(2) @binding(7) var<uniform> cameraPosition: vec3f;
 @group(2) @binding(8) var<uniform> cascadeSplits: vec4f;
@@ -71,9 +70,9 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     var color = base_color.rgb;
     let alpha = base_color.a;
 
+    let albedo = color;
     let N = normalize(in.normal);
     let V = normalize(cameraPosition - in.world_pos.xyz);
-    let albedo = color;
     let F0 = mix(vec3f(0.04), albedo, metallic);
 
     // Apply lighting ----------------------------------------------------
@@ -97,7 +96,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         var angularAttenuation = 1.0;
         if (lightType == 0) {
             let cd = dot(lightDirections[i], L);
-            angularAttenuation = saturate(cd * lightAngleData[i] + lightAngleData[arrayLength(&lightTypes) / 2 + i]);
+            angularAttenuation = saturate(cd * lightAngleData[i].r + lightAngleData[i].g);
             angularAttenuation *= angularAttenuation;
         }
         // if (attenuation <= 0 || angularAttenuation <= 0) { continue; }
@@ -117,27 +116,29 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
         let specular = numerator / denominator;
 
-        
-
         // Shadows ------------------
-        let fragPosViewSpace = proj_view[1] * in.world_pos;
-        let depthValue = abs(fragPosViewSpace.z);
-        var layer = -1;
 
-        for (var j = 0; j < cascadeCount; j++) {
-            if (depthValue < cascadeSplits[j]) {
-                layer = j;
-                break;
+        var index = i * 6;
+        if (lightType == 1) {
+            let fragPosViewSpace = proj_view[1] * in.world_pos;
+            let depthValue = abs(fragPosViewSpace.z);
+            var layer = -1;
+
+            for (var j = 0; j < cascadeCount; j++) {
+                if (depthValue < cascadeSplits[j]) {
+                    layer = j;
+                    break;
+                }
             }
+            if (layer == -1) { layer = cascadeCount - 1; }
+            index += u32(layer);
         }
-        if (layer == -1) { layer = cascadeCount - 1; }
-        let index = 6 * i32(i) + layer;
-
+        
         var visibility = 0.0;
-        var posFromLight = lightViewProjectionMat[index] * in.world_pos;
-        posFromLight *= posFromLight.w;
+        var posFromLight = lightViewProj[index] * in.world_pos;
+        posFromLight /= posFromLight.w;
         var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
-        shadowPos.z = clamp(shadowPos.z, 0.0, 1.0);
+        shadowPos.z = saturate(shadowPos.z);
 
         let bias = max(0.0007 * (1.0 - dot(in.normal, L)), 0.00007);  
 
@@ -157,6 +158,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         if (shadowPos.x < 0.0 || shadowPos.x > 1.0 || shadowPos.y < 0.0 || shadowPos.y > 1.0) {
             visibility = 1.0;
         }
+
         // --------------------------
 
         // Accumulate radiance Lo
