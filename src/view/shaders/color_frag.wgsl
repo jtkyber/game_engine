@@ -140,7 +140,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
         shadowPos.z = saturate(shadowPos.z);
 
-        let bias = max(0.0007 * (1.0 - dot(in.normal, L)), 0.00007);  
+        let bias = max(0.0009 * (1.0 - dot(in.normal, L)), 0.00007);  
 
         let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
         for (var y = -1; y <= 1; y++) {

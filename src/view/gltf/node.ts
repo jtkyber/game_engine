@@ -44,7 +44,7 @@ export default class GLTFNode {
 
 	gravitySpeedStart: number = 0;
 	gravitySpeed: number = 0;
-	gravityAcc: number = 0.01;
+	gravityAcc: number = 0.001;
 
 	forward: Vec3;
 	forwardMove: Vec3;
@@ -227,7 +227,7 @@ export default class GLTFNode {
 		if (this.rootNode === null && this.name !== 'Terrain') {
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
-			this.position[1] -= this.gravitySpeed;
+			this.position[1] -= this.gravitySpeed * window.myLib.deltaTime;
 			this.limit_height_to_terrain();
 			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
 			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);

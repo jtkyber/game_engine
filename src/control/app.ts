@@ -18,8 +18,10 @@ export default class App {
 	then: number;
 	startTime: number;
 	now: number;
-	framerateChunk: number[];
-	framesPerFPSupdate: number;
+	frameCap: number = 1000 / 30;
+	framerateChunk: number[] = [];
+	framerateChunk_2: number[] = [];
+	framesPerFPSupdate: number = 50;
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
@@ -28,8 +30,6 @@ export default class App {
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
-		this.framerateChunk = [];
-		this.framesPerFPSupdate = 10;
 	}
 
 	async init() {
@@ -84,28 +84,40 @@ export default class App {
 
 		this.now = performance.now();
 		window.myLib.deltaTime = this.now - this.then;
-		this.then = performance.now();
+		if (window.myLib.deltaTime > this.frameCap) {
+			this.then = performance.now();
 
-		if (this.controller.pointerLocked || !this.firstFrameCompleted) {
-			this.controller.update();
-			this.scene.update();
-			this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
-			this.firstFrameCompleted = true;
+			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
+				this.controller.update();
+				this.scene.update();
+				this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
+				this.firstFrameCompleted = true;
+			}
+
+			this.framerateChunk.push(window.myLib.deltaTime);
+			if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+
+			// this.framerateChunk_2.push(performance.now() - this.then);
+			// if (this.framerateChunk_2.length === 10) {
+			// 	this.frameCap = this.get_framerate_average(this.framerateChunk_2);
+			// 	this.framerateChunk_2 = [];
+			// }
 		}
-
-		this.framerateChunk.push(window.myLib.deltaTime);
-		if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
 	};
 
-	show_framerate() {
-		let averageDeltaTime: number = 0;
-		for (let i = 0; i < this.framesPerFPSupdate; i++) {
-			averageDeltaTime += this.framerateChunk[i];
+	get_framerate_average(chunk: number[]): number {
+		const count: number = chunk.length;
+		let avg: number = 0;
+		for (let i = 0; i < count; i++) {
+			avg += chunk[i];
 		}
-		averageDeltaTime /= this.framesPerFPSupdate;
+		return avg / count;
+	}
 
+	show_framerate() {
 		(document.getElementById('fps_counter') as HTMLElement).innerText = (~~(
-			1000 / averageDeltaTime
+			// (1000 / this.frameCap)
+			(1000 / this.get_framerate_average(this.framerateChunk))
 		)).toString();
 
 		this.framerateChunk = [];

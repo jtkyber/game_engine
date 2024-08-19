@@ -24,8 +24,8 @@ export class Camera {
 	fov = utils.degToRad(60);
 	near: number = 0.01;
 	far: number = 10000;
-	shadowNear: number = 1;
-	shadowFar: number = 300;
+	shadowNear: number = 2;
+	shadowFar: number = 400;
 	projection = mat4.perspectiveReverseZ(this.fov, aspect, this.near, this.far);
 	cascadeCount: number = 4;
 	cascadeSplits: Float32Array = new Float32Array(this.cascadeCount);
