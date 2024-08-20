@@ -41,7 +41,7 @@ export default class App {
 		await this.renderer.setupDevice();
 
 		const skybox = new Skybox();
-		await skybox.initialize(this.renderer.device, 'dist/skybox.png');
+		await skybox.initialize(this.renderer.device, 'dist/skybox_day.png');
 		this.renderer.skybox = skybox;
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);

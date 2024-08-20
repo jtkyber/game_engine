@@ -1,4 +1,4 @@
-import { Mat4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, mat4, quat, vec3, vec4 } from 'wgpu-matrix';
 import { Flag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
@@ -105,6 +105,7 @@ export default class Scene {
 
 	set_light_data(i: number) {
 		const light: Light = this.lights[i];
+		const lightNode: GLTFNode = nodes[light.nodeIndex];
 		light.update();
 
 		this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);
@@ -112,8 +113,12 @@ export default class Scene {
 		this.lightPositions.set([...light.position, 0], i * 4);
 		this.lightColors.set([...light.color, 0], i * 4);
 		this.lightIntensities[i] = light.intensity;
-		this.lightDirections.set([...light.get_light_direction(), 0], i * 4);
+		this.lightDirections.set([...light.forward, 0], i * 4);
 		this.lightAngleData.set([light.angleScale, light.angleOffset], i * 2);
+
+		if (lightNode.name === 'Sun') {
+			// quat.rotateY(lightNode.quat, 0.0001 * window.myLib.deltaTime, lightNode.quat);
+		}
 	}
 
 	get_node_transform(nodeIndex: number, transform: Mat4): Mat4 {

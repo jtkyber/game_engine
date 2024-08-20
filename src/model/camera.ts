@@ -23,11 +23,11 @@ export class Camera {
 	yaw: number = 0;
 	fov = utils.degToRad(60);
 	near: number = 0.01;
-	far: number = 10000;
-	shadowNear: number = 2;
+	far: number = 1000;
+	shadowNear: number = 3;
 	shadowFar: number = 400;
 	projection = mat4.perspectiveReverseZ(this.fov, aspect, this.near, this.far);
-	cascadeCount: number = 4;
+	cascadeCount: number = 3;
 	cascadeSplits: Float32Array = new Float32Array(this.cascadeCount);
 
 	constructor(targetNode: number) {
