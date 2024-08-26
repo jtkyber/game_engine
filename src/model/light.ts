@@ -1,8 +1,7 @@
-import { Mat4, Vec3, Vec4, mat4, quat, vec3, vec4 } from 'wgpu-matrix';
-import { aspect } from '../control/app';
+import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { aspect, debugging } from '../control/app';
 import { LightType } from '../types/enums';
 import { nodes } from '../view/gltf/loader';
-import GLTFNode from '../view/gltf/node';
 import { Camera } from './camera';
 
 export default class Light {
@@ -20,10 +19,14 @@ export default class Light {
 	forward: Vec3;
 	position: Vec3 = vec3.create(0, 0, 0);
 	lightViewProjMatrices: Float32Array = new Float32Array(16 * 6);
+	lightViewMatrices: Float32Array = new Float32Array(16 * 6);
+	inverseLightViewProjMatrices: Float32Array = new Float32Array(16 * 6);
+
 	centers: Float32Array;
 	projectionMatrix: Mat4;
 	camera: Camera;
 	player: number;
+	counter = 0;
 
 	constructor(
 		name: string,
@@ -68,13 +71,23 @@ export default class Light {
 	set_lvp_matrix() {
 		switch (this.type) {
 			case LightType.SPOT:
-				const proj: Mat4 = mat4.perspectiveReverseZ(this.outerConeAngle * 2, 1.0, 0.1, 100);
+				const proj: Mat4 = mat4.perspectiveReverseZ(this.outerConeAngle * 2, 1.0, 0.1, 50);
 				const target: Vec3 = vec3.add(this.position, vec3.negate(this.forward));
 				const view: Mat4 = mat4.lookAt(this.position, target, [0, 1, 0]);
-				this.lightViewProjMatrices.set(mat4.mul(proj, view), 0);
+				const lightViewProjMatrix: Mat4 = mat4.mul(proj, view);
+				this.lightViewProjMatrices.set(lightViewProjMatrix, 0);
+				this.lightViewMatrices.set(view, 0);
+
+				if (debugging.visualizeLightFrustums) {
+					this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), 0);
+				}
 				break;
 			case LightType.DIRECTIONAL:
 				const splits: Float32Array = this.camera.cascadeSplits;
+				if (debugging.lockDirectionalFrustums) {
+					if (this.counter > 0) return;
+					this.counter++;
+				}
 
 				for (let i = 0; i < this.camera.cascadeCount; i++) {
 					const corners: Vec4[] = this.get_frustum_corners_world_space(splits[i], splits[i + 1]);
@@ -102,6 +115,11 @@ export default class Light {
 					const lightViewProjMatrix: Mat4 = mat4.mul(lightProjMatrix, lightViewMatrix);
 
 					this.lightViewProjMatrices.set(lightViewProjMatrix, i * 16);
+					this.lightViewMatrices.set(lightViewMatrix, i * 16);
+
+					if (debugging.visualizeLightFrustums) {
+						this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), i * 16);
+					}
 				}
 				break;
 			case LightType.POINT:

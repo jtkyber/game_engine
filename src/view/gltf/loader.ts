@@ -42,6 +42,7 @@ import GLTFSkin from './skin';
 import { GLTFTexture } from './texture';
 
 export const nodes: GLTFNode[] = [];
+export let models: number[] = [];
 export const animations: { [key: string]: GLTFAnimation } = {};
 export let terrainHeightMap: Float32Array;
 export let terrainHeightMapSize: number;
@@ -60,7 +61,6 @@ export default class GTLFLoader {
 	skins: GLTFSkin[];
 	meshes: GLTFMesh[];
 	lights: Light[];
-	models: number[];
 	modelNodeChunks: IModelNodeChunks;
 	meshNode: GLTFNode;
 	player: number;
@@ -82,7 +82,6 @@ export default class GTLFLoader {
 		this.meshes = [];
 		this.skins = [];
 		this.lights = [];
-		this.models = [];
 		this.modelNodeChunks = {
 			opaque: [],
 			transparent: [],
@@ -90,14 +89,6 @@ export default class GTLFLoader {
 		this.indexSwapBoard = {};
 		this.allJoints = new Set();
 	}
-
-	// srgb_to_linear(x: number): number {
-	// 	if (x <= 0.04045) {
-	// 		return x / 12.92;
-	// 	} else {
-	// 		return Math.pow((x + 0.055) / 1.055, 2.4);
-	// 	}
-	// }
 
 	async get_terrain_height_map(url: string) {
 		const img = await ImageJS.load(url);
@@ -195,17 +186,18 @@ export default class GTLFLoader {
 
 	createGridMesh(heightMap: Float32Array, heightMapSize: number, gridMesh: TypedArray) {
 		for (let i = 0; i < gridMesh.length; i += 3) {
-			const mapSize: number =
-				nodes[this.terrainNodeIndex].maxValues[0][0] - nodes[this.terrainNodeIndex].minValues[0][0];
+			const mapSize: number = nodes[this.terrainNodeIndex].max[0] - nodes[this.terrainNodeIndex].min[0];
 
-			const nFractAlongMeshX: number = (gridMesh[i] - nodes[this.terrainNodeIndex].minValues[0][0]) / mapSize;
-			const nFractAlongMeshY: number =
-				(gridMesh[i + 2] - nodes[this.terrainNodeIndex].minValues[0][2]) / mapSize;
+			const nFractAlongMeshX: number = (gridMesh[i] - nodes[this.terrainNodeIndex].min[0]) / mapSize;
+			const nFractAlongMeshY: number = (gridMesh[i + 2] - nodes[this.terrainNodeIndex].min[2]) / mapSize;
 
 			const col: number = Math.floor(nFractAlongMeshX * (heightMapSize - 1));
 			const row: number = Math.floor(nFractAlongMeshY * (heightMapSize - 1));
 
-			const terrainHeight = getPixel(heightMap, row, col, heightMapSize);
+			let terrainHeight = getPixel(heightMap, row, col, heightMapSize);
+			if (col === heightMapSize - 1 || row === heightMapSize - 1 || col === 0 || row === 0) {
+				terrainHeight = 0;
+			}
 
 			gridMesh[i + 1] = terrainHeight;
 		}
@@ -237,8 +229,6 @@ export default class GTLFLoader {
 
 	async set_chunks(buffer: ArrayBuffer, header: Uint32Array): Promise<void> {
 		this.jsonChunk = JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(buffer, 20, header[3])));
-
-		console.log(this.jsonChunk);
 
 		const binaryHeader = new Uint32Array(buffer, 20 + header[3], 2);
 		if (binaryHeader[1] != 0x004e4942) {
@@ -388,6 +378,7 @@ export default class GTLFLoader {
 			const metallicFactor = pbrMR['metallicFactor'] ?? 1;
 			const roughnessFactor = pbrMR['roughnessFactor'] ?? 1;
 			const alphaMode = m['alphaMode'] ?? null;
+			const emissiveFactor = m['emissiveFactor'] ?? [0, 0, 0];
 
 			let baseColorTexture: GLTFTexture | null = null;
 			if ('baseColorTexture' in pbrMR) {
@@ -405,6 +396,7 @@ export default class GTLFLoader {
 					metallicFactor,
 					roughnessFactor,
 					metallicRoughnessTexture,
+					emissiveFactor,
 					alphaMode
 				)
 			);
@@ -569,14 +561,97 @@ export default class GTLFLoader {
 
 		this.remap_joint_indices();
 		this.setup_models();
+		this.set_bounding_boxes();
 		console.log('gltf nodes loaded');
 
 		return <IGLTFScene>{
-			models: this.models,
 			player: this.player,
 			lights: this.lights,
 			modelNodeChunks: this.modelNodeChunks,
 		};
+	}
+
+	set_bounding_boxes() {
+		for (let i = 0; i < models.length; i++) {
+			const model: GLTFNode = nodes[models[i]];
+			let min: Vec3 = vec3.create(Infinity, Infinity, Infinity);
+			let max: Vec3 = vec3.create(-Infinity, -Infinity, -Infinity);
+
+			if (model.minValues?.length && model.maxValues?.length) {
+				min = model.minValues?.reduce((acc, cur) => {
+					return vec3.create(Math.min(acc[0], cur[0]), Math.min(acc[1], cur[1]), Math.min(acc[2], cur[2]));
+				}, min);
+
+				max = model.maxValues?.reduce((acc, cur) => {
+					return vec3.create(Math.max(acc[0], cur[0]), Math.max(acc[1], cur[1]), Math.max(acc[2], cur[2]));
+				}, max);
+			}
+
+			function set_min_max(children: number[]) {
+				for (let c of children) {
+					const cMins: Vec3[] = nodes[c].minValues;
+					const cMaxs: Vec3[] = nodes[c].maxValues;
+					if (!cMins || !cMaxs) continue;
+
+					const cMin: Vec3 = cMins.reduce((acc, cur) => {
+						return vec3.create(Math.min(acc[0], cur[0]), Math.min(acc[1], cur[1]), Math.min(acc[2], cur[2]));
+					}, vec3.create(Infinity, Infinity, Infinity));
+
+					const cMax: Vec3 = cMaxs.reduce((acc, cur) => {
+						return vec3.create(Math.max(acc[0], cur[0]), Math.max(acc[1], cur[1]), Math.max(acc[2], cur[2]));
+					}, vec3.create(-Infinity, -Infinity, -Infinity));
+
+					min[0] = Math.min(min[0], cMin[0]);
+					min[1] = Math.min(min[1], cMin[1]);
+					min[2] = Math.min(min[2], cMin[2]);
+
+					max[0] = Math.max(max[0], cMax[0]);
+					max[1] = Math.max(max[1], cMax[1]);
+					max[2] = Math.max(max[2], cMax[2]);
+
+					if (nodes[c].children.length) set_min_max(nodes[c].children);
+				}
+			}
+
+			set_min_max(model.children);
+
+			// Center min and max values around world origin + 1/2 Y
+			{
+				const height: number = max[1] - min[1];
+				const center: Vec3 = vec3.create((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
+
+				min[0] = min[0] - center[0];
+				min[1] = min[1] - center[1] + height / 2;
+				min[2] = min[2] - center[2];
+
+				max[0] = max[0] - center[0];
+				max[1] = max[1] - center[1] + height / 2;
+				max[2] = max[2] - center[2];
+			}
+
+			// Adjust player bb widths
+			if (models[i] === this.player) {
+				const xLen: number = max[0] - min[0];
+				const zLen: number = max[2] - min[2];
+				if (xLen > zLen) {
+					const ratio: number = zLen / xLen;
+					const lenToCut: number = xLen * ratio;
+					min[0] += lenToCut / 2;
+					max[0] -= lenToCut / 2;
+				} else {
+					const ratio: number = xLen / zLen;
+					const lenToCut: number = zLen * ratio;
+					min[0] += lenToCut / 2;
+					max[0] -= lenToCut / 2;
+				}
+			}
+
+			model.min = min;
+			model.max = max;
+			model.height = max[1] - min[1];
+
+			model.initialize_bounding_boxes();
+		}
 	}
 
 	remap_joint_indices() {
@@ -610,6 +685,7 @@ export default class GTLFLoader {
 		let scale: Vec3 = node['scale'] ?? vec3.create(1, 1, 1);
 		let rotation: Quat = node['rotation'] ?? vec4.create(0, 0, 0, 1);
 		let translation: Vec3 = node['translation'] ?? vec3.create(0, 0, 0);
+		const children: number[] = isRoot && node['children'] ? node['children'] : [];
 		const name: string = node.name;
 		const mesh: GLTFMesh = this.meshes[node['mesh']] ?? null;
 		const skin: GLTFSkin = this.skins[node['skin']] ?? null;
@@ -625,6 +701,7 @@ export default class GTLFLoader {
 				name,
 				flag,
 				parentNode,
+				children,
 				rootNode,
 				translation,
 				rotation,
@@ -673,7 +750,7 @@ export default class GTLFLoader {
 				)
 			);
 		} else if (isRoot) {
-			this.models.push(lastNodeIndex);
+			models.push(lastNodeIndex);
 		}
 
 		for (let i = 0; i < mesh?.primitives.length; i++) {
@@ -694,11 +771,13 @@ export default class GTLFLoader {
 	setup_models(): void {
 		let playerFound: boolean = false;
 
-		for (let i = 0; i < this.models.length; i++) {
-			let model: GLTFNode = nodes[this.models[i]];
-
+		for (let i = 0; i < models.length; i++) {
+			let model: GLTFNode = nodes[models[i]];
+			for (let j = 0; j < model.children.length; j++) {
+				model.children[j] = this.indexSwapBoard[model.children[j]];
+			}
 			if (model.name === 'Player' && !playerFound) {
-				this.player = this.models[i];
+				this.player = models[i];
 				playerFound = true;
 			}
 		}

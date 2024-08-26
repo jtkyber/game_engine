@@ -9,11 +9,19 @@ struct MaterialParams {
     base_color_factor: vec4f,
     metallic_factor: f32,
     roughness_factor: f32,
+    emissive_factor: vec3f,
 };
 
-@group(0) @binding(2) var<uniform> proj_view: array<mat4x4f, 2>;
+struct TransformData {
+    view: mat4x4f,
+    projection: mat4x4f,
+};
+
+@group(0) @binding(2) var<uniform> transformUBO: TransformData;
 @group(0) @binding(3) var shadowDepthTexture: texture_depth_2d_array;
 @group(0) @binding(4) var shadowDepthSampler: sampler_comparison;
+@group(0) @binding(5) var<storage, read> lightViewProjMatrix: array<mat4x4f>;
+@group(0) @binding(6) var<storage, read> lightViewMatrix: array<mat4x4f>;
 
 @group(1) @binding(0) var<uniform> material_params: MaterialParams;
 @group(1) @binding(1) var base_color_sampler: sampler;
@@ -27,9 +35,8 @@ struct MaterialParams {
 @group(2) @binding(3) var<storage, read> lightIntensities: array<f32>;
 @group(2) @binding(4) var<storage, read> lightDirections: array<vec3f>;
 @group(2) @binding(5) var<storage, read> lightAngleData: array<vec2f>; // [scale, offset]
-@group(2) @binding(6) var<storage, read> lightViewProj: array<mat4x4f>;
-@group(2) @binding(7) var<uniform> cameraPosition: vec3f;
-@group(2) @binding(8) var<uniform> cascadeSplits: vec4f;
+@group(2) @binding(6) var<uniform> cameraPosition: vec3f;
+@group(2) @binding(7) var<uniform> cascadeSplits: vec4f;
 
 /* lIGHT TYPES  
     0: spot
@@ -56,6 +63,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     var base_color = vec4f(1.0, 1.0, 1.0, 1.0);
     var metallic = material_params.metallic_factor;
     var roughness = material_params.roughness_factor;
+    let emission = material_params.emissive_factor;
     // Check metallic and roughtness 
 
     if (hasColorTexture) {
@@ -120,7 +128,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
 
         var index = i * 6;
         if (lightType == 1) {
-            let fragPosViewSpace = proj_view[1] * in.world_pos;
+            let fragPosViewSpace = transformUBO.view * in.world_pos;
             let depthValue = abs(fragPosViewSpace.z);
             var layer = -1;
 
@@ -135,12 +143,20 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         }
         
         var visibility = 0.0;
-        var posFromLight = lightViewProj[index] * in.world_pos;
+        var posFromLight = lightViewProjMatrix[index] * in.world_pos;
         posFromLight /= posFromLight.w;
         var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
         shadowPos.z = saturate(shadowPos.z);
 
-        let bias = max(0.0015 * (1.0 - dot(in.normal, lightDirections[i])), 0.00007);  
+        // let lightSpaceNormal = normalize((lightViewMatrix[index] * vec4f(in.normal, 0.0)).xyz);
+        // let dz_dx = lightSpaceNormal.x / lightSpaceNormal.z;
+        // let dz_dy = lightSpaceNormal.y / lightSpaceNormal.z;
+        // let maxSlope = max(abs(dz_dx), abs(dz_dy));
+        // let bias = maxSlope * 0.0008 + 0.0005;
+        let bias = max(0.004 * (1.0 - dot(in.normal, lightDirections[i])), 0.001);
+        // var bias = tan(acos(dot(in.normal, lightDirections[i])));
+        // bias *= 0.00029;
+
 
         let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
         for (var y = -1; y <= 1; y++) {
@@ -170,6 +186,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     color = ambient + Lo;
     // color = color / (color + vec3f(1.0));
     // color = pow(color, vec3f(1.0 / 2.2));
+    color += emission;
     color[0] = linear_to_srgb(color[0]);
     color[1] = linear_to_srgb(color[1]);
     color[2] = linear_to_srgb(color[2]);

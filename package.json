@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npm run build && npm run serve",
     "build": "webpack --config webpack.config.js",
-    "serve": "live-server --cors"
+    "serve": "live-server --cors --watch=./fake"
   },
   "keywords": [],
   "author": "",

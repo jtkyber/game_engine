@@ -33,11 +33,10 @@ export class Camera {
 	constructor(targetNode: number) {
 		this.targetNode = targetNode;
 
-		// const height: number = nodes[this.targetModel.nodeIndex].height;
-		const height: number = 0.57;
-		this.distAboveModel = height / 2;
+		const height: number = nodes[targetNode].height;
+		this.distAboveModel = height * 0.9;
 		this.distFromModel = height * 4;
-		this.distFromModelMin = height * 2;
+		this.distFromModelMin = height * 1;
 		this.distFromModelMax = height * 400;
 
 		for (let i = 0; i < this.cascadeCount; i++) {
@@ -84,13 +83,11 @@ export class Camera {
 	}
 
 	limit_height_to_terrain(terrainNodeIndex: number): void {
-		const mapLength: number =
-			nodes[terrainNodeIndex].maxValues[0][0] - nodes[terrainNodeIndex].minValues[0][0];
-		const mapWidth: number =
-			nodes[terrainNodeIndex].maxValues[0][2] - nodes[terrainNodeIndex].minValues[0][2];
+		const mapLength: number = nodes[terrainNodeIndex].maxValues[0][0] - nodes[terrainNodeIndex].min[0];
+		const mapWidth: number = nodes[terrainNodeIndex].maxValues[0][2] - nodes[terrainNodeIndex].min[2];
 
-		const nFractAlongMeshX: number = (this.position[0] - nodes[terrainNodeIndex].minValues[0][0]) / mapLength;
-		const nFractAlongMeshY: number = (this.position[2] - nodes[terrainNodeIndex].minValues[0][2]) / mapWidth;
+		const nFractAlongMeshX: number = (this.position[0] - nodes[terrainNodeIndex].min[0]) / mapLength;
+		const nFractAlongMeshY: number = (this.position[2] - nodes[terrainNodeIndex].min[2]) / mapWidth;
 
 		const col: number = Math.floor(nFractAlongMeshX * (terrainHeightMapSize - 1));
 		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));

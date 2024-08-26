@@ -2,7 +2,6 @@ import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
 import { debugging } from '../../control/app';
 import { Flag } from '../../types/enums';
 import { IAABB, IOBB } from '../../types/types';
-import { transformPosition } from '../../utils/matrix';
 import { getAABBverticesFromMinMax, getPixel } from '../../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from './loader';
 import GLTFMesh from './mesh';
@@ -13,34 +12,38 @@ export default class GLTFNode {
 	name: string;
 	flag: Flag;
 	parent: number = null;
+	children: number[] = [];
 	rootNode: number;
 	position: Vec3;
 	quat: Quat;
 	scale: Vec3;
 	transform: Mat4;
 	globalTransform: Mat4;
+	normalTransform: Mat4;
 	mesh: GLTFMesh = null;
 	skin: GLTFSkin = null;
 	minValues: Vec3[];
 	maxValues: Vec3[];
+	min: Vec3;
+	max: Vec3;
 	_mass: number = null;
 	_speed: number = null;
 	hasBoundingBox: boolean = true;
 	_currentSpeed: number = 0;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
-	turnSpeed: number = 0.012;
-	initialOBBs: IOBB[] = null;
-	OBBs: IOBB[] = null;
-	AABBs: IAABB[] = null;
+	turnSpeed: number = 0.005;
+	initialOBB: IOBB = null;
+	OBB: IOBB = null;
+	AABB: IAABB = null;
 	height: number;
 	previousPosition: Vec3;
-	preTransformed: boolean[];
+	preTransformed: boolean;
 	terrainNodeIndex: number = null;
 
 	// For debug
-	initialOBBMeshes: Float32Array[] = null;
-	OBBBufferArray: GPUBuffer[] = null;
-	AABBBufferArray: GPUBuffer[] = null;
+	initialOBBMesh: Float32Array = null;
+	OBBBuffer: GPUBuffer = null;
+	AABBBuffer: GPUBuffer = null;
 
 	gravitySpeedStart: number = 0;
 	gravitySpeed: number = 0;
@@ -57,6 +60,7 @@ export default class GLTFNode {
 		name: string,
 		flag: Flag,
 		parent: number,
+		children: number[],
 		rootNode: number,
 		position: Vec3,
 		quat: Quat,
@@ -74,6 +78,7 @@ export default class GLTFNode {
 		this.name = name;
 		this.flag = flag;
 		this.parent = parent;
+		this.children = children;
 		this.rootNode = rootNode;
 		this.position = position;
 		this.quat = quat;
@@ -87,63 +92,6 @@ export default class GLTFNode {
 		this._speed = speed;
 		this.hasBoundingBox = hasBoundingBox;
 		this.previousPosition = vec3.fromValues(...this.position);
-
-		if (hasBoundingBox && minValues?.length && maxValues?.length) {
-			this.initialOBBMeshes = new Array(minValues.length);
-			this.OBBBufferArray = new Array(minValues.length);
-			this.initialOBBs = new Array(minValues.length);
-			this.OBBs = new Array(minValues.length);
-			this.AABBs = new Array(minValues.length);
-			this.AABBBufferArray = new Array(minValues.length);
-			this.preTransformed = new Array(minValues.length);
-
-			for (let i = 0; i < minValues.length; i++) {
-				const min = minValues[i];
-				const max = maxValues[i];
-
-				if (debugging.showOBBs) {
-					this.OBBBufferArray[i] = device.createBuffer({
-						label: `${name} node OBBBuffer`,
-						size: 4 * 36 * 3,
-						usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-					});
-
-					this.initialOBBMeshes[i] = getAABBverticesFromMinMax(min, max);
-				}
-
-				if (debugging.showAABBs) {
-					this.AABBBufferArray[i] = device.createBuffer({
-						label: `${name} node AABBBuffer`,
-						size: 4 * 36 * 3,
-						usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-					});
-				}
-
-				this.initialOBBs[i] = {
-					vertices: new Array(8),
-					normals: new Array(6),
-				};
-
-				this.OBBs[i] = {
-					vertices: new Array(8),
-					normals: new Array(6),
-				};
-
-				this.setInitialOOB(i, min, max);
-
-				this.OBBs[i].vertices = [...this.initialOBBs[i].vertices];
-				this.OBBs[i].normals = [...this.initialOBBs[i].normals];
-
-				this.AABBs[i] = {
-					min: null,
-					max: null,
-				};
-
-				this.preTransformed[i] = false;
-			}
-
-			this.height = this.getHeight(minValues, maxValues);
-		}
 	}
 
 	update() {
@@ -183,16 +131,6 @@ export default class GLTFNode {
 		if (angleToTurn <= spinAmt + 1) spinAmt *= angleToTurn * 0.8;
 
 		quat.rotateY(this.quat, sign * spinAmt, this.quat);
-	}
-
-	getHeight(minValues: Vec3[], maxValues: Vec3[]): number {
-		let minY = Infinity;
-		let maxY = -Infinity;
-		for (let i = 0; i < minValues.length; i++) {
-			if (minValues[i][1] < minY) minY = minValues[i][1];
-			if (maxValues[i][1] > maxY) maxY = maxValues[i][1];
-		}
-		return maxY - minY;
 	}
 
 	get currentVelocity() {
@@ -237,15 +175,11 @@ export default class GLTFNode {
 	limit_height_to_terrain(): void {
 		if (this.name === 'Terrain') return;
 
-		const mapLength: number =
-			nodes[this.terrainNodeIndex].maxValues[0][0] - nodes[this.terrainNodeIndex].minValues[0][0];
-		const mapWidth: number =
-			nodes[this.terrainNodeIndex].maxValues[0][2] - nodes[this.terrainNodeIndex].minValues[0][2];
+		const mapLength: number = nodes[this.terrainNodeIndex].max[0] - nodes[this.terrainNodeIndex].min[0];
+		const mapWidth: number = nodes[this.terrainNodeIndex].max[2] - nodes[this.terrainNodeIndex].min[2];
 
-		const nFractAlongMeshX: number =
-			(this.position[0] - nodes[this.terrainNodeIndex].minValues[0][0]) / mapLength;
-		const nFractAlongMeshY: number =
-			(this.position[2] - nodes[this.terrainNodeIndex].minValues[0][2]) / mapWidth;
+		const nFractAlongMeshX: number = (this.position[0] - nodes[this.terrainNodeIndex].min[0]) / mapLength;
+		const nFractAlongMeshY: number = (this.position[2] - nodes[this.terrainNodeIndex].min[2]) / mapWidth;
 
 		const col: number = Math.floor(nFractAlongMeshX * (terrainHeightMapSize - 1));
 		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));
@@ -280,57 +214,99 @@ export default class GLTFNode {
 		if (this.rootNode === null) this.previousPosition = vec3.fromValues(...this.position);
 	}
 
-	setInitialOOB(i: number, min: Vec3, max: Vec3) {
-		this.initialOBBs[i].vertices[0] = vec3.create(min[0], min[1], min[2]);
-		this.initialOBBs[i].vertices[1] = vec3.create(max[0], min[1], min[2]);
-		this.initialOBBs[i].vertices[2] = vec3.create(max[0], max[1], min[2]);
-		this.initialOBBs[i].vertices[3] = vec3.create(min[0], max[1], min[2]);
-		this.initialOBBs[i].vertices[4] = vec3.create(min[0], min[1], max[2]);
-		this.initialOBBs[i].vertices[5] = vec3.create(max[0], min[1], max[2]);
-		this.initialOBBs[i].vertices[6] = vec3.create(max[0], max[1], max[2]);
-		this.initialOBBs[i].vertices[7] = vec3.create(min[0], max[1], max[2]);
+	initialize_bounding_boxes() {
+		if (!this.hasBoundingBox || !this.min?.length || !this.max?.length) return;
 
-		this.initialOBBs[i].normals[0] = vec3.create(-1, 0, 0);
-		this.initialOBBs[i].normals[1] = vec3.create(1, 0, 0);
-		this.initialOBBs[i].normals[2] = vec3.create(0, -1, 0);
-		this.initialOBBs[i].normals[3] = vec3.create(0, 1, 0);
-		this.initialOBBs[i].normals[4] = vec3.create(0, 0, -1);
-		this.initialOBBs[i].normals[5] = vec3.create(0, 0, 1);
+		if (debugging.showOBBs) {
+			this.OBBBuffer = this.device.createBuffer({
+				label: `${this.name} node OBBBuffer`,
+				size: 4 * 36 * 3,
+				usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+			});
+
+			this.initialOBBMesh = getAABBverticesFromMinMax(this.min, this.max);
+		}
+
+		if (debugging.showAABBs) {
+			this.AABBBuffer = this.device.createBuffer({
+				label: `${this.name} node AABBBuffer`,
+				size: 4 * 36 * 3,
+				usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+			});
+		}
+
+		this.initialOBB = {
+			vertices: new Array(8),
+			normals: new Array(6),
+		};
+
+		this.OBB = {
+			vertices: new Array(8),
+			normals: new Array(6),
+		};
+
+		this.setInitialOOB();
+
+		this.OBB.vertices = [...this.initialOBB.vertices];
+		this.OBB.normals = [...this.initialOBB.normals];
+
+		this.AABB = {
+			min: null,
+			max: null,
+		};
+
+		this.preTransformed = false;
 	}
 
-	async setBoundingBoxes(transform: Mat4, normalTransform: Mat4) {
-		if (!this.initialOBBs) return;
+	setInitialOOB() {
+		this.initialOBB.vertices[0] = vec3.create(this.min[0], this.min[1], this.min[2]);
+		this.initialOBB.vertices[1] = vec3.create(this.max[0], this.min[1], this.min[2]);
+		this.initialOBB.vertices[2] = vec3.create(this.max[0], this.max[1], this.min[2]);
+		this.initialOBB.vertices[3] = vec3.create(this.min[0], this.max[1], this.min[2]);
+		this.initialOBB.vertices[4] = vec3.create(this.min[0], this.min[1], this.max[2]);
+		this.initialOBB.vertices[5] = vec3.create(this.max[0], this.min[1], this.max[2]);
+		this.initialOBB.vertices[6] = vec3.create(this.max[0], this.max[1], this.max[2]);
+		this.initialOBB.vertices[7] = vec3.create(this.min[0], this.max[1], this.max[2]);
 
-		for (let i = 0; i < this.initialOBBs.length; i++) {
-			if (!this.preTransformed[i] && this.parent !== null) this.transform_to_local_space(transform, i);
+		this.initialOBB.normals[0] = vec3.create(-1, 0, 0);
+		this.initialOBB.normals[1] = vec3.create(1, 0, 0);
+		this.initialOBB.normals[2] = vec3.create(0, -1, 0);
+		this.initialOBB.normals[3] = vec3.create(0, 1, 0);
+		this.initialOBB.normals[4] = vec3.create(0, 0, -1);
+		this.initialOBB.normals[5] = vec3.create(0, 0, 1);
+	}
 
-			this.transformOBB(transform, [...this.initialOBBs[i].vertices], i, true);
-			this.transformOBB(normalTransform, [...this.initialOBBs[i].normals], i, false);
+	async setBoundingBoxes() {
+		if (!this.initialOBB) return;
 
-			const minMax = this.getMinMax([...this.OBBs[i].vertices]);
+		// if (!this.preTransformed && this.parent !== null) this.transform_to_local_space();
 
-			this.AABBs[i].min = minMax.min;
-			this.AABBs[i].max = minMax.max;
+		this.transformOBB(this.globalTransform, [...this.initialOBB.vertices], true);
+		this.transformOBB(this.normalTransform, [...this.initialOBB.normals], false);
 
-			// Only if debugging
-			if (debugging.showOBBs) {
-				const obbMesh = this.getTransformedOBBMesh(transform, [...this.initialOBBMeshes[i]]);
-				await this.updateOBBBuffer(obbMesh, i);
-			}
+		const minMax = this.getMinMax([...this.OBB.vertices]);
 
-			if (debugging.showAABBs) {
-				const AABBMesh = getAABBverticesFromMinMax(minMax.min, minMax.max);
-				await this.updateAABBBuffer(AABBMesh, i);
-			}
+		this.AABB.min = minMax.min;
+		this.AABB.max = minMax.max;
+
+		// Only if debugging
+		if (debugging.showOBBs) {
+			const obbMesh = this.getTransformedOBBMesh([...this.initialOBBMesh]);
+			await this.updateOBBBuffer(obbMesh);
+		}
+
+		if (debugging.showAABBs) {
+			const AABBMesh = getAABBverticesFromMinMax(minMax.min, minMax.max);
+			await this.updateAABBBuffer(AABBMesh);
 		}
 	}
 
-	transformOBB(transform: Mat4, OBB: Vec3[], index: number, areVertices: boolean) {
-		for (let i = 0; i < OBB.length; i++) {
-			const v: Vec3 = OBB[i];
-			const newV: Vec3 = transformPosition(v, transform);
-			if (areVertices) this.OBBs[index].vertices[i] = newV;
-			else this.OBBs[index].normals[i] = vec3.normalize(newV);
+	transformOBB(transform: Mat4, vertices: Vec3[], arePositions: boolean) {
+		for (let i = 0; i < vertices.length; i++) {
+			const v: Vec3 = vertices[i];
+			const newV: Vec3 = vec3.transformMat4(v, transform);
+			if (arePositions) this.OBB.vertices[i] = newV;
+			else this.OBB.normals[i] = vec3.normalize(newV);
 		}
 	}
 
@@ -363,11 +339,11 @@ export default class GLTFNode {
 		};
 	}
 
-	getTransformedOBBMesh(transform: Mat4, OBBMesh: number[]): Float32Array {
+	getTransformedOBBMesh(OBBMesh: number[]): Float32Array {
 		const newOBBMesh = new Float32Array(36 * 3);
 		for (let i = 0; i < OBBMesh.length / 3; i++) {
 			const pos: number[] = OBBMesh.slice(i * 3, i * 3 + 3);
-			const newPos: Vec3 = transformPosition(pos, transform);
+			const newPos: Vec3 = vec3.transformMat4(pos, this.globalTransform);
 			newOBBMesh[i * 3] = newPos[0];
 			newOBBMesh[i * 3 + 1] = newPos[1];
 			newOBBMesh[i * 3 + 2] = newPos[2];
@@ -376,7 +352,7 @@ export default class GLTFNode {
 		return newOBBMesh;
 	}
 
-	async updateOBBBuffer(data: Float32Array, i: number) {
+	async updateOBBBuffer(data: Float32Array) {
 		const stagingBuffer = this.device.createBuffer({
 			size: 4 * 36 * 3,
 			usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
@@ -387,12 +363,12 @@ export default class GLTFNode {
 		stagingBuffer.unmap();
 
 		const commandEncoder = this.device.createCommandEncoder();
-		commandEncoder.copyBufferToBuffer(stagingBuffer, 0, this.OBBBufferArray[i], 0, stagingBuffer.size);
+		commandEncoder.copyBufferToBuffer(stagingBuffer, 0, this.OBBBuffer, 0, stagingBuffer.size);
 		const commandBuffer = commandEncoder.finish();
 		this.device.queue.submit([commandBuffer]);
 	}
 
-	async updateAABBBuffer(data: Float32Array, i: number) {
+	async updateAABBBuffer(data: Float32Array) {
 		const stagingBuffer = this.device.createBuffer({
 			size: 4 * 36 * 3,
 			usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
@@ -403,28 +379,28 @@ export default class GLTFNode {
 		stagingBuffer.unmap();
 
 		const commandEncoder = this.device.createCommandEncoder();
-		commandEncoder.copyBufferToBuffer(stagingBuffer, 0, this.AABBBufferArray[i], 0, stagingBuffer.size);
+		commandEncoder.copyBufferToBuffer(stagingBuffer, 0, this.AABBBuffer, 0, stagingBuffer.size);
 		const commandBuffer = commandEncoder.finish();
 		this.device.queue.submit([commandBuffer]);
 	}
 
-	transform_to_local_space(transform: Mat4, i: number) {
-		const t: Mat4 = mat4.inverse(transform);
+	transform_to_local_space() {
+		const t: Mat4 = mat4.inverse(this.globalTransform);
 
-		for (let j = 0; j < this.initialOBBs[i].vertices.length; j++) {
-			this.initialOBBs[i].vertices[j] = transformPosition(this.initialOBBs[i].vertices[j], t);
+		for (let j = 0; j < this.initialOBB.vertices.length; j++) {
+			this.initialOBB.vertices[j] = vec3.transformMat4(this.initialOBB.vertices[j], t);
 		}
 
 		if (debugging.showOBBs) {
-			for (let j = 0; j < this.initialOBBMeshes[i].length / 3; j++) {
-				const v: Vec3 = this.initialOBBMeshes[i].slice(j * 3, j * 3 + 3);
-				const newPos: Vec3 = transformPosition(v, t);
-				this.initialOBBMeshes[i][j * 3] = newPos[0];
-				this.initialOBBMeshes[i][j * 3 + 1] = newPos[1];
-				this.initialOBBMeshes[i][j * 3 + 2] = newPos[2];
+			for (let j = 0; j < this.initialOBBMesh.length / 3; j++) {
+				const v: Vec3 = this.initialOBBMesh.slice(j * 3, j * 3 + 3);
+				const newPos: Vec3 = vec3.transformMat4(v, t);
+				this.initialOBBMesh[j * 3] = newPos[0];
+				this.initialOBBMesh[j * 3 + 1] = newPos[1];
+				this.initialOBBMesh[j * 3 + 2] = newPos[2];
 			}
 		}
 
-		this.preTransformed[i] = true;
+		this.preTransformed = true;
 	}
 }

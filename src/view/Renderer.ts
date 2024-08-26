@@ -1,11 +1,12 @@
-import { Mat4, mat4, utils } from 'wgpu-matrix';
+import { Mat4, mat4 } from 'wgpu-matrix';
 import { aspect, debugging } from '../control/app';
 import { LightType } from '../types/enums';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
-import { nodes } from './gltf/loader';
+import { models, nodes } from './gltf/loader';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
+import { LightFrustums } from './light_frustums';
 import aabbShader from './shaders/aabb_shader.wgsl';
 import colorFragShader from './shaders/color_frag.wgsl';
 import colorVertShader from './shaders/color_vert.wgsl';
@@ -28,6 +29,8 @@ export default class Renderer {
 	skybox: Skybox;
 
 	shadow: Shadow;
+
+	lightFrustums: LightFrustums;
 
 	// Device
 	adapter: GPUAdapter;
@@ -88,9 +91,11 @@ export default class Renderer {
 	lightAngleScaleBuffer: GPUBuffer;
 	lightAngleOffsetBuffer: GPUBuffer;
 	lightViewProjBuffer: GPUBuffer;
+	lightViewBuffer: GPUBuffer;
 	lightAngleDataBuffer: GPUBuffer;
 	lightCascadeSplitsBuffer: GPUBuffer;
 	cameraPositionBuffer: GPUBuffer;
+	inverseLightViewProjBuffer: GPUBuffer;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -131,6 +136,15 @@ export default class Renderer {
 
 		this.shadow = new Shadow(this.device, this.modelTransformsBuffer, this.lightViewProjBuffer, lightNum);
 		await this.shadow.init();
+
+		this.lightFrustums = new LightFrustums(
+			this.device,
+			this.format,
+			this.depthFormat,
+			this.inverseLightViewProjBuffer,
+			this.projectionViewBuffer
+		);
+		this.lightFrustums.init();
 
 		this.createBindGroups();
 		this.createPipeline();
@@ -187,6 +201,16 @@ export default class Renderer {
 		});
 		this.lightViewProjBuffer = this.device.createBuffer({
 			label: 'lightViewProjBuffer',
+			size: 4 * 16 * lightNum * 6,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.inverseLightViewProjBuffer = this.device.createBuffer({
+			label: 'inverseLightViewProjBuffer',
+			size: 4 * 16 * lightNum * 6,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.lightViewBuffer = this.device.createBuffer({
+			label: 'lightViewBuffer',
 			size: 4 * 16 * lightNum * 6,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
@@ -284,6 +308,15 @@ export default class Renderer {
 				{
 					// light-view-proj matrix
 					binding: 5,
+					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'read-only-storage',
+						hasDynamicOffset: false,
+					},
+				},
+				{
+					// light-view matrix
+					binding: 6,
 					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
 					buffer: {
 						type: 'read-only-storage',
@@ -414,20 +447,12 @@ export default class Renderer {
 					binding: 6,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 7,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
 						type: 'uniform',
 						hasDynamicOffset: false,
 					},
 				},
 				{
-					binding: 8,
+					binding: 7,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {
 						type: 'uniform',
@@ -473,6 +498,12 @@ export default class Renderer {
 					binding: 5,
 					resource: {
 						buffer: this.lightViewProjBuffer,
+					},
+				},
+				{
+					binding: 6,
+					resource: {
+						buffer: this.lightViewBuffer,
 					},
 				},
 			],
@@ -534,17 +565,11 @@ export default class Renderer {
 				{
 					binding: 6,
 					resource: {
-						buffer: this.lightViewProjBuffer,
-					},
-				},
-				{
-					binding: 7,
-					resource: {
 						buffer: this.cameraPositionBuffer,
 					},
 				},
 				{
-					binding: 8,
+					binding: 7,
 					resource: {
 						buffer: this.lightCascadeSplitsBuffer,
 					},
@@ -900,20 +925,13 @@ export default class Renderer {
 		}
 	}
 
-	renderBoundingBoxes(modelNodeChunks: IModelNodeChunks, isAxisAligned: boolean) {
-		const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
-		for (let i = 0; i < modelIndices.length; i++) {
-			const modelIndexChunk = modelIndices[i];
-			const nodeIndex: number = modelIndexChunk.nodeIndex;
-			const primIndex: number = modelIndexChunk.primitiveIndex;
-			const node: GLTFNode = nodes[nodeIndex];
-			if (!node.mesh) continue;
-
-			this.renderPass.setVertexBuffer(
-				0,
-				isAxisAligned ? node.AABBBufferArray[primIndex] : node.OBBBufferArray[primIndex]
-			);
-			this.renderPass.draw(36);
+	renderBoundingBoxes(isAxisAligned: boolean) {
+		for (let i = 0; i < models.length; i++) {
+			const node: GLTFNode = nodes[models[i]];
+			if (node.hasBoundingBox) {
+				this.renderPass.setVertexBuffer(0, isAxisAligned ? node.AABBBuffer : node.OBBBuffer);
+				this.renderPass.draw(36);
+			}
 		}
 	}
 
@@ -945,11 +963,8 @@ export default class Renderer {
 
 		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
-		this.device.queue.writeBuffer(
-			this.projectionViewBuffer,
-			0,
-			new Float32Array([...renderables.camera.projection, ...renderables.camera.get_view()])
-		);
+		this.device.queue.writeBuffer(this.projectionViewBuffer, 0, renderables.camera.get_view());
+		this.device.queue.writeBuffer(this.projectionViewBuffer, 64, renderables.camera.projection);
 
 		this.device.queue.writeBuffer(this.lightTypeBuffer, 0, renderables.lightTypes);
 		this.device.queue.writeBuffer(this.lightPositionBuffer, 0, renderables.lightPositions);
@@ -958,10 +973,19 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
 		this.device.queue.writeBuffer(this.lightAngleDataBuffer, 0, renderables.lightAngleData);
 		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
+		this.device.queue.writeBuffer(this.lightViewBuffer, 0, renderables.lightViewMatrices);
 		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeSplits);
 		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
 
-		if (!debugging.showAABBs && !debugging.showOBBs) {
+		if (debugging.visualizeLightFrustums) {
+			this.device.queue.writeBuffer(
+				this.inverseLightViewProjBuffer,
+				0,
+				renderables.inverseLightViewProjMatrices
+			);
+		}
+
+		{
 			// Shadow Pass -------------------------------------------
 			const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
 
@@ -1075,12 +1099,35 @@ export default class Renderer {
 		if (debugging.showAABBs) {
 			this.renderPass.setPipeline(this.AABBPipeline);
 			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
-			this.renderBoundingBoxes(modelNodeChunks, true);
+			this.renderBoundingBoxes(true);
 		}
 		if (debugging.showOBBs) {
 			this.renderPass.setPipeline(this.OBBPipeline);
 			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
-			this.renderBoundingBoxes(modelNodeChunks, false);
+			this.renderBoundingBoxes(false);
+		}
+
+		if (debugging.visualizeLightFrustums) {
+			this.renderPass.setPipeline(this.lightFrustums.pipeline);
+			this.renderPass.setBindGroup(0, this.lightFrustums.bindGroup);
+
+			loop: for (let i: number = 0; i < renderables.lightTypes.length * 6; i++) {
+				const lightIndex: number = ~~(i / 6);
+				const layer: number = i % 6;
+
+				switch (renderables.lightTypes[lightIndex]) {
+					case LightType.SPOT:
+						if (layer > 0) continue loop;
+						break;
+					case LightType.DIRECTIONAL:
+						if (layer >= renderables.camera.cascadeCount) continue loop;
+						break;
+					case LightType.POINT:
+						break;
+				}
+
+				this.renderPass.draw(24, 1, 0, i);
+			}
 		}
 
 		this.renderPass.end();

@@ -5,11 +5,11 @@ import GLTFNode from '../../view/gltf/node';
 
 export function narrow_phase(pairs: AABBResultPair[]) {
 	pairLoop: for (let pair of pairs) {
-		const node1: GLTFNode = nodes[pair.nodeIndices[0]];
-		const node2: GLTFNode = nodes[pair.nodeIndices[1]];
+		const node1: GLTFNode = nodes[pair[0]];
+		const node2: GLTFNode = nodes[pair[1]];
 
-		const OBB1: IOBB = node1.OBBs[pair.primIndices[0]];
-		const OBB2: IOBB = node2.OBBs[pair.primIndices[1]];
+		const OBB1: IOBB = node1.OBB;
+		const OBB2: IOBB = node2.OBB;
 
 		const vert1: Vec3[] = OBB1.vertices;
 		const vert2: Vec3[] = OBB2.vertices;

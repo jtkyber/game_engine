@@ -1,37 +1,29 @@
 import { vec2 } from 'wgpu-matrix';
-import { IModelNodeChunks } from '../../types/gltf';
 import { AABBResultPair, IAABB } from '../../types/types';
-import { nodes } from '../../view/gltf/loader';
+import { models, nodes } from '../../view/gltf/loader';
 import GLTFNode from '../../view/gltf/node';
 
-export function broad_phase(modelNodeChunks: IModelNodeChunks): AABBResultPair[] {
-	const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
+export function broad_phase(): AABBResultPair[] {
 	const passed: AABBResultPair[] = [];
 
-	for (let i = 0; i < modelIndices.length - 1; i++) {
-		const modelIndexChunk1 = modelIndices[i];
-		const nodeIndex1: number = modelIndexChunk1.nodeIndex;
-		const primIndex1: number = modelIndexChunk1.primitiveIndex;
+	for (let i = 0; i < models.length - 1; i++) {
+		const nodeIndex1: number = models[i];
 		const node1: GLTFNode = nodes[nodeIndex1];
-		if (!node1.hasBoundingBox || !node1.mesh) continue;
+		if (!node1.hasBoundingBox) continue;
 
-		const AABB1: IAABB = node1.AABBs[primIndex1];
+		const AABB1: IAABB = node1.AABB;
 
-		for (let j = i + 1; j < modelIndices.length; j++) {
-			const modelIndexChunk2 = modelIndices[j];
-			const nodeIndex2: number = modelIndexChunk2.nodeIndex;
-			const primIndex2: number = modelIndexChunk2.primitiveIndex;
+		for (let j = i + 1; j < models.length; j++) {
+			const nodeIndex2: number = models[j];
 			const node2: GLTFNode = nodes[nodeIndex2];
-			const sameRoot: boolean = node1.rootNode === node2.rootNode && node1.rootNode !== null;
-			if (!node2.hasBoundingBox || !node2.mesh || nodeIndex1 === nodeIndex2 || sameRoot) continue;
 
-			const AABB2: IAABB = node2.AABBs[primIndex2];
+			const sameRoot: boolean = node1.rootNode === node2.rootNode && node1.rootNode !== null;
+			if (!node2.hasBoundingBox || nodeIndex1 === nodeIndex2 || sameRoot) continue;
+
+			const AABB2: IAABB = node2.AABB;
 
 			if (intersecting(AABB1, AABB2)) {
-				passed.push({
-					nodeIndices: vec2.create(nodeIndex1, nodeIndex2),
-					primIndices: vec2.create(primIndex1, primIndex2),
-				});
+				passed.push(vec2.create(nodeIndex1, nodeIndex2));
 			}
 		}
 	}

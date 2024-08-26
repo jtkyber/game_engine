@@ -27,6 +27,8 @@ export interface IRenderData {
 	lightDirections: Float32Array;
 	lightAngleData: Float32Array;
 	lightViewProjMatrices: Float32Array;
+	lightViewMatrices: Float32Array;
+	inverseLightViewProjMatrices?: Float32Array;
 }
 
 export function getFlagType(name: string): Flag | null {
@@ -78,12 +80,11 @@ export interface IOBB {
 	normals: Vec3[];
 }
 
-export interface AABBResultPair {
-	nodeIndices: Vec2;
-	primIndices: Vec2;
-}
+export type AABBResultPair = Vec2;
 
 export interface IDebug {
 	showAABBs: boolean;
 	showOBBs: boolean;
+	visualizeLightFrustums: boolean;
+	lockDirectionalFrustums: boolean;
 }

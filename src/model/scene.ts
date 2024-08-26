@@ -1,8 +1,9 @@
-import { Mat4, mat4, quat, vec3, vec4 } from 'wgpu-matrix';
-import { Flag } from '../types/enums';
+import { Mat4, mat4, vec3 } from 'wgpu-matrix';
+import { debugging } from '../control/app';
+import { Flag, LightType } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
-import { nodes } from '../view/gltf/loader';
+import { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import JointMatrices from '../view/joint_matrices';
 import { Camera } from './camera';
@@ -16,7 +17,6 @@ export default class Scene {
 	allJoints: Set<number>;
 	lights: Light[];
 	terrainNodeIndex: number;
-	models: number[];
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
@@ -30,6 +30,8 @@ export default class Scene {
 	lightDirections: Float32Array;
 	lightAngleData: Float32Array; // [scale, offset]
 	lightViewProjMatrices: Float32Array;
+	lightViewMatrices: Float32Array;
+	inverseLightViewProjMatrices: Float32Array;
 
 	constructor(
 		modelNodeChunks: IModelNodeChunks,
@@ -43,7 +45,6 @@ export default class Scene {
 		this.allJoints = allJoints;
 		this.lights = lights;
 		this.terrainNodeIndex = terrainNodeIndex;
-		this.models = [];
 		this.nodeTransforms = new Float32Array(16 * nodes.length);
 		this.normalTransforms = new Float32Array(16 * nodes.length);
 		this.jointMatricesBufferList = [];
@@ -56,6 +57,8 @@ export default class Scene {
 		this.lightDirections = new Float32Array(lights.length * 4);
 		this.lightAngleData = new Float32Array(lights.length * 2);
 		this.lightViewProjMatrices = new Float32Array(lights.length * 16 * 6);
+		this.lightViewMatrices = new Float32Array(lights.length * 16 * 6);
+		this.inverseLightViewProjMatrices = new Float32Array(lights.length * 16 * 6);
 	}
 
 	update() {
@@ -71,13 +74,13 @@ export default class Scene {
 				this.nodeTransforms[i * 16 + j] = node.globalTransform[j];
 			}
 
-			const normalMatrix: Mat4 = mat4.transpose(mat4.invert(node.globalTransform));
+			node.normalTransform = mat4.transpose(mat4.invert(node.globalTransform));
 			for (let j = 0; j < 16; j++) {
-				this.normalTransforms[i * 16 + j] = normalMatrix[j];
+				this.normalTransforms[i * 16 + j] = node.normalTransform[j];
 			}
-
-			node.setBoundingBoxes(node.globalTransform, normalMatrix);
 		}
+
+		for (let i = 0; i < models.length; i++) nodes[models[i]].setBoundingBoxes();
 
 		for (let i = 0; i < this.lights.length; i++) this.set_light_data(i);
 
@@ -87,13 +90,13 @@ export default class Scene {
 		);
 		this.sortTransparent();
 
-		const broadPhaseIndices = broad_phase(this.modelNodeChunks);
+		const broadPhaseIndices = broad_phase();
 		narrow_phase(broadPhaseIndices);
 	}
 
 	update_models() {
-		for (let i = 0; i < this.models.length; i++) {
-			const model: number = this.models[i];
+		for (let i = 0; i < models.length; i++) {
+			const model: number = models[i];
 			const node: GLTFNode = nodes[model];
 
 			node.set_direction_vectors();
@@ -109,12 +112,17 @@ export default class Scene {
 		light.update();
 
 		this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);
+		this.lightViewMatrices.set(light.lightViewMatrices, i * 16 * 6);
 		this.lightTypes[i] = light.type;
 		this.lightPositions.set([...light.position, 0], i * 4);
 		this.lightColors.set([...light.color, 0], i * 4);
 		this.lightIntensities[i] = light.intensity;
 		this.lightDirections.set([...light.forward, 0], i * 4);
 		this.lightAngleData.set([light.angleScale, light.angleOffset], i * 2);
+
+		if (debugging.visualizeLightFrustums) {
+			this.inverseLightViewProjMatrices.set(light.inverseLightViewProjMatrices, i * 16 * 6);
+		}
 
 		if (lightNode.name === 'Sun') {
 			// quat.rotateY(lightNode.quat, 0.0001 * window.myLib.deltaTime, lightNode.quat);
@@ -161,8 +169,7 @@ export default class Scene {
 		});
 	}
 
-	set_models(models: number[], player: number) {
-		this.models = models;
+	set_models(player: number) {
 		this.player = player;
 		this.camera = new Camera(this.player);
 		for (let i = 0; i < this.lights.length; i++) {
@@ -184,6 +191,8 @@ export default class Scene {
 			lightDirections: this.lightDirections,
 			lightAngleData: this.lightAngleData,
 			lightViewProjMatrices: this.lightViewProjMatrices,
+			lightViewMatrices: this.lightViewMatrices,
+			inverseLightViewProjMatrices: this.inverseLightViewProjMatrices,
 		};
 	}
 }

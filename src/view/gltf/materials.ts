@@ -1,4 +1,4 @@
-import { Vec4 } from 'wgpu-matrix';
+import { Vec3, Vec4 } from 'wgpu-matrix';
 import { ImageUsage } from '../../types/enums';
 
 export default class GLTFMaterial {
@@ -9,12 +9,14 @@ export default class GLTFMaterial {
 	metallicFactor: number = 1;
 	roughnessFactor: number = 1;
 
+	emissiveFactor: Vec3;
+
+	isTransparent: boolean = false;
+
 	paramBuffer: GPUBuffer = null;
 
 	bindGroupLayout: GPUBindGroupLayout = null;
 	bindGroup: GPUBindGroup = null;
-
-	isTransparent: boolean = false;
 
 	constructor(
 		baseColorFactor: Vec4,
@@ -22,6 +24,7 @@ export default class GLTFMaterial {
 		metallicFactor: number,
 		roughnessFactor: number,
 		metallicRoughnessTextureView: any,
+		emissiveFactor: Vec3,
 		isTransparent: boolean
 	) {
 		this.baseColorFactor = baseColorFactor;
@@ -37,6 +40,8 @@ export default class GLTFMaterial {
 			this.metallicRoughnessTextureView.setUsage(ImageUsage.METALLIC_ROUGHNESS);
 		}
 
+		this.emissiveFactor = emissiveFactor;
+
 		if (isTransparent) this.isTransparent = isTransparent;
 	}
 
@@ -44,7 +49,7 @@ export default class GLTFMaterial {
 		this.paramBuffer = device.createBuffer({
 			label: 'Material Params Buffer',
 			// We'll be passing 6 floats, which round up to 8 in UBO alignment
-			size: 8 * 4,
+			size: 12 * 4,
 			usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
 			mappedAtCreation: true,
 		});
@@ -54,6 +59,7 @@ export default class GLTFMaterial {
 			const params = new Float32Array(this.paramBuffer.getMappedRange());
 			params.set(this.baseColorFactor, 0);
 			params.set([this.metallicFactor, this.roughnessFactor], 4);
+			params.set(this.emissiveFactor, 8);
 		}
 		this.paramBuffer.unmap();
 
@@ -143,7 +149,7 @@ export default class GLTFMaterial {
 					binding: 0,
 					resource: {
 						buffer: this.paramBuffer,
-						size: 8 * 4,
+						size: 12 * 4,
 					},
 				},
 				{

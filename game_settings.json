@@ -1,0 +1,21 @@
+{
+    "camera": {
+        "fov": 60,
+        "near": 0.01,
+        "far": 1000,
+        "shadowNear": 3,
+        "shadowFar": 300
+    },
+    "node": {
+        "turnSpeed": 0.005,
+        "gravityAcc": 0.001
+    },
+    "player": {
+        "turnSpeed": 0.005,
+        "speed": 0.002,
+        "mass": 0.2
+    },
+    "debug": {
+        
+    }
+}

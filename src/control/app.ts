@@ -1,7 +1,10 @@
+import { mat4, utils } from 'wgpu-matrix';
+import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
-import GTLFLoader from '../view/gltf/loader';
+import GTLFLoader, { nodes } from '../view/gltf/loader';
+import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
 import { Skybox } from '../view/skybox';
 import Controller from './controller';
@@ -9,6 +12,8 @@ import Controller from './controller';
 export const debugging: IDebug = {
 	showAABBs: false,
 	showOBBs: false,
+	visualizeLightFrustums: false,
+	lockDirectionalFrustums: false,
 };
 
 export let aspect: number = 0;
@@ -41,7 +46,7 @@ export default class App {
 		await this.renderer.setupDevice();
 
 		const skybox = new Skybox();
-		await skybox.initialize(this.renderer.device, 'dist/skybox_day.png');
+		await skybox.initialize(this.renderer.device, 'dist/skybox_night.png');
 		this.renderer.skybox = skybox;
 
 		const gltfLoader = new GTLFLoader(this.renderer.device);
@@ -51,9 +56,10 @@ export default class App {
 
 		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
 		this.terrainNodeIndex = gltfLoader.terrainNodeIndex;
+		// console.log(gltfLoader.jsonChunk);
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
-		// console.log(gltfLoader.models);
+		// console.log(nodes.filter((n, i) => models.includes(i)));
 		// console.log(gltfLoader.lights);
 		// console.log(animations);
 
@@ -64,7 +70,7 @@ export default class App {
 			gltfLoader.lights,
 			this.terrainNodeIndex
 		);
-		this.scene.set_models(gltfScene.models, gltfScene.player);
+		this.scene.set_models(gltfScene.player);
 
 		// new WebGPURecorder();
 
@@ -73,7 +79,38 @@ export default class App {
 		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
 	}
 
+	async fetch_and_update_parameters() {
+		const res = await fetch('../game_settings.json');
+		const data = await res.json();
+		const camera: Camera = this.scene.camera;
+		const player: GLTFNode = nodes[this.scene.player];
+		const modelIndices = this.scene.modelNodeChunks.opaque.concat(this.scene.modelNodeChunks.transparent);
+
+		camera.fov = utils.degToRad(data.camera.fov);
+		camera.near = data.camera.near;
+		camera.far = data.camera.far;
+		camera.shadowNear = data.camera.shadowNear;
+		camera.shadowFar = data.camera.shadowFar;
+
+		camera.projection = mat4.perspectiveReverseZ(camera.fov, aspect, camera.near, camera.far);
+		for (let i = 0; i < camera.cascadeCount; i++) {
+			camera.cascadeSplits[i] =
+				camera.shadowNear * Math.pow(camera.shadowFar / camera.shadowNear, (i + 1) / camera.cascadeCount);
+		}
+
+		modelIndices.forEach(i => {
+			nodes[i.nodeIndex].turnSpeed = data.node.turnSpeed;
+			nodes[i.nodeIndex].gravityAcc = data.node.gravityAcc;
+		});
+
+		player.turnSpeed = data.player.turnSpeed;
+		player._speed = data.player.speed;
+		player._mass = data.player.mass;
+	}
+
 	start = () => {
+		setInterval(() => this.fetch_and_update_parameters(), 3000);
+
 		this.then = performance.now();
 		this.startTime = this.then;
 		this.frame();

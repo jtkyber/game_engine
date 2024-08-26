@@ -6,12 +6,17 @@ struct VertexOutput {
     @builtin(position) position: vec4f,
 };
 
-@group(0) @binding(0) var<uniform> proj_view: array<mat4x4f, 2>;
+struct TransformData {
+    view: mat4x4f,
+    projection: mat4x4f,
+};
+
+@group(0) @binding(0) var<uniform> transformUBO: TransformData;
 
 @vertex
 fn v_main(vert: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    out.position = proj_view[0] * proj_view[1] * vec4f(vert.position, 1.0);
+    out.position = transformUBO.projection * transformUBO.view * vec4f(vert.position, 1.0);
     return out;
 }
 
