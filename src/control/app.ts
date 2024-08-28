@@ -3,7 +3,7 @@ import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
-import GTLFLoader, { nodes } from '../view/gltf/loader';
+import GTLFLoader, { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
 import { Skybox } from '../view/skybox';

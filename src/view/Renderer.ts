@@ -1,4 +1,4 @@
-import { Mat4, mat4 } from 'wgpu-matrix';
+import { Mat4, mat4, vec3, Vec3, vec4 } from 'wgpu-matrix';
 import { aspect, debugging } from '../control/app';
 import { LightType } from '../types/enums';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
@@ -11,6 +11,7 @@ import aabbShader from './shaders/aabb_shader.wgsl';
 import colorFragShader from './shaders/color_frag.wgsl';
 import colorVertShader from './shaders/color_vert.wgsl';
 import colorVertShaderSkinned from './shaders/color_vert_skinned.wgsl';
+import cullingShader from './shaders/compute/culling.wgsl';
 import obbShader from './shaders/obb_shader.wgsl';
 import { Shadow } from './shadow';
 import { Skybox } from './skybox';
@@ -24,6 +25,7 @@ export default class Renderer {
 
 	// Nodes
 	modelNodeChunks: IModelNodeChunks;
+	culledModels: Float32Array = new Float32Array([]);
 
 	// Skybox
 	skybox: Skybox;
@@ -36,12 +38,15 @@ export default class Renderer {
 	adapter: GPUAdapter;
 	device: GPUDevice;
 	format: GPUTextureFormat;
+
+	// Shader Modules
 	colorVertShaderModule: GPUShaderModule;
 	colorVertShaderModuleSkinned: GPUShaderModule;
 	colorFragShaderModule: GPUShaderModule;
 	obbShaderModule: GPUShaderModule;
 	aabbShaderModule: GPUShaderModule;
 	terrainShaderModule: GPUShaderModule;
+	cullingShaderModule: GPUShaderModule;
 
 	// Render Pass
 	renderPass: GPURenderPassEncoder;
@@ -55,7 +60,8 @@ export default class Renderer {
 	OBBPipeline: GPURenderPipeline;
 	AABBPipeline: GPURenderPipeline;
 	terrainPipeline: GPURenderPipeline;
-	skyboxPipeine: GPURenderPipeline;
+	skyboxPipeline: GPURenderPipeline;
+	cullingPipeline: GPUComputePipeline;
 
 	frameBindGroupLayout: GPUBindGroupLayout;
 	materialBindGroupLayout: GPUBindGroupLayout;
@@ -63,12 +69,14 @@ export default class Renderer {
 	boundingBoxBindGroupLayout: GPUBindGroupLayout;
 	lightingBindGroupLayout: GPUBindGroupLayout;
 	terrainBindGroupLayout: GPUBindGroupLayout;
+	cullingBindGroupLayout: GPUBindGroupLayout;
 
 	frameBindGroup: GPUBindGroup;
 	materialBindGroup: GPUBindGroup;
 	boundingBoxBindGroup: GPUBindGroup;
 	lightingBindGroup: GPUBindGroup;
 	terrainBindGroup: GPUBindGroup;
+	cullingBindGroup: GPUBindGroup;
 
 	// Depth buffer
 	depthTexture: GPUTexture;
@@ -97,6 +105,14 @@ export default class Renderer {
 	cameraPositionBuffer: GPUBuffer;
 	inverseLightViewProjBuffer: GPUBuffer;
 
+	boundingBoxBuffer: GPUBuffer;
+	cullResultBuffer: GPUBuffer;
+	cullReadBuffers: {
+		buffer: GPUBuffer;
+		pending: boolean;
+		available: boolean;
+	}[];
+
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
 		this.context = <GPUCanvasContext>canvas.getContext('webgpu');
@@ -120,6 +136,9 @@ export default class Renderer {
 		);
 		this.aabbShaderModule = <GPUShaderModule>(
 			this.device.createShaderModule({ label: 'aabbShaderModule', code: aabbShader })
+		);
+		this.cullingShaderModule = <GPUShaderModule>(
+			this.device.createShaderModule({ label: 'cullingShaderModule', code: cullingShader })
 		);
 
 		this.context.configure({
@@ -225,6 +244,40 @@ export default class Renderer {
 			size: 4 * 4,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
+
+		this.boundingBoxBuffer = this.device.createBuffer({
+			label: 'boundingBoxBuffer',
+			size: 4 * 4 * 2 * models.length,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+		});
+		this.cullResultBuffer = this.device.createBuffer({
+			label: 'cullResultBuffer',
+			size: 4 * models.length,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+		});
+		const cullReadBuffer1 = this.device.createBuffer({
+			label: 'cullReadBuffer1',
+			size: this.cullResultBuffer.size,
+			usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+		});
+		const cullReadBuffer2 = this.device.createBuffer({
+			label: 'cullReadBuffer2',
+			size: this.cullResultBuffer.size,
+			usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+		});
+
+		this.cullReadBuffers = [
+			{
+				buffer: cullReadBuffer1,
+				pending: false,
+				available: false,
+			},
+			{
+				buffer: cullReadBuffer2,
+				pending: false,
+				available: false,
+			},
+		];
 	}
 
 	createDepthTexture() {
@@ -461,6 +514,33 @@ export default class Renderer {
 				},
 			],
 		});
+
+		this.cullingBindGroupLayout = this.device.createBindGroupLayout({
+			label: 'cullingBindGroupLayout',
+			entries: [
+				{
+					binding: 0,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: {
+						type: 'uniform',
+					},
+				},
+				{
+					binding: 1,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: {
+						type: 'read-only-storage',
+					},
+				},
+				{
+					binding: 2,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: {
+						type: 'storage',
+					},
+				},
+			],
+		});
 	}
 
 	createBindGroups() {
@@ -572,6 +652,31 @@ export default class Renderer {
 					binding: 7,
 					resource: {
 						buffer: this.lightCascadeSplitsBuffer,
+					},
+				},
+			],
+		});
+
+		this.cullingBindGroup = this.device.createBindGroup({
+			label: 'cullingBindGroup',
+			layout: this.cullingBindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.projectionViewBuffer,
+					},
+				},
+				{
+					binding: 1,
+					resource: {
+						buffer: this.boundingBoxBuffer,
+					},
+				},
+				{
+					binding: 2,
+					resource: {
+						buffer: this.cullResultBuffer,
 					},
 				},
 			],
@@ -827,6 +932,17 @@ export default class Renderer {
 				depthCompare: 'greater-equal',
 			},
 		});
+
+		this.cullingPipeline = this.device.createComputePipeline({
+			layout: this.device.createPipelineLayout({
+				label: 'cullingPipeline',
+				bindGroupLayouts: [this.cullingBindGroupLayout],
+			}),
+			compute: {
+				module: this.cullingShaderModule,
+				entryPoint: 'main',
+			},
+		});
 	}
 
 	set_joint_buffers(jointMatricesBufferList: GPUBuffer[], modelNodeChunks: IModelNodeChunks) {
@@ -851,7 +967,7 @@ export default class Renderer {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
 			const node: GLTFNode = nodes[nodeIndex];
-			if (!node.mesh) continue;
+			if (!node.mesh || this.culledModels.includes(node.rootNode ?? nodeIndex)) continue;
 
 			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 
@@ -935,7 +1051,153 @@ export default class Renderer {
 		}
 	}
 
+	shadowPass(modelNodeChunks: IModelNodeChunks, renderables: IRenderData) {
+		const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
+
+		loop: for (let i: number = 0; i < renderables.lightTypes.length * 6; i++) {
+			const lightIndex: number = ~~(i / 6);
+			const layer: number = i % 6;
+
+			switch (renderables.lightTypes[lightIndex]) {
+				case LightType.SPOT:
+					if (layer > 0) continue loop;
+					break;
+				case LightType.DIRECTIONAL:
+					if (layer >= renderables.camera.cascadeCount) continue loop;
+					break;
+				case LightType.POINT:
+					break;
+			}
+
+			const shadowPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
+				colorAttachments: [],
+				depthStencilAttachment: {
+					view: this.shadow.depthTextureViewArray[i],
+					depthClearValue: 0.0,
+					depthLoadOp: 'clear',
+					depthStoreOp: 'store',
+				},
+			});
+
+			for (let j = 0; j < modelIndices.length; j++) {
+				const modelIndexChunk = modelIndices[j];
+				const nodeIndex: number = modelIndexChunk.nodeIndex;
+				const primIndex: number = modelIndexChunk.primitiveIndex;
+				const node: GLTFNode = nodes[nodeIndex];
+				if (!node.mesh) continue;
+
+				const p: GLTFPrimitive = node.mesh.primitives[primIndex];
+
+				if (node.skin !== null) {
+					shadowPass.setPipeline(this.shadow.pipelineSkinned);
+					shadowPass.setBindGroup(0, this.shadow.bindGroup);
+					shadowPass.setBindGroup(1, node.skin.jointBindGroup);
+
+					shadowPass.setVertexBuffer(
+						1,
+						p.joints.bufferView.gpuBuffer,
+						p.joints.byteOffset,
+						p.joints.byteLength
+					);
+
+					shadowPass.setVertexBuffer(
+						2,
+						p.weights.bufferView.gpuBuffer,
+						p.weights.byteOffset,
+						p.weights.byteLength
+					);
+				} else {
+					shadowPass.setPipeline(this.shadow.pipeline);
+					shadowPass.setBindGroup(0, this.shadow.bindGroup);
+				}
+
+				shadowPass.setVertexBuffer(
+					0,
+					p.positions.bufferView.gpuBuffer,
+					p.positions.byteOffset,
+					p.positions.byteLength
+				);
+
+				if (p.indices) {
+					shadowPass.setIndexBuffer(
+						<GPUBuffer>p.indices.bufferView.gpuBuffer,
+						<GPUIndexFormat>p.indices.elementType,
+						p.indices.byteOffset,
+						p.indices.byteLength
+					);
+
+					shadowPass.drawIndexed(p.indices.count, 1, 0, 0, (i << 16) | nodeIndex);
+				} else {
+					shadowPass.draw(p.positions.count, 1, 0, (i << 16) | nodeIndex);
+				}
+			}
+
+			shadowPass.end();
+		}
+	}
+
+	setCulledModels() {
+		const boundingBoxes: Float32Array = new Float32Array(this.boundingBoxBuffer.size / 4);
+
+		for (let i = 0; i < models.length; i++) {
+			const min: Vec3 = nodes[models[i]].AABB.min;
+			const max: Vec3 = nodes[models[i]].AABB.max;
+
+			boundingBoxes.set([...min, 0], i * 4 * 2);
+			boundingBoxes.set([...max, 0], i * 4 * 2 + 4);
+		}
+
+		this.device.queue.writeBuffer(this.boundingBoxBuffer, 0, boundingBoxes);
+
+		const commandEncoder = this.device.createCommandEncoder();
+		const computePass = commandEncoder.beginComputePass({ label: 'cullingComputePass' });
+		computePass.setPipeline(this.cullingPipeline);
+		computePass.setBindGroup(0, this.cullingBindGroup);
+		computePass.dispatchWorkgroups(Math.ceil(models.length / 64), 1, 1);
+		computePass.end();
+
+		for (let i = 0; i < this.cullReadBuffers.length; i++) {
+			const cullReadBufferObj = this.cullReadBuffers[i];
+
+			if (!cullReadBufferObj.pending && !cullReadBufferObj.available) {
+				commandEncoder.copyBufferToBuffer(
+					this.cullResultBuffer,
+					0,
+					cullReadBufferObj.buffer,
+					0,
+					this.cullResultBuffer.size
+				);
+
+				cullReadBufferObj.pending = true;
+				cullReadBufferObj.buffer.unmap();
+				this.device.queue.submit([commandEncoder.finish()]);
+				cullReadBufferObj.buffer.mapAsync(GPUMapMode.READ).then(() => {
+					cullReadBufferObj.pending = false;
+					cullReadBufferObj.available = true;
+				});
+
+				break;
+			}
+		}
+
+		for (let i = 0; i < this.cullReadBuffers.length; i++) {
+			const cullReadBufferObj = this.cullReadBuffers[i];
+
+			if (cullReadBufferObj.available) {
+				const arrayBuffer = cullReadBufferObj.buffer.getMappedRange();
+				this.culledModels = new Float32Array(arrayBuffer)
+					.map((x, i) => (x === 0 ? models[i] : -1))
+					.filter(x => x >= 0);
+
+				cullReadBufferObj.available = false;
+				cullReadBufferObj.buffer.unmap();
+			}
+		}
+	}
+
 	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
+		this.setCulledModels();
+
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();
 
@@ -985,93 +1247,7 @@ export default class Renderer {
 			);
 		}
 
-		{
-			// Shadow Pass -------------------------------------------
-			const modelIndices = modelNodeChunks.opaque.concat(modelNodeChunks.transparent);
-
-			loop: for (let i: number = 0; i < renderables.lightTypes.length * 6; i++) {
-				const lightIndex: number = ~~(i / 6);
-				const layer: number = i % 6;
-
-				switch (renderables.lightTypes[lightIndex]) {
-					case LightType.SPOT:
-						if (layer > 0) continue loop;
-						break;
-					case LightType.DIRECTIONAL:
-						if (layer >= renderables.camera.cascadeCount) continue loop;
-						break;
-					case LightType.POINT:
-						break;
-				}
-
-				const shadowPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
-					colorAttachments: [],
-					depthStencilAttachment: {
-						view: this.shadow.depthTextureViewArray[i],
-						depthClearValue: 0.0,
-						depthLoadOp: 'clear',
-						depthStoreOp: 'store',
-					},
-				});
-
-				for (let j = 0; j < modelIndices.length; j++) {
-					const modelIndexChunk = modelIndices[j];
-					const nodeIndex: number = modelIndexChunk.nodeIndex;
-					const primIndex: number = modelIndexChunk.primitiveIndex;
-					const node: GLTFNode = nodes[nodeIndex];
-					if (!node.mesh) continue;
-
-					const p: GLTFPrimitive = node.mesh.primitives[primIndex];
-
-					if (node.skin !== null) {
-						shadowPass.setPipeline(this.shadow.pipelineSkinned);
-						shadowPass.setBindGroup(0, this.shadow.bindGroup);
-						shadowPass.setBindGroup(1, node.skin.jointBindGroup);
-
-						shadowPass.setVertexBuffer(
-							1,
-							p.joints.bufferView.gpuBuffer,
-							p.joints.byteOffset,
-							p.joints.byteLength
-						);
-
-						shadowPass.setVertexBuffer(
-							2,
-							p.weights.bufferView.gpuBuffer,
-							p.weights.byteOffset,
-							p.weights.byteLength
-						);
-					} else {
-						shadowPass.setPipeline(this.shadow.pipeline);
-						shadowPass.setBindGroup(0, this.shadow.bindGroup);
-					}
-
-					shadowPass.setVertexBuffer(
-						0,
-						p.positions.bufferView.gpuBuffer,
-						p.positions.byteOffset,
-						p.positions.byteLength
-					);
-
-					if (p.indices) {
-						shadowPass.setIndexBuffer(
-							<GPUBuffer>p.indices.bufferView.gpuBuffer,
-							<GPUIndexFormat>p.indices.elementType,
-							p.indices.byteOffset,
-							p.indices.byteLength
-						);
-
-						shadowPass.drawIndexed(p.indices.count, 1, 0, 0, (i << 16) | nodeIndex);
-					} else {
-						shadowPass.draw(p.positions.count, 1, 0, (i << 16) | nodeIndex);
-					}
-				}
-
-				shadowPass.end();
-			}
-
-			// -------------------------------------------------------
-		}
+		this.shadowPass(modelNodeChunks, renderables);
 
 		this.set_joint_buffers(renderables.jointMatricesBufferList, modelNodeChunks);
 

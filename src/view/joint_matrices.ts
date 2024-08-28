@@ -10,11 +10,6 @@ export default class JointMatrices {
 	shaderModule: GPUShaderModule;
 	jointMatricesBufferList: GPUBuffer[] = [];
 
-	// Matrices sizes
-	inverseBindMatricesSize: number;
-	inverseGlobalTransformSize: number;
-	globalJointTransformsSize: number;
-
 	// Buffers
 	inverseBindMatricesBuffer: GPUBuffer;
 	inverseGlobalTransformBuffer: GPUBuffer;
@@ -59,7 +54,7 @@ export default class JointMatrices {
 
 			this.createBindGroup();
 			this.createPipeline();
-			this.compute(node.skin.inverseBindMatrices.elementCount);
+			this.compute(node.skin.inverseBindMatrices.count);
 			count++;
 		}
 
@@ -180,12 +175,12 @@ export default class JointMatrices {
 		});
 	}
 
-	async compute(elementCount: number) {
+	async compute(count: number) {
 		const commandEncoder = this.device.createCommandEncoder();
 		const computePass = commandEncoder.beginComputePass({ label: 'jointMatricesComputePass' });
 		computePass.setPipeline(this.pipeline);
 		computePass.setBindGroup(0, this.bindGroup);
-		computePass.dispatchWorkgroups(Math.ceil(elementCount / 64), 1, 1);
+		computePass.dispatchWorkgroups(Math.ceil(count / 64), 1, 1);
 		computePass.end();
 
 		const gpuReadBuffer = this.device.createBuffer({
