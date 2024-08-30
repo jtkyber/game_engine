@@ -29,9 +29,11 @@ export default class GLTFNode {
 	_mass: number = null;
 	_speed: number = null;
 	hasBoundingBox: boolean = true;
+	hasPhysics: boolean = false;
 	_currentSpeed: number = 0;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
-	turnSpeed: number = 0.005;
+	// turnSpeed: number = 0.005;
+	turnSpeed: number = 0.02;
 	initialOBB: IOBB = null;
 	OBB: IOBB = null;
 	AABB: IAABB = null;
@@ -72,7 +74,8 @@ export default class GLTFNode {
 		maxValues: Vec3[],
 		mass: number,
 		speed: number,
-		hasBoundingBox: boolean
+		hasBoundingBox: boolean,
+		hasPhysics: boolean
 	) {
 		this.device = device;
 		this.name = name;
@@ -91,6 +94,7 @@ export default class GLTFNode {
 		this._mass = mass;
 		this._speed = speed;
 		this.hasBoundingBox = hasBoundingBox;
+		this.hasPhysics = hasPhysics;
 		this.previousPosition = vec3.fromValues(...this.position);
 	}
 
@@ -116,8 +120,12 @@ export default class GLTFNode {
 	}
 
 	move(dir: Vec3) {
-		const amt = this.speed * window.myLib.deltaTime;
+		const amt = this.speed * window.myLib.deltaTime * 0.01;
 		this.position = vec3.addScaled(this.position, dir, amt);
+	}
+
+	spin_to(quat: Vec3) {
+		this.quat = quat;
 	}
 
 	spin_lerp(endDir: Vec3) {
@@ -162,11 +170,12 @@ export default class GLTFNode {
 	}
 
 	apply_gravity() {
-		if (this.rootNode === null && this.name !== 'Terrain') {
+		if (this.rootNode === null && this.name !== 'Terrain' && this.hasPhysics) {
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
 			this.position[1] -= this.gravitySpeed * window.myLib.deltaTime;
-			this.limit_height_to_terrain();
+			if (terrainHeightMap) this.limit_height_to_terrain();
+			if (this.position[1] < 0) this.position[1] = 0;
 			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
 			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);
 		}

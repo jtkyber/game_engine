@@ -55,6 +55,7 @@ export default class Controller {
 			nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1));
 
 			animations['Walk'].play(1.4);
+			// animations['Walk_flashlight'].play(1.4);
 		} else {
 			animations['Idle'].play();
 		}

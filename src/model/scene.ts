@@ -109,7 +109,7 @@ export default class Scene {
 	set_light_data(i: number) {
 		const light: Light = this.lights[i];
 		const lightNode: GLTFNode = nodes[light.nodeIndex];
-		light.update();
+		light.update(this.camera.forward);
 
 		this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);
 		this.lightViewMatrices.set(light.lightViewMatrices, i * 16 * 6);

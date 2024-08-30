@@ -69,8 +69,10 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     if (hasColorTexture) {
         base_color = material_params.base_color_factor * base_texture_color;
 
-        metallic *= metallic_roughness.b;
-        roughness *= metallic_roughness.g;
+        if (hasMetallicRoughnessTexture) {
+            metallic *= metallic_roughness.b;
+            roughness *= metallic_roughness.g;
+        }
     } else {
         base_color = material_params.base_color_factor;
     }
@@ -182,7 +184,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
     }
 
-    let ambient = vec3f(0.03) * albedo;
+    let ambient = vec3f(0.01) * albedo;
     color = ambient + Lo;
     // color = color / (color + vec3f(1.0));
     // color = pow(color, vec3f(1.0 / 2.2));

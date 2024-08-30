@@ -54,9 +54,10 @@ export default class App {
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 
-		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
+		// await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
 		this.terrainNodeIndex = gltfLoader.terrainNodeIndex;
-		// console.log(gltfLoader.jsonChunk);
+
+		console.log(gltfLoader.jsonChunk);
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
 		// console.log(nodes.filter((n, i) => models.includes(i)));
@@ -109,7 +110,7 @@ export default class App {
 	}
 
 	start = () => {
-		setInterval(() => this.fetch_and_update_parameters(), 3000);
+		// setInterval(() => this.fetch_and_update_parameters(), 3000);
 
 		this.then = performance.now();
 		this.startTime = this.then;

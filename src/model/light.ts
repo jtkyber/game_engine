@@ -60,10 +60,14 @@ export default class Light {
 		this.nodeIndex = nodeIndex;
 	}
 
-	update() {
+	update(cameraForward: Vec3) {
 		const transform: Mat4 = nodes[this.nodeIndex].globalTransform;
 		this.forward = vec3.fromValues(transform[8], transform[9], transform[10]);
 		this.position = vec3.fromValues(transform[12], transform[13], transform[14]);
+
+		if (nodes[this.nodeIndex].name === 'Flashlight') {
+			this.forward = vec3.negate(cameraForward);
+		}
 
 		this.set_lvp_matrix();
 	}

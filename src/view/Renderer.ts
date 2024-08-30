@@ -1196,7 +1196,7 @@ export default class Renderer {
 	}
 
 	render = (renderables: IRenderData, modelNodeChunks: IModelNodeChunks) => {
-		this.setCulledModels();
+		// this.setCulledModels();
 
 		this.encoder = <GPUCommandEncoder>this.device.createCommandEncoder();
 		this.view = <GPUTextureView>this.context.getCurrentTexture().createView();

@@ -1,6 +1,6 @@
 {
     "camera": {
-        "fov": 60,
+        "fov": 45,
         "near": 0.01,
         "far": 1000,
         "shadowNear": 3,
@@ -12,7 +12,7 @@
     },
     "player": {
         "turnSpeed": 0.005,
-        "speed": 0.002,
+        "speed": 0.8,
         "mass": 0.2
     },
     "debug": {

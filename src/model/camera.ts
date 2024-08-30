@@ -1,4 +1,5 @@
 import { Mat4, Vec3, mat4, quat, utils, vec3 } from 'wgpu-matrix';
+import { degToRad } from 'wgpu-matrix/dist/3.x/utils';
 import { aspect } from '../control/app';
 import { getPixel } from '../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from '../view/gltf/loader';
@@ -20,8 +21,8 @@ export class Camera {
 	distFromModelMax: number = 8;
 	targetNode: number;
 	pitch: number = 0;
-	yaw: number = 0;
-	fov = utils.degToRad(60);
+	yaw: number = utils.degToRad(180);
+	fov = utils.degToRad(45);
 	near: number = 0.01;
 	far: number = 1000;
 	shadowNear: number = 3;
@@ -34,10 +35,20 @@ export class Camera {
 		this.targetNode = targetNode;
 
 		const height: number = nodes[targetNode].height;
+		// this.distAboveModel = height * 0.9;
+		// this.distFromModel = height * 4;
+		// this.distFromModelMin = height * 1;
+		// this.distFromModelMax = height * 400;
+
 		this.distAboveModel = height * 0.9;
-		this.distFromModel = height * 4;
-		this.distFromModelMin = height * 1;
-		this.distFromModelMax = height * 400;
+		this.distFromModel = height * -0.1;
+		this.distFromModelMin = this.distFromModel;
+		this.distFromModelMax = this.distFromModel;
+
+		// this.distAboveModel = height * 0.9;
+		// this.distFromModel = height * 1;
+		// this.distFromModelMin = this.distFromModel;
+		// this.distFromModelMax = this.distFromModel;
 
 		for (let i = 0; i < this.cascadeCount; i++) {
 			this.cascadeSplits[i] =
@@ -67,9 +78,10 @@ export class Camera {
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 
 		// Move camera back out along forward vector
-		this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
+		// this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
+		this.position = vec3.addScaled(this.position, this.forwardMove, -this.distFromModel);
 		// Don't let camera clip through terrain
-		this.limit_height_to_terrain(terrainNodeIndex);
+		if (terrainHeightMap) this.limit_height_to_terrain(terrainNodeIndex);
 
 		this.target = vec3.add(this.position, this.forward);
 

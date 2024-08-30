@@ -44,7 +44,7 @@ import { GLTFTexture } from './texture';
 export const nodes: GLTFNode[] = [];
 export let models: number[] = [];
 export const animations: { [key: string]: GLTFAnimation } = {};
-export let terrainHeightMap: Float32Array;
+export let terrainHeightMap: Float32Array = null;
 export let terrainHeightMapSize: number;
 
 export default class GTLFLoader {
@@ -694,6 +694,7 @@ export default class GTLFLoader {
 		const mass: number = node?.extras?.mass ?? null;
 		const speed: number = node?.extras?.speed ?? 0;
 		const hasBoundingBox: boolean = node?.extras?.hasBoundingBox ?? true;
+		const hasPhysics: boolean = node?.extras?.hasPhysics ?? false;
 
 		nodes.push(
 			new GLTFNode(
@@ -713,7 +714,8 @@ export default class GTLFLoader {
 				maxValues,
 				mass,
 				speed,
-				hasBoundingBox
+				hasBoundingBox,
+				hasPhysics
 			)
 		);
 		const lastNodeIndex: number = nodes.length - 1;
