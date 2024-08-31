@@ -203,14 +203,6 @@ export default class GLTFNode {
 		}
 	}
 
-	offset_root_position(offset: Vec3) {
-		if (this.rootNode === null) {
-			vec3.add(this.position, offset, this.position);
-		} else {
-			vec3.add(nodes[this.rootNode].position, offset, nodes[this.rootNode].position);
-		}
-	}
-
 	reset_gravity() {
 		if (this.rootNode === null) {
 			this.gravitySpeed = 0;

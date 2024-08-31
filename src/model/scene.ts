@@ -92,6 +92,8 @@ export default class Scene {
 
 		const broadPhaseIndices = broad_phase();
 		narrow_phase(broadPhaseIndices);
+
+		for (let i = 0; i < models.length; i++) nodes[models[i]].set_previous_position();
 	}
 
 	update_models() {
@@ -102,7 +104,6 @@ export default class Scene {
 			node.set_direction_vectors();
 			node.set_current_velocity();
 			node.apply_gravity();
-			node.set_previous_position();
 		}
 	}
 
