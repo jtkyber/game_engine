@@ -32,8 +32,7 @@ export default class GLTFNode {
 	hasPhysics: boolean = false;
 	_currentSpeed: number = 0;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
-	// turnSpeed: number = 0.005;
-	turnSpeed: number = 0.02;
+	turnSpeed: number = 0.008;
 	initialOBB: IOBB = null;
 	OBB: IOBB = null;
 	AABB: IAABB = null;
@@ -124,8 +123,8 @@ export default class GLTFNode {
 		this.position = vec3.addScaled(this.position, dir, amt);
 	}
 
-	spin_to(quat: Vec3) {
-		this.quat = quat;
+	spin_to(yaw: number) {
+		this.quat = quat.fromEuler(0, yaw + Math.PI, 0, 'yxz');
 	}
 
 	spin_lerp(endDir: Vec3) {

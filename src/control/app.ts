@@ -14,6 +14,7 @@ export const debugging: IDebug = {
 	showOBBs: false,
 	visualizeLightFrustums: false,
 	lockDirectionalFrustums: false,
+	firstPersonMode: false,
 };
 
 export let aspect: number = 0;

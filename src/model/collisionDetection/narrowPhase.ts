@@ -16,6 +16,7 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 
 		// const sweepNum: number = Math.ceil(vec3.len(vec3.sub(moveVec1, moveVec2)) * 4);
 		const sweepNum: number = 3;
+		// step-size = bounding box size / (constant * |velocity|)
 
 		sweepLoop: for (let i = sweepNum; i > 0; i--) {
 			const stepRatio: number = (i - 1) / sweepNum;

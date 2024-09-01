@@ -66,7 +66,8 @@ export default class Light {
 		this.position = vec3.fromValues(transform[12], transform[13], transform[14]);
 
 		if (nodes[this.nodeIndex].name === 'Flashlight') {
-			this.forward = vec3.negate(cameraForward);
+			if (debugging.firstPersonMode) this.forward = vec3.negate(cameraForward);
+			else this.forward = nodes[this.player].forward;
 		}
 
 		this.set_lvp_matrix();
@@ -134,7 +135,7 @@ export default class Light {
 	get_frustum_corners_world_space(near: number, far: number): Vec4[] {
 		const proj: Mat4 = mat4.perspectiveReverseZ(this.camera.fov, aspect, near, far);
 
-		const inv: Mat4 = mat4.inverse(mat4.mul(proj, this.camera.get_view()));
+		const inv: Mat4 = mat4.inverse(mat4.mul(proj, this.camera.view));
 
 		const directionalFrustumCorners: Vec4[] = [];
 		for (let x = 0; x < 2; x++) {

@@ -2,6 +2,7 @@ import { Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import { ControlBoard } from '../types/types';
 import { animations, nodes } from '../view/gltf/loader';
+import { debugging } from './app';
 
 export default class Controller {
 	canvas: HTMLCanvasElement;
@@ -49,10 +50,21 @@ export default class Controller {
 		this.moveVec[0] = this.controlBoard.f - this.controlBoard.b;
 		this.moveVec[1] = this.controlBoard.r - this.controlBoard.l;
 
+		const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
+		if (debugging.firstPersonMode) nodes[this.player].spin_to(this.camera.yaw);
+
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
-			const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
-			nodes[this.player].spin_lerp(endDir);
-			nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1));
+			if (debugging.firstPersonMode) {
+				if (this.moveVec[0] !== 0) {
+					nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -this.moveVec[0]));
+				}
+				if (this.moveVec[1] !== 0) {
+					nodes[this.player].move(vec3.mulScalar(nodes[this.player].rightMove, -this.moveVec[1]));
+				}
+			} else {
+				nodes[this.player].spin_lerp(endDir);
+				nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1));
+			}
 
 			animations['Walk'].play(1.4);
 			// animations['Walk_flashlight'].play(1.4);
@@ -120,24 +132,19 @@ export default class Controller {
 
 		switch (e.code) {
 			case 'KeyW':
-				if (this.controlBoard.f) return;
-				this.controlBoard.f = 1;
+				if (!this.controlBoard.f) this.controlBoard.f = 1;
 				break;
 			case 'KeyS':
-				if (this.controlBoard.b) return;
-				this.controlBoard.b = 1;
+				if (!this.controlBoard.b) this.controlBoard.b = 1;
 				break;
 			case 'KeyA':
-				if (this.controlBoard.l) return;
-				this.controlBoard.l = 1;
+				if (!this.controlBoard.l) this.controlBoard.l = 1;
 				break;
 			case 'KeyD':
-				if (this.controlBoard.r) return;
-				this.controlBoard.r = 1;
+				if (!this.controlBoard.r) this.controlBoard.r = 1;
 				break;
 			case 'Space':
-				if (this.controlBoard.space) return;
-				this.controlBoard.space = 1;
+				if (!this.controlBoard.space) this.controlBoard.space = 1;
 				break;
 		}
 	}
@@ -161,6 +168,9 @@ export default class Controller {
 			case 'Space':
 				this.controlBoard.space = 0;
 				break;
+			case 'KeyV':
+				debugging.firstPersonMode = !debugging.firstPersonMode;
+				this.camera.setInitialCamDists();
 		}
 	}
 
@@ -180,7 +190,7 @@ export default class Controller {
 	handleScrollWheel(e: WheelEvent) {
 		if (!this.pointerLocked) return;
 
-		this.scrollAmt += e.deltaY / 100;
+		this.scrollAmt += e.deltaY / (1000 / this.camera.distFromModel);
 	}
 
 	lockPointer() {

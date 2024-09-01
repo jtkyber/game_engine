@@ -87,4 +87,5 @@ export interface IDebug {
 	showOBBs: boolean;
 	visualizeLightFrustums: boolean;
 	lockDirectionalFrustums: boolean;
+	firstPersonMode: boolean;
 }

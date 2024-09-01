@@ -9,14 +9,16 @@ export function broad_phase(): AABBResultPair[] {
 	for (let i = 0; i < models.length - 1; i++) {
 		const nodeIndex1: number = models[i];
 		const node1: GLTFNode = nodes[nodeIndex1];
-		if (!node1.hasBoundingBox) continue;
+		if (!node1.hasBoundingBox || node1.max[1] === node1.min[1]) continue;
 
 		for (let j = i + 1; j < models.length; j++) {
 			const nodeIndex2: number = models[j];
 			const node2: GLTFNode = nodes[nodeIndex2];
 
 			const sameRoot: boolean = node1.rootNode === node2.rootNode && node1.rootNode !== null;
-			if (!node2.hasBoundingBox || nodeIndex1 === nodeIndex2 || sameRoot) continue;
+			if (!node2.hasBoundingBox || nodeIndex1 === nodeIndex2 || sameRoot || node2.max[1] === node2.min[1]) {
+				continue;
+			}
 
 			if (intersecting(node1, node2)) {
 				passed.push(vec2.create(nodeIndex1, nodeIndex2));

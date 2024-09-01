@@ -1,6 +1,6 @@
 import { Mat4, Vec3, mat4, quat, utils, vec3 } from 'wgpu-matrix';
 import { degToRad } from 'wgpu-matrix/dist/3.x/utils';
-import { aspect } from '../control/app';
+import { aspect, debugging } from '../control/app';
 import { getPixel } from '../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from '../view/gltf/loader';
 
@@ -34,25 +34,27 @@ export class Camera {
 	constructor(targetNode: number) {
 		this.targetNode = targetNode;
 
-		const height: number = nodes[targetNode].height;
-		// this.distAboveModel = height * 0.9;
-		// this.distFromModel = height * 4;
-		// this.distFromModelMin = height * 1;
-		// this.distFromModelMax = height * 400;
-
-		this.distAboveModel = height * 0.9;
-		this.distFromModel = height * -0.1;
-		this.distFromModelMin = this.distFromModel;
-		this.distFromModelMax = this.distFromModel;
-
-		// this.distAboveModel = height * 0.9;
-		// this.distFromModel = height * 1;
-		// this.distFromModelMin = this.distFromModel;
-		// this.distFromModelMax = this.distFromModel;
+		this.setInitialCamDists();
 
 		for (let i = 0; i < this.cascadeCount; i++) {
 			this.cascadeSplits[i] =
 				this.shadowNear * Math.pow(this.shadowFar / this.shadowNear, (i + 1) / this.cascadeCount);
+		}
+	}
+
+	setInitialCamDists() {
+		const height: number = nodes[this.targetNode].height;
+
+		if (debugging.firstPersonMode) {
+			this.distAboveModel = height * 0.9;
+			this.distFromModel = height * -0.1;
+			this.distFromModelMin = this.distFromModel;
+			this.distFromModelMax = this.distFromModel;
+		} else {
+			this.distAboveModel = height * 0.9;
+			this.distFromModel = height * 2;
+			this.distFromModelMin = height * 0.25;
+			this.distFromModelMax = height * 400;
 		}
 	}
 
@@ -78,8 +80,13 @@ export class Camera {
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 
 		// Move camera back out along forward vector
-		// this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
-		this.position = vec3.addScaled(this.position, this.forwardMove, -this.distFromModel);
+
+		if (debugging.firstPersonMode) {
+			this.position = vec3.addScaled(this.position, this.forwardMove, -this.distFromModel);
+		} else {
+			this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
+		}
+
 		// Don't let camera clip through terrain
 		if (terrainHeightMap) this.limit_height_to_terrain(terrainNodeIndex);
 
@@ -107,9 +114,6 @@ export class Camera {
 		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
 
 		if (this.position[1] < terrainHeight + 0.2) this.position[1] = terrainHeight + 0.2;
-		// if (this.position[1] < terrainHeight + 0.2) {
-		// 	this.distFromModelTemp = this.clamp_dist_from_model(this.distFromModelTemp - 0.3);
-		// }
 	}
 
 	move_FB(sign: number, amt: number) {
@@ -122,17 +126,5 @@ export class Camera {
 		const moveAmt: number = sign * amt * window.myLib.deltaTime;
 
 		this.position = vec3.addScaled(this.position, this.rightMove, moveAmt);
-	}
-
-	get_view(): Mat4 {
-		return this.view;
-	}
-
-	get_position(): Vec3 {
-		return this.position;
-	}
-
-	get_forward(): Vec3 {
-		return vec3.mulScalar(this.forward, -1);
 	}
 }

@@ -1225,7 +1225,7 @@ export default class Renderer {
 
 		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
-		this.device.queue.writeBuffer(this.projectionViewBuffer, 0, renderables.camera.get_view());
+		this.device.queue.writeBuffer(this.projectionViewBuffer, 0, renderables.camera.view);
 		this.device.queue.writeBuffer(this.projectionViewBuffer, 64, renderables.camera.projection);
 
 		this.device.queue.writeBuffer(this.lightTypeBuffer, 0, renderables.lightTypes);
