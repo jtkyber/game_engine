@@ -3,6 +3,8 @@ import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
+import BindGroupLayouts from '../view/bindGroupLayouts';
+import GLTFImage from '../view/gltf/image';
 import GTLFLoader, { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
@@ -15,6 +17,7 @@ export const debugging: IDebug = {
 	visualizeLightFrustums: false,
 	lockDirectionalFrustums: false,
 	firstPersonMode: false,
+	flashlightOn: false,
 };
 
 export let aspect: number = 0;
@@ -32,7 +35,7 @@ export default class App {
 	scene: Scene;
 	controller: Controller;
 	firstFrameCompleted: boolean = false;
-	terrainNodeIndex: number = null;
+	bindGroupLayouts: BindGroupLayouts;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
@@ -45,23 +48,29 @@ export default class App {
 
 		this.renderer = new Renderer(this.canvas);
 		await this.renderer.setupDevice();
+		this.bindGroupLayouts = new BindGroupLayouts(this.renderer.device);
+		this.bindGroupLayouts.createBindGroupLayouts();
 
 		const skybox = new Skybox();
-		await skybox.initialize(this.renderer.device, 'dist/skybox_night.png');
+		await skybox.initialize(this.renderer.device, 'dist/skybox_day.png');
 		this.renderer.skybox = skybox;
 
-		const gltfLoader = new GTLFLoader(this.renderer.device);
+		const gltfLoader = new GTLFLoader(this.renderer.device, this.bindGroupLayouts);
 		await gltfLoader.parse_gltf('dist/scene');
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 
-		// await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
-		this.terrainNodeIndex = gltfLoader.terrainNodeIndex;
+		const splatMap: GLTFImage = await gltfLoader.get_splat_map('../../dist/SplatMap.png');
+		// console.log(splatMap);
 
-		console.log(gltfLoader.jsonChunk);
+		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
+		const terrainNodeIndex: number = gltfLoader.terrainNodeIndex;
+		const terrainMaterialIndex: number = gltfLoader.terrainMaterialIndex;
+
+		// console.log(gltfLoader.jsonChunk);
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
-		// console.log(nodes.filter((n, i) => models.includes(i)));
+		console.log(nodes.filter((n, i) => models.includes(i)));
 		// console.log(gltfLoader.lights);
 		// console.log(animations);
 
@@ -70,13 +79,20 @@ export default class App {
 			this.renderer.device,
 			gltfLoader.allJoints,
 			gltfLoader.lights,
-			this.terrainNodeIndex
+			terrainNodeIndex
 		);
 		this.scene.set_models(gltfScene.player);
 
 		// new WebGPURecorder();
 
-		this.renderer.init(gltfLoader.lights.length);
+		this.renderer.init(
+			gltfLoader.lights.length,
+			splatMap,
+			terrainMaterialIndex,
+			terrainNodeIndex,
+			this.bindGroupLayouts,
+			gltfLoader.terrainMaterial
+		);
 
 		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
 	}
@@ -123,8 +139,10 @@ export default class App {
 
 		this.now = performance.now();
 		window.myLib.deltaTime = this.now - this.then;
+
 		if (window.myLib.deltaTime > this.frameCap) {
 			this.then = performance.now();
+			// this.then = this.now - (window.myLib.deltaTime % this.frameCap);
 
 			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
 				this.controller.update();

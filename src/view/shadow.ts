@@ -81,7 +81,7 @@ export class Shadow {
 			});
 		}
 
-		this.fill_depth_textures();
+		// this.fill_depth_textures();
 	}
 
 	fill_depth_textures() {

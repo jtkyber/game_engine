@@ -1,7 +1,10 @@
 import { Vec3, Vec4 } from 'wgpu-matrix';
 import { ImageUsage } from '../../types/enums';
+import BindGroupLayouts from '../bindGroupLayouts';
 
 export default class GLTFMaterial {
+	name: string;
+
 	baseColorTextureView: any = null; // Make texture, sampler and image classes
 	baseColorFactor: Vec4 = new Float32Array([1, 1, 1, 1]);
 
@@ -9,16 +12,14 @@ export default class GLTFMaterial {
 	metallicFactor: number = 1;
 	roughnessFactor: number = 1;
 
-	emissiveFactor: Vec3;
+	emissiveFactor: Vec3 = new Float32Array([0, 0, 0]);
 
 	isTransparent: boolean = false;
 
-	paramBuffer: GPUBuffer = null;
-
-	bindGroupLayout: GPUBindGroupLayout = null;
 	bindGroup: GPUBindGroup = null;
 
 	constructor(
+		name: string,
 		baseColorFactor: Vec4,
 		baseColorTextureView: any,
 		metallicFactor: number,
@@ -27,6 +28,7 @@ export default class GLTFMaterial {
 		emissiveFactor: Vec3,
 		isTransparent: boolean
 	) {
+		this.name = name;
 		this.baseColorFactor = baseColorFactor;
 		this.baseColorTextureView = baseColorTextureView;
 		if (this.baseColorTextureView) {
@@ -45,8 +47,8 @@ export default class GLTFMaterial {
 		if (isTransparent) this.isTransparent = isTransparent;
 	}
 
-	upload(device: GPUDevice) {
-		this.paramBuffer = device.createBuffer({
+	upload(device: GPUDevice, bindGroupLayouts: BindGroupLayouts) {
+		const paramBuffer = device.createBuffer({
 			label: 'Material Params Buffer',
 			// We'll be passing 6 floats, which round up to 8 in UBO alignment
 			size: 12 * 4,
@@ -56,50 +58,12 @@ export default class GLTFMaterial {
 
 		// Upload the factor params
 		{
-			const params = new Float32Array(this.paramBuffer.getMappedRange());
+			const params = new Float32Array(paramBuffer.getMappedRange());
 			params.set(this.baseColorFactor, 0);
 			params.set([this.metallicFactor, this.roughnessFactor], 4);
 			params.set(this.emissiveFactor, 8);
 		}
-		this.paramBuffer.unmap();
-
-		this.bindGroupLayout = device.createBindGroupLayout({
-			label: 'Material Bind Group Layout',
-			entries: [
-				{
-					// Material Params
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'uniform',
-					},
-				},
-				{
-					// Base Color Sampler
-					binding: 1,
-					visibility: GPUShaderStage.FRAGMENT,
-					sampler: {},
-				},
-				{
-					// Base Color Texture
-					binding: 2,
-					visibility: GPUShaderStage.FRAGMENT,
-					texture: {},
-				},
-				{
-					// Metallic Roughness Sampler
-					binding: 3,
-					visibility: GPUShaderStage.FRAGMENT,
-					sampler: {},
-				},
-				{
-					// Metallic Roughness Texture
-					binding: 4,
-					visibility: GPUShaderStage.FRAGMENT,
-					texture: {},
-				},
-			],
-		});
+		paramBuffer.unmap();
 
 		const defaultSampler: GPUSampler = device.createSampler({
 			label: 'Default Sampler',
@@ -110,8 +74,6 @@ export default class GLTFMaterial {
 			// mipmapFilter: 'nearest',
 		});
 
-		let defaultTextureView: GPUTextureView;
-
 		const texture = device.createTexture({
 			label: 'Default Texture',
 			size: { width: 1, height: 1 },
@@ -119,7 +81,7 @@ export default class GLTFMaterial {
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
-		defaultTextureView = texture.createView({
+		const defaultTextureView: GPUTextureView = texture.createView({
 			format: 'rgba8unorm-srgb',
 			dimension: '2d',
 			aspect: 'all',
@@ -143,12 +105,12 @@ export default class GLTFMaterial {
 
 		this.bindGroup = device.createBindGroup({
 			label: 'Material Bind Group',
-			layout: this.bindGroupLayout,
+			layout: bindGroupLayouts.materialBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
 					resource: {
-						buffer: this.paramBuffer,
+						buffer: paramBuffer,
 						size: 12 * 4,
 					},
 				},

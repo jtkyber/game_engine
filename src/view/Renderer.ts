@@ -1,14 +1,17 @@
-import { Mat4, mat4, vec3, Vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, mat4, Vec3, vec4 } from 'wgpu-matrix';
 import { aspect, debugging } from '../control/app';
 import { LightType } from '../types/enums';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
+import BindGroupLayouts from './bindGroupLayouts';
+import GLTFImage from './gltf/image';
 import { models, nodes } from './gltf/loader';
 import GLTFNode from './gltf/node';
 import GLTFPrimitive from './gltf/primitive';
+import GLTFTerrainMaterial from './gltf/splat_materials';
 import { LightFrustums } from './light_frustums';
 import aabbShader from './shaders/aabb_shader.wgsl';
-import colorFragShader from './shaders/color_frag.wgsl';
+import { colorFragShader } from './shaders/color_frag';
 import colorVertShader from './shaders/color_vert.wgsl';
 import colorVertShaderSkinned from './shaders/color_vert_skinned.wgsl';
 import cullingShader from './shaders/compute/culling.wgsl';
@@ -34,6 +37,11 @@ export default class Renderer {
 
 	lightFrustums: LightFrustums;
 
+	splatMap: GLTFImage;
+	terrainMaterialIndex: number;
+	terrainNodeIndex: number;
+	terrainMaterial: GLTFTerrainMaterial;
+
 	// Device
 	adapter: GPUAdapter;
 	device: GPUDevice;
@@ -42,7 +50,7 @@ export default class Renderer {
 	// Shader Modules
 	colorVertShaderModule: GPUShaderModule;
 	colorVertShaderModuleSkinned: GPUShaderModule;
-	colorFragShaderModule: GPUShaderModule;
+	// colorFragShaderModule: GPUShaderModule;
 	obbShaderModule: GPUShaderModule;
 	aabbShaderModule: GPUShaderModule;
 	terrainShaderModule: GPUShaderModule;
@@ -57,19 +65,12 @@ export default class Renderer {
 	pipelineTransparent: GPURenderPipeline;
 	pipelineOpaqueSkinned: GPURenderPipeline;
 	pipelineTransparentSkinned: GPURenderPipeline;
+	pipelineTerrainBlend: GPURenderPipeline;
 	OBBPipeline: GPURenderPipeline;
 	AABBPipeline: GPURenderPipeline;
 	terrainPipeline: GPURenderPipeline;
 	skyboxPipeline: GPURenderPipeline;
 	cullingPipeline: GPUComputePipeline;
-
-	frameBindGroupLayout: GPUBindGroupLayout;
-	materialBindGroupLayout: GPUBindGroupLayout;
-	jointBindGroupLayout: GPUBindGroupLayout;
-	boundingBoxBindGroupLayout: GPUBindGroupLayout;
-	lightingBindGroupLayout: GPUBindGroupLayout;
-	terrainBindGroupLayout: GPUBindGroupLayout;
-	cullingBindGroupLayout: GPUBindGroupLayout;
 
 	frameBindGroup: GPUBindGroup;
 	materialBindGroup: GPUBindGroup;
@@ -104,6 +105,7 @@ export default class Renderer {
 	lightCascadeSplitsBuffer: GPUBuffer;
 	cameraPositionBuffer: GPUBuffer;
 	inverseLightViewProjBuffer: GPUBuffer;
+	terrainMinMaxBuffer: GPUBuffer;
 
 	boundingBoxBuffer: GPUBuffer;
 	cullResultBuffer: GPUBuffer;
@@ -128,9 +130,9 @@ export default class Renderer {
 		this.colorVertShaderModuleSkinned = <GPUShaderModule>(
 			this.device.createShaderModule({ label: 'colorVertShaderModuleSkinned', code: colorVertShaderSkinned })
 		);
-		this.colorFragShaderModule = <GPUShaderModule>(
-			this.device.createShaderModule({ label: 'colorFragShaderModule', code: colorFragShader })
-		);
+		// this.colorFragShaderModule = <GPUShaderModule>(
+		// 	this.device.createShaderModule({ label: 'colorFragShaderModule', code: colorFragShader })
+		// );
 		this.obbShaderModule = <GPUShaderModule>(
 			this.device.createShaderModule({ label: 'obbShaderModule', code: obbShader })
 		);
@@ -148,10 +150,21 @@ export default class Renderer {
 		});
 	}
 
-	async init(lightNum: number) {
+	async init(
+		lightNum: number,
+		splatMap: GLTFImage,
+		terrainMaterialIndex: number,
+		terrainNodeIndex: number,
+		bindGroupLayouts: BindGroupLayouts,
+		terrainMaterial: GLTFTerrainMaterial
+	) {
+		this.splatMap = splatMap;
+		this.terrainMaterialIndex = terrainMaterialIndex;
+		this.terrainNodeIndex = terrainNodeIndex;
+		this.terrainMaterial = terrainMaterial;
+
 		this.createBuffers(lightNum);
 		this.createDepthTexture();
-		this.createBindGroupLayouts();
 
 		this.shadow = new Shadow(this.device, this.modelTransformsBuffer, this.lightViewProjBuffer, lightNum);
 		await this.shadow.init();
@@ -165,8 +178,8 @@ export default class Renderer {
 		);
 		this.lightFrustums.init();
 
-		this.createBindGroups();
-		this.createPipeline();
+		this.createBindGroups(bindGroupLayouts);
+		this.createPipeline(bindGroupLayouts);
 	}
 
 	createBuffers(lightNum: number) {
@@ -245,6 +258,22 @@ export default class Renderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
+		this.terrainMinMaxBuffer = this.device.createBuffer({
+			label: 'terrainMinMaxBuffer',
+			size: 4 * 4 * 2,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+		this.device.queue.writeBuffer(
+			this.terrainMinMaxBuffer,
+			0,
+			nodes?.[this.terrainNodeIndex]?.min ?? vec4.create(0, 0, 0, 0)
+		);
+		this.device.queue.writeBuffer(
+			this.terrainMinMaxBuffer,
+			16,
+			nodes?.[this.terrainNodeIndex]?.max ?? vec4.create(0, 0, 0, 0)
+		);
+
 		this.boundingBoxBuffer = this.device.createBuffer({
 			label: 'boundingBoxBuffer',
 			size: 4 * 4 * 2 * models.length,
@@ -309,244 +338,10 @@ export default class Renderer {
 		};
 	}
 
-	createBindGroupLayouts() {
-		this.frameBindGroupLayout = this.device.createBindGroupLayout({
-			label: 'frameBindGroupLayout',
-			entries: [
-				{
-					// Model matrices
-					binding: 0,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					// Normal matrices
-					binding: 1,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					// Proj-View matrix
-					binding: 2,
-					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'uniform',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					// shadow depth texture
-					binding: 3,
-					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-					texture: {
-						sampleType: 'depth',
-						viewDimension: '2d-array',
-						multisampled: false,
-					},
-				},
-				{
-					// shadow depth sampler
-					binding: 4,
-					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-					sampler: {
-						type: 'comparison',
-					},
-				},
-				{
-					// light-view-proj matrix
-					binding: 5,
-					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					// light-view matrix
-					binding: 6,
-					visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-			],
-		});
-
-		this.materialBindGroupLayout = this.device.createBindGroupLayout({
-			label: 'materialBindGroupLayout',
-			entries: [
-				{
-					// Material Params
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'uniform',
-					},
-				},
-				{
-					// Base Color Sampler
-					binding: 1,
-					visibility: GPUShaderStage.FRAGMENT,
-					sampler: {},
-				},
-				{
-					// Base Color Texture
-					binding: 2,
-					visibility: GPUShaderStage.FRAGMENT,
-					texture: {},
-				},
-				{
-					// Metallic Roughness Sampler
-					binding: 3,
-					visibility: GPUShaderStage.FRAGMENT,
-					sampler: {},
-				},
-				{
-					// Metallic Roughness Texture
-					binding: 4,
-					visibility: GPUShaderStage.FRAGMENT,
-					texture: {},
-				},
-			],
-		});
-
-		this.jointBindGroupLayout = this.device.createBindGroupLayout({
-			label: 'jointBindGroupLayout',
-			entries: [
-				{
-					// Joint matrices
-					binding: 0,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'read-only-storage',
-					},
-				},
-			],
-		});
-
-		this.boundingBoxBindGroupLayout = this.device.createBindGroupLayout({
-			label: 'boundingBoxBindGroupLayout',
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.VERTEX,
-					buffer: {
-						type: 'uniform',
-						hasDynamicOffset: false,
-					},
-				},
-			],
-		});
-
-		this.lightingBindGroupLayout = this.device.createBindGroupLayout({
-			label: 'lightingBindGroupLayout',
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 1,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 2,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 3,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 4,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 5,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'read-only-storage',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 6,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'uniform',
-						hasDynamicOffset: false,
-					},
-				},
-				{
-					binding: 7,
-					visibility: GPUShaderStage.FRAGMENT,
-					buffer: {
-						type: 'uniform',
-						hasDynamicOffset: false,
-					},
-				},
-			],
-		});
-
-		this.cullingBindGroupLayout = this.device.createBindGroupLayout({
-			label: 'cullingBindGroupLayout',
-			entries: [
-				{
-					binding: 0,
-					visibility: GPUShaderStage.COMPUTE,
-					buffer: {
-						type: 'uniform',
-					},
-				},
-				{
-					binding: 1,
-					visibility: GPUShaderStage.COMPUTE,
-					buffer: {
-						type: 'read-only-storage',
-					},
-				},
-				{
-					binding: 2,
-					visibility: GPUShaderStage.COMPUTE,
-					buffer: {
-						type: 'storage',
-					},
-				},
-			],
-		});
-	}
-
-	createBindGroups() {
+	createBindGroups(bindGroupLayouts: BindGroupLayouts) {
 		this.frameBindGroup = this.device.createBindGroup({
 			label: 'frameBindGroup',
-			layout: this.frameBindGroupLayout,
+			layout: bindGroupLayouts.frameBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -582,8 +377,12 @@ export default class Renderer {
 				},
 				{
 					binding: 6,
+					resource: this.splatMap.view,
+				},
+				{
+					binding: 7,
 					resource: {
-						buffer: this.lightViewBuffer,
+						buffer: this.terrainMinMaxBuffer,
 					},
 				},
 			],
@@ -591,7 +390,7 @@ export default class Renderer {
 
 		this.boundingBoxBindGroup = this.device.createBindGroup({
 			label: 'boundingBoxBindGroup',
-			layout: this.boundingBoxBindGroupLayout,
+			layout: bindGroupLayouts.boundingBoxBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -604,7 +403,7 @@ export default class Renderer {
 
 		this.lightingBindGroup = this.device.createBindGroup({
 			label: 'lightingBindGroup',
-			layout: this.lightingBindGroupLayout,
+			layout: bindGroupLayouts.lightingBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -659,7 +458,7 @@ export default class Renderer {
 
 		this.cullingBindGroup = this.device.createBindGroup({
 			label: 'cullingBindGroup',
-			layout: this.cullingBindGroupLayout,
+			layout: bindGroupLayouts.cullingBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -683,14 +482,22 @@ export default class Renderer {
 		});
 	}
 
-	createPipeline() {
-		const bindGroupLayouts: GPUBindGroupLayout[] = [
-			this.frameBindGroupLayout,
-			this.materialBindGroupLayout,
-			this.lightingBindGroupLayout,
+	createPipeline(bindGroupLayouts: BindGroupLayouts) {
+		const bindGroupLayoutArray: GPUBindGroupLayout[] = [
+			bindGroupLayouts.frameBindGroupLayout,
+			bindGroupLayouts.materialBindGroupLayout,
+			bindGroupLayouts.lightingBindGroupLayout,
 		];
 
-		const bindGroupLayoutsSkinned: GPUBindGroupLayout[] = bindGroupLayouts.concat(this.jointBindGroupLayout);
+		const bindGroupLayoutArraySplat: GPUBindGroupLayout[] = [
+			bindGroupLayouts.frameBindGroupLayout,
+			bindGroupLayouts.splatMaterialBindGroupLayout,
+			bindGroupLayouts.lightingBindGroupLayout,
+		];
+
+		const bindGroupLayoutsSkinned: GPUBindGroupLayout[] = bindGroupLayoutArray.concat(
+			bindGroupLayouts.jointBindGroupLayout
+		);
 
 		const vertexBuffers: GPUVertexBufferLayout[] = [
 			{
@@ -772,7 +579,7 @@ export default class Renderer {
 		this.pipelineOpaque = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineOpaque',
-				bindGroupLayouts: bindGroupLayouts,
+				bindGroupLayouts: bindGroupLayoutArray,
 			}),
 			vertex: {
 				module: this.colorVertShaderModule,
@@ -780,7 +587,10 @@ export default class Renderer {
 				buffers: vertexBuffers,
 			},
 			fragment: {
-				module: this.colorFragShaderModule,
+				module: this.device.createShaderModule({
+					label: 'colorFragShaderModule',
+					code: colorFragShader(false),
+				}),
 				entryPoint: 'f_main',
 				targets: targets,
 			},
@@ -801,7 +611,10 @@ export default class Renderer {
 				buffers: vertexBuffersSkinned,
 			},
 			fragment: {
-				module: this.colorFragShaderModule,
+				module: this.device.createShaderModule({
+					label: 'colorFragShaderModule',
+					code: colorFragShader(false),
+				}),
 				entryPoint: 'f_main',
 				targets: targets,
 			},
@@ -814,7 +627,7 @@ export default class Renderer {
 		this.pipelineTransparent = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineTransparent',
-				bindGroupLayouts: bindGroupLayouts,
+				bindGroupLayouts: bindGroupLayoutArray,
 			}),
 			vertex: {
 				module: this.colorVertShaderModule,
@@ -822,7 +635,10 @@ export default class Renderer {
 				buffers: vertexBuffers,
 			},
 			fragment: {
-				module: this.colorFragShaderModule,
+				module: this.device.createShaderModule({
+					label: 'colorFragShaderModule',
+					code: colorFragShader(false),
+				}),
 				entryPoint: 'f_main',
 				targets: targets,
 			},
@@ -847,7 +663,10 @@ export default class Renderer {
 				buffers: vertexBuffersSkinned,
 			},
 			fragment: {
-				module: this.colorFragShaderModule,
+				module: this.device.createShaderModule({
+					label: 'colorFragShaderModule',
+					code: colorFragShader(false),
+				}),
 				entryPoint: 'f_main',
 				targets: targets,
 			},
@@ -861,10 +680,38 @@ export default class Renderer {
 			},
 		});
 
+		this.pipelineTerrainBlend = this.device.createRenderPipeline({
+			layout: this.device.createPipelineLayout({
+				label: 'pipelineTerrainBlend',
+				bindGroupLayouts: bindGroupLayoutArraySplat,
+			}),
+			vertex: {
+				module: this.colorVertShaderModule,
+				entryPoint: 'v_main',
+				buffers: vertexBuffers,
+			},
+			fragment: {
+				module: this.device.createShaderModule({
+					label: 'splatColorFragShaderModule',
+					code: colorFragShader(true),
+				}),
+				entryPoint: 'f_main',
+				targets: targets,
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			depthStencil: {
+				format: this.depthFormat,
+				depthWriteEnabled: true,
+				depthCompare: 'greater-equal',
+			},
+		});
+
 		this.OBBPipeline = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
 				label: 'OBBPipeline',
-				bindGroupLayouts: [this.boundingBoxBindGroupLayout],
+				bindGroupLayouts: [bindGroupLayouts.boundingBoxBindGroupLayout],
 			}),
 			vertex: {
 				module: this.obbShaderModule,
@@ -900,7 +747,7 @@ export default class Renderer {
 		this.AABBPipeline = this.device.createRenderPipeline({
 			layout: this.device.createPipelineLayout({
 				label: 'AABBPipeline',
-				bindGroupLayouts: [this.boundingBoxBindGroupLayout],
+				bindGroupLayouts: [bindGroupLayouts.boundingBoxBindGroupLayout],
 			}),
 			vertex: {
 				module: this.aabbShaderModule,
@@ -936,7 +783,7 @@ export default class Renderer {
 		this.cullingPipeline = this.device.createComputePipeline({
 			layout: this.device.createPipelineLayout({
 				label: 'cullingPipeline',
-				bindGroupLayouts: [this.cullingBindGroupLayout],
+				bindGroupLayouts: [bindGroupLayouts.cullingBindGroupLayout],
 			}),
 			compute: {
 				module: this.cullingShaderModule,
@@ -962,14 +809,71 @@ export default class Renderer {
 		}
 	}
 
+	renderTerrain(p: GLTFPrimitive, nodeIndex: number) {
+		// const terrainMaterialMesh: GLTFMesh = nodes?.[this.terrainMaterialIndex]?.mesh;
+		// const count: number = terrainMaterialMesh ? terrainMaterialMesh.primitives.length : 1;
+
+		if (this.terrainNodeIndex >= 0 && this.terrainMaterialIndex >= 0) {
+			this.renderPass.setPipeline(this.pipelineTerrainBlend);
+			this.renderPass.setBindGroup(1, this.terrainMaterial.bindGroup);
+		} else {
+			this.renderPass.setPipeline(this.pipelineOpaque);
+			this.renderPass.setBindGroup(1, p.material.bindGroup);
+		}
+
+		this.renderPass.setBindGroup(0, this.frameBindGroup);
+		this.renderPass.setBindGroup(2, this.lightingBindGroup);
+
+		this.renderPass.setVertexBuffer(
+			0,
+			p.positions.bufferView.gpuBuffer,
+			p.positions.byteOffset,
+			p.positions.byteLength
+		);
+
+		this.renderPass.setVertexBuffer(
+			1,
+			p.normals.bufferView.gpuBuffer,
+			p.normals.byteOffset,
+			p.normals.byteLength
+		);
+
+		this.renderPass.setVertexBuffer(
+			2,
+			p.texCoords.bufferView.gpuBuffer,
+			p.texCoords.byteOffset,
+			p.texCoords.byteLength
+		);
+
+		if (p.indices) {
+			this.renderPass.setIndexBuffer(
+				<GPUBuffer>p.indices.bufferView.gpuBuffer,
+				<GPUIndexFormat>p.indices.elementType,
+				p.indices.byteOffset,
+				p.indices.byteLength
+			);
+
+			this.renderPass.drawIndexed(p.indices.count, 1, 0, 0, nodeIndex);
+		} else {
+			this.renderPass.draw(p.positions.count, 1, 0, nodeIndex);
+		}
+	}
+
 	renderChunk(chunkType: string, chunk: IModelNodeIndices[]) {
 		for (let i = 0; i < chunk.length; i++) {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
 			const node: GLTFNode = nodes[nodeIndex];
-			if (!node.mesh || this.culledModels.includes(node.rootNode ?? nodeIndex)) continue;
+			if (!node.mesh || this.culledModels.includes(node.rootNode ?? nodeIndex) || node.isBB || node.hidden) {
+				continue;
+			}
 
 			const p: GLTFPrimitive = node.mesh.primitives[primIndex];
+
+			if (node.name === 'Terrain') {
+				this.renderTerrain(p, nodeIndex);
+				continue;
+			}
 
 			if (node.skin !== null) {
 				if (chunkType === 'transparent') {
@@ -1058,6 +962,10 @@ export default class Renderer {
 			const lightIndex: number = ~~(i / 6);
 			const layer: number = i % 6;
 
+			if (renderables.lightIntensities[lightIndex] === 0) {
+				continue loop;
+			}
+
 			switch (renderables.lightTypes[lightIndex]) {
 				case LightType.SPOT:
 					if (layer > 0) continue loop;
@@ -1084,7 +992,7 @@ export default class Renderer {
 				const nodeIndex: number = modelIndexChunk.nodeIndex;
 				const primIndex: number = modelIndexChunk.primitiveIndex;
 				const node: GLTFNode = nodes[nodeIndex];
-				if (!node.mesh) continue;
+				if (!node.mesh || node.isBB) continue;
 
 				const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 
@@ -1235,7 +1143,6 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
 		this.device.queue.writeBuffer(this.lightAngleDataBuffer, 0, renderables.lightAngleData);
 		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
-		this.device.queue.writeBuffer(this.lightViewBuffer, 0, renderables.lightViewMatrices);
 		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeSplits);
 		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
 

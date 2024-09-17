@@ -52,6 +52,7 @@ export interface ControlBoard {
 	l: ControlBoardValue;
 	r: ControlBoardValue;
 	space: ControlBoardValue;
+	shift: ControlBoardValue;
 }
 export type ControlBoardValue = 0 | 1;
 
@@ -88,4 +89,5 @@ export interface IDebug {
 	visualizeLightFrustums: boolean;
 	lockDirectionalFrustums: boolean;
 	firstPersonMode: boolean;
+	flashlightOn: boolean;
 }

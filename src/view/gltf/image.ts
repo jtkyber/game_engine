@@ -25,9 +25,11 @@ export default class GLTFImage {
 			case ImageUsage.METALLIC_ROUGHNESS:
 				format = 'rgba8unorm';
 				break;
+			case ImageUsage.EMISSION:
+				format = 'rgba8unorm';
+				break;
 			case ImageUsage.NORMAL:
 			case ImageUsage.OCCLUSION:
-			case ImageUsage.EMISSION:
 				throw new Error('Unhandled image format for now, TODO!');
 		}
 

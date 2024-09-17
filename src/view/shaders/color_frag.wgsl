@@ -10,6 +10,7 @@ struct MaterialParams {
     metallic_factor: f32,
     roughness_factor: f32,
     emissive_factor: vec3f,
+    current_splat_color_component: f32
 };
 
 struct TransformData {
@@ -17,11 +18,18 @@ struct TransformData {
     projection: mat4x4f,
 };
 
+struct TerrainAABB {
+    min: vec3f,
+    max: vec3f,
+};
+
 @group(0) @binding(2) var<uniform> transformUBO: TransformData;
 @group(0) @binding(3) var shadowDepthTexture: texture_depth_2d_array;
 @group(0) @binding(4) var shadowDepthSampler: sampler_comparison;
 @group(0) @binding(5) var<storage, read> lightViewProjMatrix: array<mat4x4f>;
 @group(0) @binding(6) var<storage, read> lightViewMatrix: array<mat4x4f>;
+@group(0) @binding(7) var splatMapTexture: texture_2d<f32>;
+@group(0) @binding(8) var<uniform> terrainAABB: TerrainAABB;
 
 @group(1) @binding(0) var<uniform> material_params: MaterialParams;
 @group(1) @binding(1) var base_color_sampler: sampler;
@@ -64,7 +72,21 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     var metallic = material_params.metallic_factor;
     var roughness = material_params.roughness_factor;
     let emission = material_params.emissive_factor;
-    // Check metallic and roughtness 
+
+    var splat_color: vec4f;
+    var splat_alpha = 1.0; 
+    if (material_params.current_splat_color_component >= 0) {
+        let tLength = terrainAABB.max.x - terrainAABB.min.x;
+        let tWidth = terrainAABB.max.z - terrainAABB.min.z;
+
+        let splatX = (in.world_pos.x - terrainAABB.min.x) / tLength;
+        let splatY = (in.world_pos.z - terrainAABB.min.z) / tWidth;
+
+        splat_color = textureSample(splatMapTexture, base_color_sampler, vec2f(splatX, splatY));
+
+        // if (splat_color[u32(material_params.current_splat_color_component)] == 0) { discard; }
+        splat_alpha = splat_color[u32(material_params.current_splat_color_component)];
+    }
 
     if (hasColorTexture) {
         base_color = material_params.base_color_factor * base_texture_color;
@@ -78,7 +100,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     }
 
     var color = base_color.rgb;
-    let alpha = base_color.a;
+    let alpha = base_color.a * splat_alpha;
 
     let albedo = color;
     let N = normalize(in.normal);
@@ -155,10 +177,11 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
         // let dz_dy = lightSpaceNormal.y / lightSpaceNormal.z;
         // let maxSlope = max(abs(dz_dx), abs(dz_dy));
         // let bias = maxSlope * 0.0008 + 0.0005;
-        let bias = max(0.004 * (1.0 - dot(in.normal, lightDirections[i])), 0.001);
         // var bias = tan(acos(dot(in.normal, lightDirections[i])));
         // bias *= 0.00029;
 
+        // let bias = max(0.004 * (1.0 - dot(in.normal, lightDirections[i])), 0.001);
+        let bias = max(0.0025 * (1.0 - dot(N, lightDirections[i])), 0.001);
 
         let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
         for (var y = -1; y <= 1; y++) {
@@ -179,6 +202,7 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
 
         // --------------------------
 
+
         // Accumulate radiance Lo
         let NdotL = max(dot(N, L), 0.0);
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
@@ -193,8 +217,8 @@ fn f_main(in: VertexOutput) -> @location(0) vec4f {
     color[1] = linear_to_srgb(color[1]);
     color[2] = linear_to_srgb(color[2]);
 
-   
     return vec4f(color, alpha);
+    // return vec4f(splat_color);
 }
 
 fn linear_to_srgb(x: f32) -> f32 {

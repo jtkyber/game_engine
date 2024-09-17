@@ -110,6 +110,11 @@ export default class Scene {
 	set_light_data(i: number) {
 		const light: Light = this.lights[i];
 		const lightNode: GLTFNode = nodes[light.nodeIndex];
+
+		if (lightNode.name === 'Flashlight' && !debugging.flashlightOn) {
+			this.lightIntensities[i] = 0;
+			return;
+		}
 		light.update(this.camera.forward);
 
 		this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);

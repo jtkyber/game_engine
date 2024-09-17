@@ -9,6 +9,7 @@ import {
 	GLTFRenderMode,
 	GLTFTextureFilter,
 	GLTFTextureWrap,
+	ImageUsage,
 } from '../../types/enums';
 import {
 	get8byteMultipleFromComponentType,
@@ -26,6 +27,7 @@ import {
 import { getFlagType, TypedArray } from '../../types/types';
 import { fromRotationTranslationScale } from '../../utils/matrix';
 import { getPixel } from '../../utils/misc';
+import BindGroupLayouts from '../bindGroupLayouts';
 import GLTFAccessor from './accessor';
 import GLTFAnimation from './animation';
 import GLTFAnimationChannel from './animationChannel';
@@ -39,6 +41,7 @@ import GLTFNode from './node';
 import GLTFPrimitive from './primitive';
 import { GLTFSampler } from './sampler';
 import GLTFSkin from './skin';
+import GLTFTerrainMaterial from './splat_materials';
 import { GLTFTexture } from './texture';
 
 export const nodes: GLTFNode[] = [];
@@ -46,9 +49,11 @@ export let models: number[] = [];
 export const animations: { [key: string]: GLTFAnimation } = {};
 export let terrainHeightMap: Float32Array = null;
 export let terrainHeightMapSize: number;
+export let materialNodeIndex: number = -1;
 
 export default class GTLFLoader {
 	device: GPUDevice;
+	bindGroupLayouts: BindGroupLayouts;
 	jsonChunk: any;
 	binaryChunk: GLTFBuffer;
 	bufferViews: GLTFBufferView[];
@@ -57,6 +62,7 @@ export default class GTLFLoader {
 	samplers: GLTFSampler[];
 	textures: GLTFTexture[];
 	materials: GLTFMaterial[];
+	terrainMaterial: GLTFTerrainMaterial;
 	primitives: GLTFPrimitive[];
 	skins: GLTFSkin[];
 	meshes: GLTFMesh[];
@@ -68,10 +74,12 @@ export default class GTLFLoader {
 		[key: number]: number;
 	};
 	allJoints: Set<number>;
-	terrainNodeIndex: number;
+	terrainNodeIndex: number = null;
+	terrainMaterialIndex: number;
 
-	constructor(device: GPUDevice) {
+	constructor(device: GPUDevice, bindGroupLayouts: BindGroupLayouts) {
 		this.device = device;
+		this.bindGroupLayouts = bindGroupLayouts;
 		this.bufferViews = [];
 		this.accessors = [];
 		this.images = [];
@@ -90,6 +98,18 @@ export default class GTLFLoader {
 		this.allJoints = new Set();
 	}
 
+	async get_splat_map(url: string) {
+		const res = await fetch(url);
+		const blob: Blob = await res.blob();
+		const bitmap = await createImageBitmap(blob);
+
+		const image = new GLTFImage('SplatMap', bitmap);
+		image.setUsage(ImageUsage.BASE_COLOR);
+		image.upload(this.device);
+
+		return image;
+	}
+
 	async get_terrain_height_map(url: string) {
 		const img = await ImageJS.load(url);
 		if (img.width !== img.height) {
@@ -99,7 +119,7 @@ export default class GTLFLoader {
 		const imgChannels = img.channels;
 		const maxValue = img.bitDepth === 8 ? 255 : 65535;
 
-		const tHeightMax: number = 46;
+		const tHeightMax: number = 48;
 
 		terrainHeightMap = new Float32Array(img.data.length / imgChannels);
 		terrainHeightMapSize = img.width;
@@ -116,7 +136,7 @@ export default class GTLFLoader {
 	async load_terrain() {
 		const node: GLTFNode = nodes[this.terrainNodeIndex];
 
-		for (let i = 0; i < node.mesh.primitives.length; i++) {
+		for (let i = 0; i < node?.mesh.primitives.length; i++) {
 			const meshBufferView: GLTFBufferView = node.mesh.primitives[i].positions.bufferView;
 			const componentType: GLTFComponentType = node.mesh.primitives[i].normals.componentType;
 			const mesh: TypedArray = new (typedArrayFromComponentType(componentType))(
@@ -266,7 +286,7 @@ export default class GTLFLoader {
 			s.create(this.device);
 		});
 		this.materials.forEach((mat: GLTFMaterial) => {
-			mat.upload(this.device);
+			mat.upload(this.device, this.bindGroupLayouts);
 		});
 		this.skins.forEach((skin: GLTFSkin) => {
 			skin.upload(this.device);
@@ -301,16 +321,6 @@ export default class GTLFLoader {
 			const bv: GLTFBufferView = this.bufferViews[img['bufferView']];
 			const blob = new Blob([bv.view], { type: img['mimeType'] });
 			const bitmap = await createImageBitmap(blob);
-
-			// const cvs = new OffscreenCanvas(bitmap.width, bitmap.height);
-			// const ctx = cvs.getContext('2d');
-			// ctx.drawImage(bitmap, 0, 0);
-			// const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-			// const alphas = [];
-			// for (let i = 3; i < data.data.length; i += 4) {
-			// 	if (data.data[i] !== 255) alphas.push(data.data[i]);
-			// }
-			// console.log(alphas);
 
 			this.images.push(new GLTFImage(img['name'], bitmap));
 		}
@@ -389,8 +399,11 @@ export default class GTLFLoader {
 				metallicRoughnessTexture = this.textures[pbrMR['metallicRoughnessTexture']['index']];
 			}
 
+			const name: string = m['name'];
+
 			this.materials.push(
 				new GLTFMaterial(
+					name,
 					baseColorFactor,
 					baseColorTexture,
 					metallicFactor,
@@ -630,21 +643,21 @@ export default class GTLFLoader {
 			}
 
 			// Adjust player bb widths
-			if (models[i] === this.player) {
-				const xLen: number = max[0] - min[0];
-				const zLen: number = max[2] - min[2];
-				if (xLen > zLen) {
-					const ratio: number = zLen / xLen;
-					const lenToCut: number = xLen * ratio;
-					min[0] += lenToCut / 2;
-					max[0] -= lenToCut / 2;
-				} else {
-					const ratio: number = xLen / zLen;
-					const lenToCut: number = zLen * ratio;
-					min[0] += lenToCut / 2;
-					max[0] -= lenToCut / 2;
-				}
-			}
+			// if (models[i] === this.player) {
+			// 	const xLen: number = max[0] - min[0];
+			// 	const zLen: number = max[2] - min[2];
+			// 	if (xLen > zLen) {
+			// 		const ratio: number = zLen / xLen;
+			// 		const lenToCut: number = xLen * ratio;
+			// 		min[0] += lenToCut / 2;
+			// 		max[0] -= lenToCut / 2;
+			// 	} else {
+			// 		const ratio: number = xLen / zLen;
+			// 		const lenToCut: number = zLen * ratio;
+			// 		min[0] += lenToCut / 2;
+			// 		max[0] -= lenToCut / 2;
+			// 	}
+			// }
 
 			model.min = min;
 			model.max = max;
@@ -670,6 +683,7 @@ export default class GTLFLoader {
 		}
 
 		this.terrainNodeIndex = this.indexSwapBoard[this.terrainNodeIndex];
+		this.terrainMaterialIndex = this.indexSwapBoard[this.terrainMaterialIndex];
 	}
 
 	load_nodes(
@@ -693,8 +707,30 @@ export default class GTLFLoader {
 		const maxValues: Vec3[] = mesh?.primitives.map(p => p.positions.max) ?? null;
 		const mass: number = node?.extras?.mass ?? null;
 		const speed: number = node?.extras?.speed ?? 0;
-		const hasBoundingBox: boolean = node?.extras?.hasBoundingBox ?? true;
+		let hasBoundingBox: boolean = node?.extras?.hasBoundingBox ?? true;
+		const isBB: boolean = node?.extras?.isBB ?? false;
 		const hasPhysics: boolean = node?.extras?.hasPhysics ?? false;
+		const hidden: boolean = node?.extras?.hidden ?? false;
+
+		if (name === 'Terrain' || hidden) hasBoundingBox = false;
+
+		if (name === 'Terrain_Materials') {
+			const splatMaterials: GLTFMaterial[] = [];
+			for (let i = 0; i < mesh.primitives.length; i++) {
+				const p: GLTFPrimitive = mesh.primitives[i];
+				if (
+					p.material.name === 'Red' ||
+					p.material.name === 'Green' ||
+					p.material.name === 'Blue' ||
+					p.material.name === 'Alpha'
+				) {
+					splatMaterials.push(p.material);
+				}
+			}
+
+			this.terrainMaterial = new GLTFTerrainMaterial(splatMaterials);
+			this.terrainMaterial.setMaterials(this.device, this.bindGroupLayouts);
+		}
 
 		nodes.push(
 			new GLTFNode(
@@ -715,12 +751,15 @@ export default class GTLFLoader {
 				mass,
 				speed,
 				hasBoundingBox,
-				hasPhysics
+				isBB,
+				hasPhysics,
+				hidden
 			)
 		);
 		const lastNodeIndex: number = nodes.length - 1;
 
 		if (name === 'Terrain') this.terrainNodeIndex = lastNodeIndex;
+		else if (name === 'Terrain_Materials') this.terrainMaterialIndex = lastNodeIndex;
 
 		this.indexSwapBoard[n] = lastNodeIndex;
 

@@ -22,7 +22,7 @@ export class Camera {
 	targetNode: number;
 	pitch: number = 0;
 	yaw: number = utils.degToRad(180);
-	fov = utils.degToRad(45);
+	fov = utils.degToRad(60);
 	near: number = 0.01;
 	far: number = 1000;
 	shadowNear: number = 3;
@@ -47,7 +47,7 @@ export class Camera {
 
 		if (debugging.firstPersonMode) {
 			this.distAboveModel = height * 0.9;
-			this.distFromModel = height * -0.1;
+			this.distFromModel = height * -0.5;
 			this.distFromModelMin = this.distFromModel;
 			this.distFromModelMax = this.distFromModel;
 		} else {
@@ -88,7 +88,7 @@ export class Camera {
 		}
 
 		// Don't let camera clip through terrain
-		if (terrainHeightMap) this.limit_height_to_terrain(terrainNodeIndex);
+		if (terrainHeightMap && terrainNodeIndex >= 0) this.limit_height_to_terrain(terrainNodeIndex);
 
 		this.target = vec3.add(this.position, this.forward);
 

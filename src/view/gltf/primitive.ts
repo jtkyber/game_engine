@@ -9,6 +9,7 @@ export default class GLTFPrimitive {
 	normals: GLTFAccessor = null;
 	colors: GLTFAccessor = null;
 	texCoords: GLTFAccessor = null;
+	splatTexCoords: GLTFAccessor = null;
 	joints: GLTFAccessor = null;
 	weights: GLTFAccessor = null;
 	topology: GLTFRenderMode = null;

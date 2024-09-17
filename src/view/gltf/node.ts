@@ -29,7 +29,9 @@ export default class GLTFNode {
 	_mass: number = null;
 	_speed: number = null;
 	hasBoundingBox: boolean = true;
+	isBB: boolean = false;
 	hasPhysics: boolean = false;
+	hidden: boolean = false;
 	_currentSpeed: number = 0;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
 	turnSpeed: number = 0.008;
@@ -74,7 +76,9 @@ export default class GLTFNode {
 		mass: number,
 		speed: number,
 		hasBoundingBox: boolean,
-		hasPhysics: boolean
+		isBB: boolean,
+		hasPhysics: boolean,
+		hidden: boolean
 	) {
 		this.device = device;
 		this.name = name;
@@ -93,7 +97,9 @@ export default class GLTFNode {
 		this._mass = mass;
 		this._speed = speed;
 		this.hasBoundingBox = hasBoundingBox;
+		this.isBB = isBB;
 		this.hasPhysics = hasPhysics;
+		this.hidden = hidden;
 		this.previousPosition = vec3.fromValues(...this.position);
 	}
 
@@ -118,8 +124,8 @@ export default class GLTFNode {
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 	}
 
-	move(dir: Vec3) {
-		const amt = this.speed * window.myLib.deltaTime * 0.01;
+	move(dir: Vec3, mult: number) {
+		const amt = this.speed * window.myLib.deltaTime * 0.01 * mult;
 		this.position = vec3.addScaled(this.position, dir, amt);
 	}
 
@@ -173,7 +179,7 @@ export default class GLTFNode {
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc;
 			this.position[1] -= this.gravitySpeed * window.myLib.deltaTime;
-			if (terrainHeightMap) this.limit_height_to_terrain();
+			if (terrainHeightMap && this.terrainNodeIndex >= 0) this.limit_height_to_terrain();
 			if (this.position[1] < 0) this.position[1] = 0;
 			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
 			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);
@@ -181,7 +187,7 @@ export default class GLTFNode {
 	}
 
 	limit_height_to_terrain(): void {
-		if (this.name === 'Terrain') return;
+		if (this.name === 'Terrain' && !this.hidden) return;
 
 		const mapLength: number = nodes[this.terrainNodeIndex].max[0] - nodes[this.terrainNodeIndex].min[0];
 		const mapWidth: number = nodes[this.terrainNodeIndex].max[2] - nodes[this.terrainNodeIndex].min[2];
