@@ -60,7 +60,7 @@ export default class App {
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 
-		const splatMap: GLTFImage = await gltfLoader.get_splat_map('../../dist/SplatMap.png');
+		const splatMap: GLTFImage = await gltfLoader.get_splat_map('../../dist/splatMap.png');
 		// console.log(splatMap);
 
 		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 40);
