@@ -72,10 +72,10 @@ export default class Controller {
 				nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1), speedMult);
 			}
 
-			// animations['Walk'].play(1.4 * speedMult);
+			animations['Walk'].play(1.4 * speedMult);
 			// animations['Walk_flashlight'].play(1.4);
 		} else {
-			// animations['Idle'].play();
+			animations['Idle'].play();
 		}
 
 		this.scrollAmt = 0;

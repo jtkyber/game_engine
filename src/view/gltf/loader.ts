@@ -1,5 +1,5 @@
 import { Image as ImageJS } from 'image-js';
-import { Mat4, mat4, Quat, Vec3, vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, mat4, Quat, vec2, Vec2, Vec3, vec3, vec4 } from 'wgpu-matrix';
 import Light from '../../model/light';
 import {
 	Flag,
@@ -110,7 +110,7 @@ export default class GTLFLoader {
 		return image;
 	}
 
-	async get_terrain_height_map(url: string) {
+	async get_terrain_height_map(url: string, tHeightMax: number) {
 		const img = await ImageJS.load(url);
 		if (img.width !== img.height) {
 			throw new Error('Height map image must be a square');
@@ -118,8 +118,6 @@ export default class GTLFLoader {
 		const imgData = img.data;
 		const imgChannels = img.channels;
 		const maxValue = img.bitDepth === 8 ? 255 : 65535;
-
-		const tHeightMax: number = 48;
 
 		terrainHeightMap = new Float32Array(img.data.length / imgChannels);
 		terrainHeightMapSize = img.width;
@@ -154,43 +152,80 @@ export default class GTLFLoader {
 
 	async load_terrain_normals(positionMesh: TypedArray, pIndex: number) {
 		const node: GLTFNode = nodes[this.terrainNodeIndex];
+
 		const meshNormalsBufferView: GLTFBufferView = node.mesh.primitives[pIndex].normals.bufferView;
 		const normalComponentType: GLTFComponentType = node.mesh.primitives[pIndex].normals.componentType;
 
+		const meshTangentsBufferView: GLTFBufferView = node.mesh.primitives[pIndex].tangents.bufferView;
+		const tangentComponentType: GLTFComponentType = node.mesh.primitives[pIndex].tangents.componentType;
+
 		const meshIndicesBufferView: GLTFBufferView = node.mesh.primitives[pIndex].indices.bufferView;
 		const indexComponentType: GLTFComponentType = node.mesh.primitives[pIndex].indices.componentType;
+
+		const meshUVBufferView: GLTFBufferView = node.mesh.primitives[pIndex].texCoords.bufferView;
+		const UVComponentType: GLTFComponentType = node.mesh.primitives[pIndex].texCoords.componentType;
 
 		const meshNormals: TypedArray = new (typedArrayFromComponentType(normalComponentType))(
 			meshNormalsBufferView.view.buffer,
 			meshNormalsBufferView.view.byteOffset,
 			meshNormalsBufferView.view.byteLength / get8byteMultipleFromComponentType(normalComponentType)
 		);
+		const meshTangents: TypedArray = new (typedArrayFromComponentType(tangentComponentType))(
+			meshTangentsBufferView.view.buffer,
+			meshTangentsBufferView.view.byteOffset,
+			meshTangentsBufferView.view.byteLength / get8byteMultipleFromComponentType(tangentComponentType)
+		);
 		const meshIndices: TypedArray = new (typedArrayFromComponentType(indexComponentType))(
 			meshIndicesBufferView.view.buffer,
 			meshIndicesBufferView.view.byteOffset,
 			meshIndicesBufferView.view.byteLength / get8byteMultipleFromComponentType(indexComponentType)
 		);
+		const meshUVs: TypedArray = new (typedArrayFromComponentType(UVComponentType))(
+			meshUVBufferView.view.buffer,
+			meshUVBufferView.view.byteOffset,
+			meshUVBufferView.view.byteLength / get8byteMultipleFromComponentType(UVComponentType)
+		);
 
 		for (let i = 0; i < meshNormals.length; i++) meshNormals[i] = 0;
+		for (let i = 0; i < meshTangents.length; i++) meshTangents[i] = 0;
 
 		for (let i = 0; i < meshIndices.length; i += 3) {
 			const i1 = meshIndices[i] * 3;
 			const i2 = meshIndices[i + 1] * 3;
 			const i3 = meshIndices[i + 2] * 3;
 
+			// const i1UV = meshIndices[i] * 2;
+			// const i2UV = meshIndices[i + 1] * 2;
+			// const i3UV = meshIndices[i + 2] * 2;
+
 			const p1: Vec3 = vec3.fromValues(positionMesh[i1], positionMesh[i1 + 1], positionMesh[i1 + 2]);
 			const p2: Vec3 = vec3.fromValues(positionMesh[i2], positionMesh[i2 + 1], positionMesh[i2 + 2]);
 			const p3: Vec3 = vec3.fromValues(positionMesh[i3], positionMesh[i3 + 1], positionMesh[i3 + 2]);
+
+			// const uv1: Vec2 = vec3.fromValues(meshUVs[i1UV], meshUVs[i1UV + 1]);
+			// const uv2: Vec2 = vec3.fromValues(meshUVs[i2UV], meshUVs[i2UV + 1]);
+			// const uv3: Vec2 = vec3.fromValues(meshUVs[i3UV], meshUVs[i3UV + 1]);
+
+			// const deltaUV1: Vec2 = vec2.sub(uv2, uv1);
+			// const deltaUV2: Vec2 = vec2.sub(uv3, uv1);
 
 			const dir1: Vec3 = vec3.sub(p2, p1);
 			const dir2: Vec3 = vec3.sub(p3, p1);
 
 			const n: Vec3 = vec3.normalize(vec3.cross(dir1, dir2));
 
+			// const f = 1 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+
 			for (let j = 0; j < 3; j++) {
 				meshNormals[i1 + j] += n[j];
 				meshNormals[i2 + j] += n[j];
 				meshNormals[i3 + j] += n[j];
+
+				// const tangent = f * (deltaUV2[1] * dir1[j] - deltaUV1[1] * dir2[j]);
+
+				// meshTangents[i1 + j] += tangent;
+				// meshTangents[i2 + j] += tangent;
+				// meshTangents[i3 + j] += tangent;
 			}
 		}
 
@@ -199,9 +234,24 @@ export default class GTLFLoader {
 			meshNormals[i] = n[0];
 			meshNormals[i + 1] = n[1];
 			meshNormals[i + 2] = n[2];
+
+			// let t = vec3.normalize(vec3.fromValues(meshTangents[i], meshTangents[i + 1], meshTangents[i + 2]));
+			// const b = vec3.cross(n, t);
+
+			// t = vec3.normalize(vec3.sub(t, vec3.scale(n, vec3.dot(n, t))));
+
+			const t = vec3.cross(n, [0, 0, 1]);
+			const b = vec3.cross(n, t);
+			const handedness = vec3.dot(b, t) < 0 ? -1 : 1;
+
+			meshTangents[i] = t[0];
+			meshTangents[i + 1] = t[1];
+			meshTangents[i + 2] = t[2];
+			meshTangents[i + 3] = handedness;
 		}
 
 		meshNormalsBufferView.modifyBuffer(this.device, meshNormals);
+		// meshTangentsBufferView.modifyBuffer(this.device, meshTangents);
 	}
 
 	createGridMesh(heightMap: Float32Array, heightMapSize: number, gridMesh: TypedArray) {
@@ -215,7 +265,7 @@ export default class GTLFLoader {
 			const row: number = Math.floor(nFractAlongMeshY * (heightMapSize - 1));
 
 			let terrainHeight = getPixel(heightMap, row, col, heightMapSize);
-			if (col === heightMapSize - 1 || row === heightMapSize - 1 || col === 0 || row === 0) {
+			if (col >= heightMapSize - 2 || row >= heightMapSize - 2 || col <= 1 || row <= 1) {
 				terrainHeight = 0;
 			}
 
@@ -399,6 +449,11 @@ export default class GTLFLoader {
 				metallicRoughnessTexture = this.textures[pbrMR['metallicRoughnessTexture']['index']];
 			}
 
+			let normalTexture: GLTFTexture | null = null;
+			if ('normalTexture' in m) {
+				normalTexture = this.textures[m['normalTexture']['index']];
+			}
+
 			const name: string = m['name'];
 
 			this.materials.push(
@@ -409,6 +464,7 @@ export default class GTLFLoader {
 					metallicFactor,
 					roughnessFactor,
 					metallicRoughnessTexture,
+					normalTexture,
 					emissiveFactor,
 					alphaMode
 				)
@@ -446,6 +502,7 @@ export default class GTLFLoader {
 				let positions = null;
 				let texcoords = null;
 				let normals = null;
+				let tangents = null;
 				let joints = null;
 				let weights = null;
 				let colors = null;
@@ -462,6 +519,9 @@ export default class GTLFLoader {
 						case 'NORMAL':
 							normals = accessor;
 							break;
+						case 'TANGENT':
+							tangents = accessor;
+							break;
 						case 'JOINTS_0':
 							joints = accessor;
 							break;
@@ -477,7 +537,18 @@ export default class GTLFLoader {
 				let mat = this.materials[prim['material']];
 
 				meshPrimitives.push(
-					new GLTFPrimitive(mat, indices, positions, normals, colors, texcoords, joints, weights, topology)
+					new GLTFPrimitive(
+						mat,
+						indices,
+						positions,
+						normals,
+						tangents,
+						colors,
+						texcoords,
+						joints,
+						weights,
+						topology
+					)
 				);
 			}
 			this.meshes.push(new GLTFMesh(mesh['name'], meshPrimitives));

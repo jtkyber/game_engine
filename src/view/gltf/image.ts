@@ -29,6 +29,8 @@ export default class GLTFImage {
 				format = 'rgba8unorm';
 				break;
 			case ImageUsage.NORMAL:
+				format = 'rgba8unorm';
+				break;
 			case ImageUsage.OCCLUSION:
 				throw new Error('Unhandled image format for now, TODO!');
 		}

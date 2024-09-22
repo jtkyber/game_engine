@@ -63,14 +63,14 @@ export default class App {
 		const splatMap: GLTFImage = await gltfLoader.get_splat_map('../../dist/SplatMap.png');
 		// console.log(splatMap);
 
-		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png');
+		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 40);
 		const terrainNodeIndex: number = gltfLoader.terrainNodeIndex;
 		const terrainMaterialIndex: number = gltfLoader.terrainMaterialIndex;
 
-		// console.log(gltfLoader.jsonChunk);
+		console.log(gltfLoader.jsonChunk);
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
-		console.log(nodes.filter((n, i) => models.includes(i)));
+		// console.log(nodes.filter((n, i) => models.includes(i)));
 		// console.log(gltfLoader.lights);
 		// console.log(animations);
 
@@ -142,7 +142,6 @@ export default class App {
 
 		if (window.myLib.deltaTime > this.frameCap) {
 			this.then = performance.now();
-			// this.then = this.now - (window.myLib.deltaTime % this.frameCap);
 
 			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
 				this.controller.update();

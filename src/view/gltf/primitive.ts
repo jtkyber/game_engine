@@ -7,6 +7,7 @@ export default class GLTFPrimitive {
 	indices: GLTFAccessor = null;
 	positions: GLTFAccessor = null;
 	normals: GLTFAccessor = null;
+	tangents: GLTFAccessor = null;
 	colors: GLTFAccessor = null;
 	texCoords: GLTFAccessor = null;
 	splatTexCoords: GLTFAccessor = null;
@@ -19,6 +20,7 @@ export default class GLTFPrimitive {
 		indices: GLTFAccessor,
 		positions: GLTFAccessor,
 		normals: GLTFAccessor,
+		tangents: GLTFAccessor,
 		colors: GLTFAccessor,
 		texCoords: GLTFAccessor,
 		joints: GLTFAccessor,
@@ -29,6 +31,7 @@ export default class GLTFPrimitive {
 		this.indices = indices;
 		this.positions = positions;
 		this.normals = normals;
+		this.tangents = tangents;
 		this.colors = colors;
 		this.texCoords = texCoords;
 		this.joints = joints;
@@ -40,6 +43,11 @@ export default class GLTFPrimitive {
 
 		this.normals.bufferView.needsUpload = true;
 		this.normals.bufferView.addUsage(GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+
+		if (this.tangents) {
+			this.tangents.bufferView.needsUpload = true;
+			this.tangents.bufferView.addUsage(GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+		}
 
 		if (this.indices) {
 			this.indices.bufferView.needsUpload = true;

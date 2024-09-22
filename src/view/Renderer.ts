@@ -523,11 +523,22 @@ export default class Renderer {
 				],
 			},
 			{
+				arrayStride: 16,
+				attributes: [
+					{
+						// tangent
+						shaderLocation: 2,
+						format: 'float32x4',
+						offset: 0,
+					},
+				],
+			},
+			{
 				arrayStride: 8,
 				attributes: [
 					{
 						// text coord
-						shaderLocation: 2,
+						shaderLocation: 3,
 						format: 'float32x2',
 						offset: 0,
 					},
@@ -541,7 +552,7 @@ export default class Renderer {
 				attributes: [
 					{
 						// joint
-						shaderLocation: 3,
+						shaderLocation: 4,
 						format: 'uint8x4',
 						offset: 0,
 					},
@@ -552,7 +563,7 @@ export default class Renderer {
 				attributes: [
 					{
 						// weight
-						shaderLocation: 4,
+						shaderLocation: 5,
 						format: 'float32x4',
 						offset: 0,
 					},
@@ -838,8 +849,17 @@ export default class Renderer {
 			p.normals.byteLength
 		);
 
+		if (p.tangents) {
+			this.renderPass.setVertexBuffer(
+				2,
+				p.tangents.bufferView.gpuBuffer,
+				p.tangents.byteOffset,
+				p.tangents.byteLength
+			);
+		}
+
 		this.renderPass.setVertexBuffer(
-			2,
+			3,
 			p.texCoords.bufferView.gpuBuffer,
 			p.texCoords.byteOffset,
 			p.texCoords.byteLength
@@ -885,14 +905,14 @@ export default class Renderer {
 				this.renderPass.setBindGroup(3, node.skin.jointBindGroup);
 
 				this.renderPass.setVertexBuffer(
-					3,
+					4,
 					p.joints.bufferView.gpuBuffer,
 					p.joints.byteOffset,
 					p.joints.byteLength
 				);
 
 				this.renderPass.setVertexBuffer(
-					4,
+					5,
 					p.weights.bufferView.gpuBuffer,
 					p.weights.byteOffset,
 					p.weights.byteLength
@@ -923,8 +943,17 @@ export default class Renderer {
 				p.normals.byteLength
 			);
 
+			if (p.tangents) {
+				this.renderPass.setVertexBuffer(
+					2,
+					p.tangents.bufferView.gpuBuffer,
+					p.tangents.byteOffset,
+					p.tangents.byteLength
+				);
+			}
+
 			this.renderPass.setVertexBuffer(
-				2,
+				3,
 				p.texCoords.bufferView.gpuBuffer,
 				p.texCoords.byteOffset,
 				p.texCoords.byteLength

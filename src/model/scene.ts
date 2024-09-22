@@ -1,4 +1,4 @@
-import { Mat4, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, mat4, quat, vec3 } from 'wgpu-matrix';
 import { debugging } from '../control/app';
 import { Flag, LightType } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
@@ -131,7 +131,9 @@ export default class Scene {
 		}
 
 		if (lightNode.name === 'Sun') {
-			// quat.rotateY(lightNode.quat, 0.0001 * window.myLib.deltaTime, lightNode.quat);
+			// const rotationQuat = quat.fromAxisAngle([0, 1, 0], 0.01);
+			// quat.mul(rotationQuat, lightNode.quat, lightNode.quat);
+			quat.rotateX(lightNode.quat, 0.00003 * window.myLib.deltaTime, lightNode.quat);
 		}
 	}
 

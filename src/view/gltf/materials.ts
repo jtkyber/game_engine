@@ -1,16 +1,19 @@
 import { Vec3, Vec4 } from 'wgpu-matrix';
 import { ImageUsage } from '../../types/enums';
 import BindGroupLayouts from '../bindGroupLayouts';
+import { GLTFTexture } from './texture';
 
 export default class GLTFMaterial {
 	name: string;
 
-	baseColorTextureView: any = null; // Make texture, sampler and image classes
+	baseColorTextureView: GLTFTexture = null;
 	baseColorFactor: Vec4 = new Float32Array([1, 1, 1, 1]);
 
-	metallicRoughnessTextureView: any = null;
+	metallicRoughnessTextureView: GLTFTexture = null;
 	metallicFactor: number = 1;
 	roughnessFactor: number = 1;
+
+	normalTextureView: GLTFTexture = null;
 
 	emissiveFactor: Vec3 = new Float32Array([0, 0, 0]);
 
@@ -21,10 +24,11 @@ export default class GLTFMaterial {
 	constructor(
 		name: string,
 		baseColorFactor: Vec4,
-		baseColorTextureView: any,
+		baseColorTextureView: GLTFTexture,
 		metallicFactor: number,
 		roughnessFactor: number,
-		metallicRoughnessTextureView: any,
+		metallicRoughnessTextureView: GLTFTexture,
+		normalTextureView: GLTFTexture,
 		emissiveFactor: Vec3,
 		isTransparent: boolean
 	) {
@@ -40,6 +44,11 @@ export default class GLTFMaterial {
 		this.metallicRoughnessTextureView = metallicRoughnessTextureView;
 		if (this.metallicRoughnessTextureView) {
 			this.metallicRoughnessTextureView.setUsage(ImageUsage.METALLIC_ROUGHNESS);
+		}
+
+		this.normalTextureView = normalTextureView;
+		if (this.normalTextureView) {
+			this.normalTextureView.setUsage(ImageUsage.NORMAL);
 		}
 
 		this.emissiveFactor = emissiveFactor;
@@ -103,6 +112,12 @@ export default class GLTFMaterial {
 		let metallicRoughnessTextureView: GPUTextureView = this.metallicRoughnessTextureView?.image?.view;
 		if (!metallicRoughnessTextureView) metallicRoughnessTextureView = defaultTextureView;
 
+		let normalSampler: GPUSampler = this.normalTextureView?.sampler?.sampler;
+		if (!normalSampler) normalSampler = defaultSampler;
+
+		let normalTextureView: GPUTextureView = this.normalTextureView?.image?.view;
+		if (!normalTextureView) normalTextureView = defaultTextureView;
+
 		this.bindGroup = device.createBindGroup({
 			label: 'Material Bind Group',
 			layout: bindGroupLayouts.materialBindGroupLayout,
@@ -129,6 +144,14 @@ export default class GLTFMaterial {
 				{
 					binding: 4,
 					resource: metallicRoughnessTextureView,
+				},
+				{
+					binding: 5,
+					resource: normalSampler,
+				},
+				{
+					binding: 6,
+					resource: normalTextureView,
 				},
 			],
 		});

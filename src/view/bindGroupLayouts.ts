@@ -124,6 +124,18 @@ export default class BindGroupLayouts {
 					visibility: GPUShaderStage.FRAGMENT,
 					texture: {},
 				},
+				{
+					// Normal Sampler
+					binding: 5,
+					visibility: GPUShaderStage.FRAGMENT,
+					sampler: {},
+				},
+				{
+					// Normal Texture
+					binding: 6,
+					visibility: GPUShaderStage.FRAGMENT,
+					texture: {},
+				},
 			],
 		});
 
@@ -167,8 +179,22 @@ export default class BindGroupLayouts {
 					},
 				},
 				{
-					// Material Indices (rgba sorted)
+					// Normal Sampler
 					binding: 5,
+					visibility: GPUShaderStage.FRAGMENT,
+					sampler: {},
+				},
+				{
+					// Normal Texture
+					binding: 6,
+					visibility: GPUShaderStage.FRAGMENT,
+					texture: {
+						viewDimension: '2d-array',
+					},
+				},
+				{
+					// Material Indices (rgba sorted)
+					binding: 7,
 					visibility: GPUShaderStage.FRAGMENT,
 					buffer: {
 						type: 'uniform',

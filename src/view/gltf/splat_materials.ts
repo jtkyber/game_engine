@@ -28,6 +28,12 @@ export default class GLTFTerrainMaterial {
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
 		});
 
+		const normalTextureArray = device.createTexture({
+			size: [imgSize.width, imgSize.height, this.materials.length],
+			format: 'rgba8unorm',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
+		});
+
 		let baseColorTextureView: GPUTextureView = baseColorTextureArray.createView({
 			format: 'rgba8unorm-srgb',
 			dimension: '2d-array',
@@ -39,6 +45,16 @@ export default class GLTFTerrainMaterial {
 		});
 
 		let metallicRoughnessTextureView: GPUTextureView = metallicRoughnessTextureArray.createView({
+			format: 'rgba8unorm',
+			dimension: '2d-array',
+			aspect: 'all',
+			baseMipLevel: 0,
+			mipLevelCount: 1,
+			baseArrayLayer: 0,
+			arrayLayerCount: this.materials.length,
+		});
+
+		let normalTextureView: GPUTextureView = normalTextureArray.createView({
 			format: 'rgba8unorm',
 			dimension: '2d-array',
 			aspect: 'all',
@@ -75,6 +91,12 @@ export default class GLTFTerrainMaterial {
 			device.queue.copyExternalImageToTexture(
 				{ source: m.metallicRoughnessTextureView.image.bitmap },
 				{ texture: metallicRoughnessTextureArray, premultipliedAlpha: true, origin: { z: i } },
+				imgSize
+			);
+
+			device.queue.copyExternalImageToTexture(
+				{ source: m.normalTextureView.image.bitmap },
+				{ texture: normalTextureArray, premultipliedAlpha: true, origin: { z: i } },
 				imgSize
 			);
 
@@ -119,6 +141,9 @@ export default class GLTFTerrainMaterial {
 			this.materials[0].metallicRoughnessTextureView?.sampler?.sampler;
 		if (!metallicRoughnessSampler) metallicRoughnessSampler = defaultSampler;
 
+		let normalSampler: GPUSampler = this.materials[0].normalTextureView?.sampler?.sampler;
+		if (!normalSampler) normalSampler = defaultSampler;
+
 		this.bindGroup = device.createBindGroup({
 			label: 'Splat Material Bind Group',
 			layout: bindGroupLayouts.splatMaterialBindGroupLayout,
@@ -148,6 +173,14 @@ export default class GLTFTerrainMaterial {
 				},
 				{
 					binding: 5,
+					resource: normalSampler,
+				},
+				{
+					binding: 6,
+					resource: normalTextureView,
+				},
+				{
+					binding: 7,
 					resource: {
 						buffer: materialIndicesBuffer,
 					},

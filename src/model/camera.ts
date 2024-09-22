@@ -47,7 +47,7 @@ export class Camera {
 
 		if (debugging.firstPersonMode) {
 			this.distAboveModel = height * 0.9;
-			this.distFromModel = height * -0.5;
+			this.distFromModel = height * -0.15;
 			this.distFromModelMin = this.distFromModel;
 			this.distFromModelMax = this.distFromModel;
 		} else {

@@ -202,7 +202,7 @@ export default class GLTFNode {
 		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
 
 		if (terrainHeightAbovePlayer > 0) {
-			if (terrainHeightAbovePlayer < 0.25) this.position[1] = terrainHeight;
+			if (terrainHeightAbovePlayer < 0.4) this.position[1] = terrainHeight;
 			else this.position = this.previousPosition;
 			this.reset_gravity();
 		}

@@ -1,7 +1,6 @@
 const baseColorSplat: string = /*wgsl*/ `
     var splat_color: vec4f;
 
-    var matCount = 0;
     let tLength = terrainAABB.max.x - terrainAABB.min.x;
     let tWidth = terrainAABB.max.z - terrainAABB.min.z;
 
@@ -20,6 +19,7 @@ const baseColorSplat: string = /*wgsl*/ `
     
     let hasColorTexture: bool = textureDimensions(base_color_texture).x > 1;
     let hasMetallicRoughnessTexture: bool = textureDimensions(metallic_roughness_texture).x > 1;
+    let hasNormalTexture: bool = textureDimensions(normal_texture).x > 1;
 
     for (var i = 0; i < 4; i++) {
         let cIndex = i32(materialIndices[i]);
@@ -27,47 +27,59 @@ const baseColorSplat: string = /*wgsl*/ `
 
         var mix_factor = splat_color[cIndex];
         if (cIndex == 3) { mix_factor = 1 - mix_factor; }
+
         
         var base_color_temp = textureSample(base_color_texture, base_color_sampler, in.texcoords, i);
         var metallic_roughness_temp = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.texcoords, i);
+        var uv_normal  = textureSample(normal_texture, normal_sampler, in.texcoords, i).rgb;
+        uv_normal  = uv_normal  * 2.0 - 1.0;
+        let normal_temp = normalize(TBN * uv_normal);
 
-        var metallic_temp = material_params[i].metallic_factor;
-        var roughness_temp = material_params[i].roughness_factor;
-        var emission_temp = material_params[i].emissive_factor;
-
-        if (hasColorTexture) {
-            base_color_temp = material_params[i].base_color_factor * base_color_temp;
-
-            base_texture_color = mix(base_texture_color, base_color_temp.rgb, mix_factor);
-            alpha_temp = mix(alpha_temp, base_color_temp.a, mix_factor);
-        } else {
-            base_texture_color = mix(base_texture_color, material_params[i].base_color_factor.rgb, mix_factor);
-            alpha_temp = mix(alpha_temp, material_params[i].base_color_factor.a, mix_factor);
+        if (mix_factor > 0.001) { 
+            var metallic_temp = material_params[i].metallic_factor;
+            var roughness_temp = material_params[i].roughness_factor;
+            var emission_temp = material_params[i].emissive_factor;
+    
+            if (hasColorTexture) {
+                base_color_temp = material_params[i].base_color_factor * base_color_temp;
+    
+                base_texture_color = mix(base_texture_color, base_color_temp.rgb, mix_factor);
+                alpha_temp = mix(alpha_temp, base_color_temp.a, mix_factor);
+            } else {
+                base_texture_color = mix(base_texture_color, material_params[i].base_color_factor.rgb, mix_factor);
+                alpha_temp = mix(alpha_temp, material_params[i].base_color_factor.a, mix_factor);
+            }
+    
+            if (hasMetallicRoughnessTexture) {
+                metallic_temp *= metallic_roughness_temp.b;
+                roughness_temp *= metallic_roughness_temp.g;
+            } 
+            
+            if (hasNormalTexture) {
+                N = slerp(N, normal_temp, mix_factor);
+            }
+    
+            metallic = mix(metallic, metallic_temp, mix_factor);
+            roughness = mix(roughness, roughness_temp, mix_factor);
         }
 
-        if (hasMetallicRoughnessTexture) {
-            metallic_temp *= metallic_roughness_temp.b;
-            roughness_temp *= metallic_roughness_temp.g;
-        } 
-
-        metallic = mix(metallic, metallic_temp, mix_factor);
-        roughness = mix(roughness, roughness_temp, mix_factor);
-        
-        matCount++;
     }
+
+    N = normalize(N);
 
     base_color = vec4f(base_texture_color, alpha_temp);
 `;
 
 const baseColor: string = /*wgsl*/ `
-    let colorTextureDimensions: vec2u = textureDimensions(base_color_texture);
-    let hasColorTexture: bool = colorTextureDimensions.x > 1;
-
-    let metallicRoughnessTextureDimensions: vec2u = textureDimensions(metallic_roughness_texture);
-    let hasMetallicRoughnessTexture: bool = metallicRoughnessTextureDimensions.x > 1;
+    let hasColorTexture: bool = textureDimensions(base_color_texture).x > 1;
+    let hasMetallicRoughnessTexture: bool = textureDimensions(metallic_roughness_texture).x > 1;
+    let hasNormalTexture: bool = textureDimensions(normal_texture).x > 1;
 
     let base_texture_color = textureSample(base_color_texture, base_color_sampler, in.texcoords);
     let metallic_roughness = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.texcoords);
+    var uv_normal  = textureSample(normal_texture, normal_sampler, in.texcoords).rgb;
+    uv_normal  = uv_normal  * 2.0 - 1.0;
+    if (hasNormalTexture) { N = normalize(TBN * uv_normal ); }
 
     var metallic = material_params.metallic_factor;
     var roughness = material_params.roughness_factor;
@@ -88,9 +100,11 @@ const baseColor: string = /*wgsl*/ `
 export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     struct VertexOutput {
         @builtin(position) position: vec4f,
-        @location(1) world_pos: vec4f,
-        @location(2) normal: vec3f,
-        @location(3) texcoords: vec2f,
+        @location(0) world_pos: vec4f,
+        @location(1) texcoords: vec2f,
+        @location(2) T: vec3f,
+        @location(3) B: vec3f,
+        @location(4) N: vec3f,
     };
 
     struct MaterialParams {
@@ -124,7 +138,9 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     @group(1) @binding(2) var base_color_texture: texture_2d${splatMap ? '_array' : ''}<f32>;
     @group(1) @binding(3) var metallic_roughness_sampler: sampler;
     @group(1) @binding(4) var metallic_roughness_texture: texture_2d${splatMap ? '_array' : ''}<f32>;
-    ${splatMap ? '@group(1) @binding(5) var<uniform> materialIndices: vec4f;' : ''}
+    @group(1) @binding(5) var normal_sampler: sampler;
+    @group(1) @binding(6) var normal_texture: texture_2d${splatMap ? '_array' : ''}<f32>;
+    ${splatMap ? '@group(1) @binding(7) var<uniform> materialIndices: vec4f;' : ''}
 
     @group(2) @binding(0) var<storage, read> lightTypes: array<f32>;
     @group(2) @binding(1) var<storage, read> lightPositions: array<vec3f>;
@@ -142,21 +158,23 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     */
 
     const PI = 3.14159265359; 
-    const lightIntensityAdjustment = 0.0009;
+    const lightIntensityAdjustment = 0.00075;
     const cascadeCount = 3;
 
     @fragment
     fn f_main(in: VertexOutput) -> @location(0) vec4f {
+        let TBN = mat3x3(normalize(in.T), normalize(in.B), normalize(in.N));
+        var N = normalize(in.N);
         // Determine Base color -----------------------------------------------
         var base_color = vec4f(1.0, 1.0, 1.0, 1.0);
     
         ${splatMap ? baseColorSplat : baseColor}
+        // N = normalize(in.N);
 
         var color = base_color.rgb;
         let alpha = base_color.a;
 
         let albedo = color;
-        let N = normalize(in.normal);
         let V = normalize(cameraPosition - in.world_pos.xyz);
         let F0 = mix(vec3f(0.04), albedo, metallic);
 
@@ -233,8 +251,8 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             // var bias = tan(acos(dot(in.normal, lightDirections[i])));
             // bias *= 0.00029;
 
-            // let bias = max(0.004 * (1.0 - dot(in.normal, lightDirections[i])), 0.001);
-            let bias = max(0.0025 * (1.0 - dot(N, lightDirections[i])), 0.001);
+            // let bias = max(0.0025 * (1.0 - dot(N, lightDirections[i])), 0.001);
+            let bias = max(0.002 * (1.0 - dot(N, lightDirections[i])), 0.0001);
 
             let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
             for (var y = -1; y <= 1; y++) {
@@ -261,7 +279,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
         }
 
-        let ambient = vec3f(0.04) * albedo;
+        let ambient = vec3f(0.1) * albedo;
         color = ambient + Lo;
         // color = color / (color + vec3f(1.0));
         // color = pow(color, vec3f(1.0 / 2.2));
@@ -271,7 +289,9 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
         color[2] = linear_to_srgb(color[2]);
 
         return vec4f(color, alpha);
-        // return vec4f(splat_color);
+        // return vec4f(normalize(in.T) * 0.5 + 0.5, 1.0);
+        // return vec4f(N * 0.5 + 0.5, 1.0);
+        // return vec4f(uv_normal * 0.5 + 0.5, 1.0);
     }
 
     fn linear_to_srgb(x: f32) -> f32 {
@@ -315,5 +335,12 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
         let ggx1: f32  = geometrySchlickGGX(NdotL, roughness);
         
         return ggx1 * ggx2;
+    }
+
+    fn slerp(n1: vec3f, n2: vec3f, factor: f32) -> vec3f {
+        let dotProduct = clamp(dot(n1, n2), -1.0, 1.0);
+        let theta = acos(dotProduct) * factor;
+        let relativeVec = normalize(n2 - n1 * dotProduct);
+        return normalize(n1 * cos(theta) + relativeVec * sin(theta));
     }
 `;
