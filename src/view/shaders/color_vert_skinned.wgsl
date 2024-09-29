@@ -62,7 +62,7 @@ fn v_main(vert: VertexInput) -> VertexOutput {
 
     let N = normalize(normalMatrix * vert.normal);
     let T = normalize(normalMatrix * vert.tangent.xyz);
-    let B = normalize(vert.tangent.w * cross(N, T));
+    let B = normalize(-vert.tangent.w * cross(N, T));
 
     out.T = T;
     out.B = B;

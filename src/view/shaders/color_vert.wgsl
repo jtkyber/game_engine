@@ -40,7 +40,7 @@ fn v_main(vert: VertexInput) -> VertexOutput {
     var worldPos = model_transforms[vert.i_id] * vec4f(vert.position, 1.0);
 
     out.position = transformUBO.projection * transformUBO.view * worldPos;
-    // out.position = lightViewProjectionMat[2] * worldPos;
+    // out.position = ligthViewProjectionMat[2] * worldPos;
     out.world_pos = worldPos;
 
     let normalMatrix = extractMat3FromMat4(normal_transforms[vert.i_id]);
@@ -49,7 +49,7 @@ fn v_main(vert: VertexInput) -> VertexOutput {
 
     let N = normalize(normalMatrix * vert.normal);
     let T = normalize(normalMatrix * vert.tangent.xyz);
-    let B = normalize(vert.tangent.w * cross(N, T));
+    let B = normalize(-vert.tangent.w * cross(N, T));
 
     out.T = T;
     out.B = B;

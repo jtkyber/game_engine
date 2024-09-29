@@ -884,7 +884,7 @@ export default class Renderer {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
 			const node: GLTFNode = nodes[nodeIndex];
-			if (!node.mesh || this.culledModels.includes(node.rootNode ?? nodeIndex) || node.isBB || node.hidden) {
+			if (!node.mesh || this.culledModels.includes(node.rootNode ?? nodeIndex) || node.hidden) {
 				continue;
 			}
 
@@ -1021,7 +1021,7 @@ export default class Renderer {
 				const nodeIndex: number = modelIndexChunk.nodeIndex;
 				const primIndex: number = modelIndexChunk.primitiveIndex;
 				const node: GLTFNode = nodes[nodeIndex];
-				if (!node.mesh || node.isBB) continue;
+				if (!node.mesh || node.hidden) continue;
 
 				const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 
@@ -1172,7 +1172,8 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.lightDirectionBuffer, 0, renderables.lightDirections);
 		this.device.queue.writeBuffer(this.lightAngleDataBuffer, 0, renderables.lightAngleData);
 		this.device.queue.writeBuffer(this.lightViewProjBuffer, 0, renderables.lightViewProjMatrices);
-		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeSplits);
+
+		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeRadiusArr);
 		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
 
 		if (debugging.visualizeLightFrustums) {

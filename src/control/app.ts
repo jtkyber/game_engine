@@ -107,14 +107,8 @@ export default class App {
 		camera.fov = utils.degToRad(data.camera.fov);
 		camera.near = data.camera.near;
 		camera.far = data.camera.far;
-		camera.shadowNear = data.camera.shadowNear;
-		camera.shadowFar = data.camera.shadowFar;
 
 		camera.projection = mat4.perspectiveReverseZ(camera.fov, aspect, camera.near, camera.far);
-		for (let i = 0; i < camera.cascadeCount; i++) {
-			camera.cascadeSplits[i] =
-				camera.shadowNear * Math.pow(camera.shadowFar / camera.shadowNear, (i + 1) / camera.cascadeCount);
-		}
 
 		modelIndices.forEach(i => {
 			nodes[i.nodeIndex].turnSpeed = data.node.turnSpeed;

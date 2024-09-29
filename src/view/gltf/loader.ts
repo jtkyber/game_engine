@@ -781,9 +781,10 @@ export default class GTLFLoader {
 		let hasBoundingBox: boolean = node?.extras?.hasBoundingBox ?? true;
 		const isBB: boolean = node?.extras?.isBB ?? false;
 		const hasPhysics: boolean = node?.extras?.hasPhysics ?? false;
-		const hidden: boolean = node?.extras?.hidden ?? false;
+		let hidden: boolean = node?.extras?.hidden ?? false;
 
 		if (name === 'Terrain' || hidden) hasBoundingBox = false;
+		if (isBB) hidden = true;
 
 		if (name === 'Terrain_Materials') {
 			const splatMaterials: GLTFMaterial[] = [];

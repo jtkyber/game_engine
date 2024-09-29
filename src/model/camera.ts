@@ -22,24 +22,30 @@ export class Camera {
 	targetNode: number;
 	pitch: number = 0;
 	yaw: number = utils.degToRad(180);
-	fov = utils.degToRad(60);
-	near: number = 0.01;
+	fov = utils.degToRad(45);
+	near: number = 0.1;
 	far: number = 1000;
-	shadowNear: number = 3;
-	shadowFar: number = 400;
 	projection = mat4.perspectiveReverseZ(this.fov, aspect, this.near, this.far);
 	cascadeCount: number = 3;
-	cascadeSplits: Float32Array = new Float32Array(this.cascadeCount);
+	cascadeSplits: Float32Array = new Float32Array(this.cascadeCount + 1);
+	cascadeRadiusArr: Float32Array = new Float32Array(this.cascadeCount);
 
 	constructor(targetNode: number) {
 		this.targetNode = targetNode;
 
 		this.setInitialCamDists();
 
-		for (let i = 0; i < this.cascadeCount; i++) {
-			this.cascadeSplits[i] =
-				this.shadowNear * Math.pow(this.shadowFar / this.shadowNear, (i + 1) / this.cascadeCount);
-		}
+		// for (let i = 0; i < this.cascadeCount; i++) {
+		// 	this.cascadeSplits[i] = this.near * Math.pow(400 / this.near, i / this.cascadeCount);
+		// }
+
+		this.cascadeSplits[0] = this.near;
+		this.cascadeSplits[1] = 20;
+		this.cascadeSplits[2] = 80;
+		this.cascadeSplits[this.cascadeSplits.length - 1] = 400;
+		// this.cascadeSplits[0] = this.near;
+
+		// console.log(this.cascadeSplits);
 	}
 
 	setInitialCamDists() {

@@ -158,7 +158,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     */
 
     const PI = 3.14159265359; 
-    const lightIntensityAdjustment = 0.00075;
+    const lightIntensityAdjustment = 0.001;
     const cascadeCount = 3;
 
     @fragment
@@ -222,25 +222,22 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             // Shadows ------------------
 
             var index = i * 6;
+            var layer: u32 = 0;
             if (lightType == 1) {
                 let fragPosViewSpace = transformUBO.view * in.world_pos;
                 let depthValue = abs(fragPosViewSpace.z);
-                var layer = -1;
 
-                for (var j = 0; j < cascadeCount; j++) {
-                    if (depthValue < cascadeSplits[j]) {
-                        layer = j;
-                        break;
-                    }
-                }
-                if (layer == -1) { layer = cascadeCount - 1; }
-                index += u32(layer);
+                if (depthValue < cascadeSplits[0]) { layer = 0; }
+                else if (depthValue < cascadeSplits[1]) { layer = 1; }
+                else { layer = 2; }
+
+                index += layer;
             }
             
             var visibility = 0.0;
-            var posFromLight = lightViewProjMatrix[index] * in.world_pos;
-            posFromLight /= posFromLight.w;
-            var shadowPos = vec3f(posFromLight.xy * vec2f(0.5, -0.5) + vec2f(0.5), posFromLight.z);
+            var posLightSpace = lightViewProjMatrix[index] * in.world_pos;
+            posLightSpace /= posLightSpace.w;
+            var shadowPos = vec3f(posLightSpace.xy * vec2f(0.5, -0.5) + vec2f(0.5), posLightSpace.z);
             shadowPos.z = saturate(shadowPos.z);
 
             // let lightSpaceNormal = normalize((lightViewMatrix[index] * vec4f(in.normal, 0.0)).xyz);
@@ -248,11 +245,11 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             // let dz_dy = lightSpaceNormal.y / lightSpaceNormal.z;
             // let maxSlope = max(abs(dz_dx), abs(dz_dy));
             // let bias = maxSlope * 0.0008 + 0.0005;
-            // var bias = tan(acos(dot(in.normal, lightDirections[i])));
+            // var bias = tan(acos(dot(in.N, lightDirections[i])));
             // bias *= 0.00029;
 
             // let bias = max(0.0025 * (1.0 - dot(N, lightDirections[i])), 0.001);
-            let bias = max(0.002 * (1.0 - dot(N, lightDirections[i])), 0.0001);
+            let bias = max(0.002 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
 
             let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
             for (var y = -1; y <= 1; y++) {
@@ -281,9 +278,9 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
 
         let ambient = vec3f(0.1) * albedo;
         color = ambient + Lo;
-        // color = color / (color + vec3f(1.0));
-        // color = pow(color, vec3f(1.0 / 2.2));
         color += emission;
+        color = color / (color + vec3f(1.0));
+        // color = pow(color, vec3f(1.0 / 2.2));
         color[0] = linear_to_srgb(color[0]);
         color[1] = linear_to_srgb(color[1]);
         color[2] = linear_to_srgb(color[2]);

@@ -1,3 +1,4 @@
+import { textSpanContainsTextSpan } from 'typescript';
 import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
 import { aspect, debugging } from '../control/app';
 import { LightType } from '../types/enums';
@@ -87,34 +88,83 @@ export default class Light {
 					this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), 0);
 				}
 				break;
+			// case LightType.DIRECTIONAL:
+			// 	const splits: Float32Array = this.camera.cascadeSplits;
+			// 	if (debugging.lockDirectionalFrustums) {
+			// 		if (this.counter > 50) return;
+			// 		this.counter++;
+			// 	}
+
+			// 	for (let i = 0; i < this.camera.cascadeCount; i++) {
+			// 		const corners: Vec4[] = this.get_frustum_corners_world_space(splits[i], splits[i + 1]);
+			// 		let center: Vec3 = this.get_center(corners);
+
+			// 		const radius: number = vec4.dist(corners[0], corners[6]) / 2;
+			// 		const texelsPerUnit: number = 1024 / (radius * 2);
+			// 		const scaler: Mat4 = mat4.scaling([texelsPerUnit, texelsPerUnit, texelsPerUnit]);
+
+			// 		const lightDir: Vec3 = this.forward;
+
+			// 		let lookAt: Mat4 = mat4.lookAt([0, 0, 0], lightDir, [0, 1, 0]);
+			// 		mat4.mul(lookAt, scaler, lookAt);
+			// 		const lookatInv: Mat4 = mat4.inverse(lookAt);
+
+			// 		vec3.transformMat4(center, lookAt, center);
+			// 		center[0] = Math.floor(center[0]);
+			// 		center[1] = Math.floor(center[1]);
+			// 		vec3.transformMat4(center, lookatInv, center);
+
+			// 		// const eye: Vec3 = vec3.add(center, vec3.mulScalar(lightDir, radius * 2));
+			// 		const eye: Vec3 = vec3.add(center, lightDir);
+			// 		const lightViewMatrix: Mat4 = mat4.lookAt(eye, center, [0, 1, 0]);
+			// 		const lightProjMatrix: Mat4 = mat4.ortho(
+			// 			-radius,
+			// 			radius,
+			// 			-radius,
+			// 			radius,
+			// 			radius * 10,
+			// 			-radius * 10
+			// 		);
+
+			// 		const lightViewProjMatrix: Mat4 = mat4.mul(lightProjMatrix, lightViewMatrix);
+
+			// 		this.lightViewProjMatrices.set(lightViewProjMatrix, i * 16);
+			// 		this.lightViewMatrices.set(lightViewMatrix, i * 16);
+
+			// 		if (debugging.visualizeLightFrustums) {
+			// 			this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), i * 16);
+			// 		}
+			// 	}
+			// 	break;
 			case LightType.DIRECTIONAL:
 				const splits: Float32Array = this.camera.cascadeSplits;
 				if (debugging.lockDirectionalFrustums) {
-					if (this.counter > 0) return;
+					if (this.counter > 50) return;
 					this.counter++;
 				}
 
 				for (let i = 0; i < this.camera.cascadeCount; i++) {
-					const corners: Vec4[] = this.get_frustum_corners_world_space(splits[i], splits[i + 1]);
-					const center: Vec3 = this.get_center(corners);
+					const corners: Vec3[] = this.get_frustum_corners_world_space_temp(splits[i], splits[i + 1]);
+					let center: Vec3 = this.get_center(corners);
 
-					const radius: number = vec4.dist(corners[0], corners[6]) / 2;
+					const radius: number = vec3.dist(corners[0], corners[6]) / 2;
+					this.camera.cascadeRadiusArr[i] = radius;
 					const texelsPerUnit: number = 1024 / (radius * 2);
 					const scaler: Mat4 = mat4.scaling([texelsPerUnit, texelsPerUnit, texelsPerUnit]);
 
 					const lightDir: Vec3 = this.forward;
-					const baseLookAt: Vec3 = lightDir;
-					let lookAt: Mat4 = mat4.lookAt([0, 0, 0], baseLookAt, [0, 1, 0]);
+
+					let lookAt: Mat4 = mat4.lookAt([0, 0, 0], lightDir, [0, 1, 0]);
 					mat4.mul(lookAt, scaler, lookAt);
 					const lookatInv: Mat4 = mat4.inverse(lookAt);
 
-					let correctedCenter: Vec3 = vec3.transformMat4(center, lookAt);
-					correctedCenter[0] = Math.floor(correctedCenter[0]);
-					correctedCenter[1] = Math.floor(correctedCenter[1]);
-					vec3.transformMat4(correctedCenter, lookatInv, correctedCenter);
+					vec3.transformMat4(center, lookAt, center);
+					center[0] = Math.floor(center[0]);
+					center[1] = Math.floor(center[1]);
+					vec3.transformMat4(center, lookatInv, center);
 
-					const eye: Vec3 = vec3.sub(correctedCenter, vec3.mulScalar(vec3.negate(lightDir), radius * 2));
-					const lightViewMatrix: Mat4 = mat4.lookAt(eye, correctedCenter, [0, 1, 0]);
+					const eye: Vec3 = vec3.add(center, vec3.mulScalar(lightDir, radius * 2));
+					const lightViewMatrix: Mat4 = mat4.lookAt(eye, center, [0, 1, 0]);
 					const lightProjMatrix: Mat4 = mat4.ortho(-radius, radius, -radius, radius, radius * 6, -radius * 6);
 
 					const lightViewProjMatrix: Mat4 = mat4.mul(lightProjMatrix, lightViewMatrix);
@@ -132,31 +182,55 @@ export default class Light {
 		}
 	}
 
-	get_frustum_corners_world_space(near: number, far: number): Vec4[] {
+	get_frustum_corners_world_space_temp(near: number, far: number): Vec3[] {
 		const proj: Mat4 = mat4.perspectiveReverseZ(this.camera.fov, aspect, near, far);
 
 		const inv: Mat4 = mat4.inverse(mat4.mul(proj, this.camera.view));
 
-		const directionalFrustumCorners: Vec4[] = [];
+		const corners = [
+			vec3.create(-1, 1, 0),
+			vec3.create(1, 1, 0),
+			vec3.create(1, -1, 0),
+			vec3.create(-1, -1, 0),
+			vec3.create(-1, 1, 1),
+			vec3.create(1, 1, 1),
+			vec3.create(1, -1, 1),
+			vec3.create(-1, -1, 1),
+		];
+
+		for (let i = 0; i < 8; i++) {
+			corners[i] = vec3.transformMat4(corners[i], inv);
+		}
+
+		return corners;
+	}
+
+	get_frustum_corners_world_space(near: number, far: number): Vec3[] {
+		const proj: Mat4 = mat4.perspectiveReverseZ(this.camera.fov, aspect, near, far);
+
+		const inv: Mat4 = mat4.inverse(mat4.mul(proj, this.camera.view));
+
+		const corners: Vec3[] = [];
 		for (let x = 0; x < 2; x++) {
 			for (let y = 0; y < 2; y++) {
 				for (let z = 0; z < 2; z++) {
 					const temp: Vec4 = vec4.create(2 * x - 1, 2 * y - 1, 2 * z - 1, 1);
 					const point: Vec4 = vec4.transformMat4(temp, inv);
-					directionalFrustumCorners.push(vec4.divScalar(point, point[3]));
+					const cornerTemp: Vec4 = vec4.divScalar(point, point[3]);
+					corners.push(vec3.create(cornerTemp[0], cornerTemp[1], cornerTemp[2]));
 				}
 			}
 		}
-		return directionalFrustumCorners;
+		return corners;
 	}
 
-	get_center(directionalFrustumCorners?: Vec4[]): Vec3 {
+	get_center(corners?: Vec4[]): Vec3 {
 		let center: Vec3 = vec3.create(0, 0, 0);
 
-		for (let v of directionalFrustumCorners) {
+		for (let v of corners) {
 			vec3.add(center, vec3.fromValues(v[0], v[1], v[2]), center);
 		}
 
-		return vec3.divScalar(center, directionalFrustumCorners.length);
+		return vec3.divScalar(center, corners.length);
 	}
 }
