@@ -22,7 +22,7 @@ export class Camera {
 	targetNode: number;
 	pitch: number = 0;
 	yaw: number = utils.degToRad(180);
-	fov = utils.degToRad(45);
+	fov = utils.degToRad(60);
 	near: number = 0.1;
 	far: number = 1000;
 	projection = mat4.perspectiveReverseZ(this.fov, aspect, this.near, this.far);

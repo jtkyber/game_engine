@@ -234,6 +234,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
                 index += layer;
             }
             
+            // var visibility = 1.0;
             var visibility = 0.0;
             var posLightSpace = lightViewProjMatrix[index] * in.world_pos;
             posLightSpace /= posLightSpace.w;
@@ -249,7 +250,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             // bias *= 0.00029;
 
             // let bias = max(0.0025 * (1.0 - dot(N, lightDirections[i])), 0.001);
-            let bias = max(0.002 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
+            let bias = max(0.003 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
 
             let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
             for (var y = -1; y <= 1; y++) {
@@ -276,7 +277,8 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
         }
 
-        let ambient = vec3f(0.1) * albedo;
+        let ambient = vec3f(0.03) * albedo;
+        // let ambient = vec3f(0.2) * albedo;
         color = ambient + Lo;
         color += emission;
         color = color / (color + vec3f(1.0));

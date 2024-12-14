@@ -52,7 +52,7 @@ export default class App {
 		this.bindGroupLayouts.createBindGroupLayouts();
 
 		const skybox = new Skybox();
-		await skybox.initialize(this.renderer.device, 'dist/skybox_day.png');
+		await skybox.initialize(this.renderer.device, 'dist/skybox_night.png');
 		this.renderer.skybox = skybox;
 
 		const gltfLoader = new GTLFLoader(this.renderer.device, this.bindGroupLayouts);
@@ -63,11 +63,11 @@ export default class App {
 		const splatMap: GLTFImage = await gltfLoader.get_splat_map('dist/splat_map.png');
 		// console.log(splatMap);
 
-		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 40);
+		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 0.5);
 		const terrainNodeIndex: number = gltfLoader.terrainNodeIndex;
 		const terrainMaterialIndex: number = gltfLoader.terrainMaterialIndex;
 
-		console.log(gltfLoader.jsonChunk);
+		// console.log(gltfLoader.jsonChunk);
 		// console.log(gltfLoader.modelNodeChunks);
 		// console.log(nodes);
 		// console.log(nodes.filter((n, i) => models.includes(i)));

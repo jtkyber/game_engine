@@ -69,7 +69,7 @@ export default class Scene {
 			const node: GLTFNode = nodes[i];
 			node.update();
 
-			node.globalTransform = this.get_node_transform(i, node.transform);
+			node.globalTransform = this.get_node_transform(i, node.transform, i);
 			for (let j = 0; j < 16; j++) {
 				this.nodeTransforms[i * 16 + j] = node.globalTransform[j];
 			}
@@ -133,20 +133,24 @@ export default class Scene {
 		if (lightNode.name === 'Sun') {
 			// const rotationQuat = quat.fromAxisAngle([0, 1, 0], 0.01);
 			// quat.mul(rotationQuat, lightNode.quat, lightNode.quat);
-			quat.rotateX(lightNode.quat, 0.00003 * window.myLib.deltaTime, lightNode.quat);
+			// quat.rotateX(lightNode.quat, 0.00003 * window.myLib.deltaTime, lightNode.quat);
 		}
 	}
 
-	get_node_transform(nodeIndex: number, transform: Mat4): Mat4 {
+	get_node_transform(nodeIndex: number, transform: Mat4, originalNodeIndex: number): Mat4 {
 		const node: GLTFNode = nodes[nodeIndex];
 		const parent: number = node?.parent ?? null;
 		const isJoint: boolean = this.allJoints.has(nodeIndex);
 		const parentIsJoint: boolean = this.allJoints.has(parent);
 
-		if (isJoint && !parentIsJoint) {
+		if (!this.allJoints.has(originalNodeIndex) && isJoint && !parentIsJoint) {
+			// If original node is a mesh child of joint
+			return mat4.mul(nodes[node.rootNode].transform, transform);
+		} else if (isJoint && !parentIsJoint) {
 			return transform;
 		} else if (parent === null) {
 			// If root node
+
 			return transform;
 		} else if (node.flag === Flag.STATIC) {
 			// Never moves, so just return pre-multiplied matrix
@@ -159,7 +163,7 @@ export default class Scene {
 		} else {
 			// Any part can move, so muliply all nodes by parent
 			const combinedTransform: Mat4 = mat4.mul(nodes[parent].transform, transform);
-			return this.get_node_transform(parent, combinedTransform);
+			return this.get_node_transform(parent, combinedTransform, originalNodeIndex);
 		}
 	}
 

@@ -1,4 +1,4 @@
-import { Mat4, mat4, Vec3, vec4 } from 'wgpu-matrix';
+import { Mat4, mat4, vec3, Vec3, vec4 } from 'wgpu-matrix';
 import { aspect, debugging } from '../control/app';
 import { LightType } from '../types/enums';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
@@ -1077,8 +1077,8 @@ export default class Renderer {
 		const boundingBoxes: Float32Array = new Float32Array(this.boundingBoxBuffer.size / 4);
 
 		for (let i = 0; i < models.length; i++) {
-			const min: Vec3 = nodes[models[i]].AABB.min;
-			const max: Vec3 = nodes[models[i]].AABB.max;
+			const min: Vec3 = nodes[models[i]].AABB?.min ?? vec3.create(-10000, -10000, -10000);
+			const max: Vec3 = nodes[models[i]].AABB?.max ?? vec3.create(10000, 10000, 10000);
 
 			boundingBoxes.set([...min, 0], i * 4 * 2);
 			boundingBoxes.set([...max, 0], i * 4 * 2 + 4);

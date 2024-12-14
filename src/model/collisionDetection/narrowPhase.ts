@@ -18,53 +18,81 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 		const sweepNum: number = 3;
 		// step-size = bounding box size / (constant * |velocity|)
 
-		sweepLoop: for (let i = sweepNum; i > 0; i--) {
-			const stepRatio: number = (i - 1) / sweepNum;
+		// sweepLoop: for (let i = sweepNum; i > 0; i--) {
+		// 	const stepRatio: number = (i - 1) / sweepNum;
 
-			const vert1: Vec3[] = OBB1.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec1, stepRatio)));
-			const vert2: Vec3[] = OBB2.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec2, stepRatio)));
+		// 	const vert1: Vec3[] = OBB1.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec1, stepRatio)));
+		// 	const vert2: Vec3[] = OBB2.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec2, stepRatio)));
 
-			const axes: Vec3[] = get_axes(OBB1, OBB2);
-			let minOverlap = Infinity;
-			let mtvAxis: Vec3 = null;
+		// 	const axes: Vec3[] = get_axes(OBB1, OBB2);
+		// 	let minOverlap = Infinity;
+		// 	let mtvAxis: Vec3 = null;
 
-			for (let j = 0; j < axes.length; j++) {
-				const axis: Vec3 = axes[j];
+		// 	for (let j = 0; j < axes.length; j++) {
+		// 		const axis: Vec3 = axes[j];
 
-				const range1: Vec2 = get_min_max(vert1, axis);
-				const range2: Vec2 = get_min_max(vert2, axis);
+		// 		const range1: Vec2 = get_min_max(vert1, axis);
+		// 		const range2: Vec2 = get_min_max(vert2, axis);
 
-				if (!ranges_overlap(range1, range2)) {
-					if (i === 1) continue pairLoop;
-					else continue sweepLoop;
-				} else {
-					let overlap = Math.min(range1[1], range2[1]) - Math.max(range1[0], range2[0]);
-					if (overlap < minOverlap) {
-						minOverlap = overlap;
-						mtvAxis = axis;
-					}
+		// 		if (!ranges_overlap(range1, range2)) {
+		// 			if (i === 1) continue pairLoop;
+		// 			else continue sweepLoop;
+		// 		} else {
+		// 			let overlap = Math.min(range1[1], range2[1]) - Math.max(range1[0], range2[0]);
+		// 			if (overlap < minOverlap) {
+		// 				minOverlap = overlap;
+		// 				mtvAxis = axis;
+		// 			}
+		// 		}
+		// 	}
+
+		// 	const center1: Vec3 = get_center(vert1);
+		// 	const center2: Vec3 = get_center(vert2);
+
+		// 	const direction: Vec3 = vec3.sub(center2, center1);
+		// 	let offsetVector = vec3.scale(mtvAxis, minOverlap);
+		// 	if (vec3.dot(direction, offsetVector) > 0) {
+		// 		vec3.negate(offsetVector, offsetVector);
+		// 	}
+
+		// 	let steppedPos1: Vec3 = vec3.sub(node1.position, vec3.mulScalar(moveVec1, stepRatio));
+		// 	let steppedPos2: Vec3 = vec3.sub(node2.position, vec3.mulScalar(moveVec2, stepRatio));
+
+		// 	offset_nodes(offsetVector, node1, node2, steppedPos1, steppedPos2);
+		// 	break sweepLoop;
+		// }
+
+		const axes: Vec3[] = get_axes(OBB1, OBB2);
+		let minOverlap = Infinity;
+		let mtvAxis: Vec3 = null;
+
+		for (let j = 0; j < axes.length; j++) {
+			const axis: Vec3 = axes[j];
+
+			const range1: Vec2 = get_min_max(OBB1.vertices, axis);
+			const range2: Vec2 = get_min_max(OBB2.vertices, axis);
+
+			if (!ranges_overlap(range1, range2)) {
+				continue pairLoop;
+			} else {
+				let overlap = Math.min(range1[1], range2[1]) - Math.max(range1[0], range2[0]);
+				if (overlap < minOverlap) {
+					minOverlap = overlap;
+					mtvAxis = axis;
 				}
 			}
-
-			const center1: Vec3 = get_center(vert1);
-			const center2: Vec3 = get_center(vert2);
-
-			const direction: Vec3 = vec3.sub(center2, center1);
-			let offsetVector = vec3.scale(mtvAxis, minOverlap);
-			if (vec3.dot(direction, offsetVector) > 0) {
-				vec3.negate(offsetVector, offsetVector);
-			}
-
-			offset_nodes(
-				offsetVector,
-				node1,
-				node2,
-				vec3.sub(node1.position, vec3.mulScalar(moveVec1, stepRatio)),
-				vec3.sub(node2.position, vec3.mulScalar(moveVec2, stepRatio))
-			);
-			// if (moveVec1[0] !== 0) console.log(i, sweepNum);
-			break sweepLoop;
 		}
+
+		const center1: Vec3 = get_center(OBB1.vertices);
+		const center2: Vec3 = get_center(OBB2.vertices);
+
+		const direction: Vec3 = vec3.sub(center2, center1);
+		let offsetVector = vec3.scale(mtvAxis, minOverlap);
+		if (vec3.dot(direction, offsetVector) > 0) {
+			vec3.negate(offsetVector, offsetVector);
+		}
+
+		offset_nodes(offsetVector, node1, node2, node1.position, node2.position);
 	}
 }
 
@@ -82,6 +110,9 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 	let massFactor1: number = (1 - node1.mass) / totalMass;
 	let massFactor2: number = (1 - node2.mass) / totalMass;
 
+	let velocityFactor1 = Math.abs(vec3.dot(node1.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);
+	let velocityFactor2 = Math.abs(vec3.dot(node2.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);
+
 	if (node1.mass === null && node2.mass !== null) {
 		massFactor1 = 0;
 		massFactor2 = 1;
@@ -92,9 +123,6 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 		massFactor1 = 1;
 		massFactor2 = 1;
 	}
-
-	const velocityFactor1 = Math.abs(vec3.dot(node1.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);
-	const velocityFactor2 = Math.abs(vec3.dot(node2.currentVelocity, mtv)) / Math.abs(velocityAlongMTV);
 
 	const totalFactor = massFactor1 + velocityFactor1 + massFactor2 + velocityFactor2;
 

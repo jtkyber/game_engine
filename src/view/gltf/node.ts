@@ -50,7 +50,7 @@ export default class GLTFNode {
 
 	gravitySpeedStart: number = 0;
 	gravitySpeed: number = 0;
-	gravityAcc: number = 0.001;
+	gravityAcc: number = 0.0006;
 
 	forward: Vec3;
 	forwardMove: Vec3;
@@ -199,6 +199,7 @@ export default class GLTFNode {
 		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));
 
 		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
+
 		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
 
 		if (terrainHeightAbovePlayer > 0) {

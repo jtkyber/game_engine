@@ -714,21 +714,23 @@ export default class GTLFLoader {
 			}
 
 			// Adjust player bb widths
-			// if (models[i] === this.player) {
-			// 	const xLen: number = max[0] - min[0];
-			// 	const zLen: number = max[2] - min[2];
-			// 	if (xLen > zLen) {
-			// 		const ratio: number = zLen / xLen;
-			// 		const lenToCut: number = xLen * ratio;
-			// 		min[0] += lenToCut / 2;
-			// 		max[0] -= lenToCut / 2;
-			// 	} else {
-			// 		const ratio: number = xLen / zLen;
-			// 		const lenToCut: number = zLen * ratio;
-			// 		min[0] += lenToCut / 2;
-			// 		max[0] -= lenToCut / 2;
-			// 	}
-			// }
+			if (models[i] === this.player) {
+				const xLen: number = max[0] - min[0];
+				const zLen: number = max[2] - min[2];
+				if (xLen > zLen) {
+					const ratio: number = zLen / xLen;
+					// const lenToCut: number = xLen * ratio;
+					const lenToCut: number = xLen - zLen;
+					min[0] += lenToCut / 2;
+					max[0] -= lenToCut / 2;
+				} else {
+					const ratio: number = xLen / zLen;
+					// const lenToCut: number = zLen * ratio;
+					const lenToCut: number = zLen - xLen;
+					min[0] += lenToCut / 2;
+					max[0] -= lenToCut / 2;
+				}
+			}
 
 			model.min = min;
 			model.max = max;
