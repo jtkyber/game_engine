@@ -21,7 +21,7 @@ export class Camera {
 	distFromModelMax: number = 8;
 	targetNode: number;
 	pitch: number = utils.degToRad(-12);
-	yaw: number = utils.degToRad(90);
+	yaw: number = utils.degToRad(180);
 	fov = utils.degToRad(60);
 	near: number = 0.1;
 	far: number = 1000;
@@ -60,7 +60,7 @@ export class Camera {
 			this.distAboveModel = height * 0.9;
 			this.distFromModel = height * 2;
 			this.distFromModelMin = height * 0.25;
-			this.distFromModelMax = height * 400;
+			this.distFromModelMax = height * 5;
 		}
 	}
 
