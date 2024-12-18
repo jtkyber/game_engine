@@ -225,10 +225,10 @@ export default class Controller {
 				//@ts-expect-error
 				this.canvas.webkitRequestPointerLock;
 
-			//@ts-expect-error
+			////@ts-expect-error
 			const promise = this.canvas.requestPointerLock({ unadjustedMovement: true });
 
-			//@ts-expect-error
+			////@ts-expect-error
 			if (!promise) {
 				console.log('Disabling mouse acceleration is not supported');
 				return this.canvas.requestPointerLock();
@@ -236,9 +236,9 @@ export default class Controller {
 
 			return (
 				promise
-					//@ts-expect-error
+					////@ts-expect-error
 					.then(() => console.log('Pointer is locked'))
-					//@ts-expect-error
+					////@ts-expect-error
 					.catch(err => {
 						if (err.name === 'NotSupportedError') {
 							return this.canvas.requestPointerLock();

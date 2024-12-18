@@ -17,7 +17,7 @@ export const debugging: IDebug = {
 	visualizeLightFrustums: false,
 	lockDirectionalFrustums: false,
 	firstPersonMode: false,
-	flashlightOn: false,
+	flashlightOn: true,
 };
 
 export let aspect: number = 0;
@@ -52,7 +52,7 @@ export default class App {
 		this.bindGroupLayouts.createBindGroupLayouts();
 
 		const skybox = new Skybox();
-		await skybox.initialize(this.renderer.device, 'dist/skybox_night.png');
+		await skybox.initialize(this.renderer.device, 'dist/skybox_day.png');
 		this.renderer.skybox = skybox;
 
 		const gltfLoader = new GTLFLoader(this.renderer.device, this.bindGroupLayouts);
@@ -63,7 +63,7 @@ export default class App {
 		const splatMap: GLTFImage = await gltfLoader.get_splat_map('dist/splat_map.png');
 		// console.log(splatMap);
 
-		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 0.5);
+		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 0);
 		const terrainNodeIndex: number = gltfLoader.terrainNodeIndex;
 		const terrainMaterialIndex: number = gltfLoader.terrainMaterialIndex;
 

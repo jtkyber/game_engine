@@ -277,8 +277,8 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
         }
 
-        let ambient = vec3f(0.03) * albedo;
-        // let ambient = vec3f(0.2) * albedo;
+        // let ambient = vec3f(0.03) * albedo;
+        let ambient = vec3f(0.08) * albedo;
         color = ambient + Lo;
         color += emission;
         color = color / (color + vec3f(1.0));

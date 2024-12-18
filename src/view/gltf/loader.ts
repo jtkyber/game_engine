@@ -137,7 +137,7 @@ export default class GTLFLoader {
 		for (let i = 0; i < node?.mesh.primitives.length; i++) {
 			const meshBufferView: GLTFBufferView = node.mesh.primitives[i].positions.bufferView;
 			const componentType: GLTFComponentType = node.mesh.primitives[i].normals.componentType;
-			const mesh: TypedArray = new (typedArrayFromComponentType(componentType))(
+			const mesh: TypedArray = new (typedArrayFromComponentType(componentType) as any)(
 				meshBufferView.view.buffer,
 				meshBufferView.view.byteOffset,
 				meshBufferView.view.byteLength / get8byteMultipleFromComponentType(componentType)
@@ -165,22 +165,22 @@ export default class GTLFLoader {
 		const meshUVBufferView: GLTFBufferView = node.mesh.primitives[pIndex].texCoords.bufferView;
 		const UVComponentType: GLTFComponentType = node.mesh.primitives[pIndex].texCoords.componentType;
 
-		const meshNormals: TypedArray = new (typedArrayFromComponentType(normalComponentType))(
+		const meshNormals: TypedArray = new (typedArrayFromComponentType(normalComponentType) as any)(
 			meshNormalsBufferView.view.buffer,
 			meshNormalsBufferView.view.byteOffset,
 			meshNormalsBufferView.view.byteLength / get8byteMultipleFromComponentType(normalComponentType)
 		);
-		const meshTangents: TypedArray = new (typedArrayFromComponentType(tangentComponentType))(
+		const meshTangents: TypedArray = new (typedArrayFromComponentType(tangentComponentType) as any)(
 			meshTangentsBufferView.view.buffer,
 			meshTangentsBufferView.view.byteOffset,
 			meshTangentsBufferView.view.byteLength / get8byteMultipleFromComponentType(tangentComponentType)
 		);
-		const meshIndices: TypedArray = new (typedArrayFromComponentType(indexComponentType))(
+		const meshIndices: TypedArray = new (typedArrayFromComponentType(indexComponentType) as any)(
 			meshIndicesBufferView.view.buffer,
 			meshIndicesBufferView.view.byteOffset,
 			meshIndicesBufferView.view.byteLength / get8byteMultipleFromComponentType(indexComponentType)
 		);
-		const meshUVs: TypedArray = new (typedArrayFromComponentType(UVComponentType))(
+		const meshUVs: TypedArray = new (typedArrayFromComponentType(UVComponentType) as any)(
 			meshUVBufferView.view.buffer,
 			meshUVBufferView.view.byteOffset,
 			meshUVBufferView.view.byteLength / get8byteMultipleFromComponentType(UVComponentType)

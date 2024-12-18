@@ -15,7 +15,7 @@ export default class GLTFAnimationSampler {
 
 		input.bufferView.needsUpload = true;
 		input.bufferView.addUsage(GPUBufferUsage.STORAGE);
-		this.input = new (typedArrayFromComponentType(input.componentType))(
+		this.input = new (typedArrayFromComponentType(input.componentType) as any)(
 			input.bufferView.view.buffer,
 			input.bufferView.view.byteOffset,
 			input.bufferView.view.byteLength / 4
@@ -23,7 +23,7 @@ export default class GLTFAnimationSampler {
 
 		output.bufferView.needsUpload = true;
 		output.bufferView.addUsage(GPUBufferUsage.STORAGE);
-		this.output = new (typedArrayFromComponentType(output.componentType))(
+		this.output = new (typedArrayFromComponentType(output.componentType) as any)(
 			output.bufferView.view.buffer,
 			output.bufferView.view.byteOffset,
 			output.bufferView.view.byteLength / 4

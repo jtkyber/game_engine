@@ -15,13 +15,13 @@ export class Camera {
 	up: Vec3 = vec3.create();
 	target: Vec3 = vec3.create();
 	distAboveModel: number = 2;
-	distFromModel: number = 4;
-	distFromModelTemp: number = 4;
+	distFromModel: number = 5;
+	distFromModelTemp: number = 5;
 	distFromModelMin: number = 1;
 	distFromModelMax: number = 8;
 	targetNode: number;
-	pitch: number = 0;
-	yaw: number = utils.degToRad(180);
+	pitch: number = utils.degToRad(-12);
+	yaw: number = utils.degToRad(90);
 	fov = utils.degToRad(60);
 	near: number = 0.1;
 	far: number = 1000;

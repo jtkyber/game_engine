@@ -884,6 +884,8 @@ export default class Renderer {
 			const nodeIndex: number = chunk[i].nodeIndex;
 			const primIndex: number = chunk[i].primitiveIndex;
 			const node: GLTFNode = nodes[nodeIndex];
+
+			console.log(node);
 			if (!node.mesh || this.culledModels.includes(node.rootNode ?? nodeIndex) || node.hidden) {
 				continue;
 			}

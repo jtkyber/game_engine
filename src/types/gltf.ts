@@ -1,6 +1,7 @@
 import { Mat4, Vec3, Vec4 } from 'wgpu-matrix';
 import Light from '../model/light';
 import { GLTFComponentType, GLTFTextureFilter, GLTFTextureWrap, GLTFType } from './enums';
+import { TypedArray, TypedArrayConstructor } from './types';
 
 export interface IGLTFNode {
 	name: string;
@@ -104,7 +105,7 @@ export function gltfAddressMode(mode: GLTFTextureWrap) {
 	}
 }
 
-export function typedArrayFromComponentType(componentType: GLTFComponentType) {
+export function typedArrayFromComponentType(componentType: GLTFComponentType): TypedArrayConstructor {
 	switch (componentType) {
 		case GLTFComponentType.BYTE:
 			return Int8Array;
