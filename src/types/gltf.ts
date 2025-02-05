@@ -22,6 +22,10 @@ export interface IGLTFNode {
 		emission?: number;
 		hasPhysics?: boolean;
 		hidden?: boolean;
+		hideShadow?: boolean;
+		objectClass?: string;
+		maxRadius?: number;
+		turnSpeed?: number;
 	};
 }
 

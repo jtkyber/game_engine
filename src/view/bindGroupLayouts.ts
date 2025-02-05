@@ -86,6 +86,15 @@ export default class BindGroupLayouts {
 						hasDynamicOffset: false,
 					},
 				},
+				{
+					// sunAboveHorizon
+					binding: 8,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'uniform',
+						hasDynamicOffset: false,
+					},
+				},
 			],
 		});
 

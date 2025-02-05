@@ -7,11 +7,11 @@ body {
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	font-family: Arial, Helvetica, sans-serif;
 
 	.container {
-		aspect-ratio: auto;
-		max-height: 100%;
-		max-width: 100%;
+		aspect-ratio: 16 / 9;
+		height: 100%;
 
 		#fps_counter {
 			color: whitesmoke;
@@ -21,10 +21,52 @@ body {
 			font-weight: 600;
 		}
 
+		menu {
+			position: absolute;
+			right: 0;
+			margin: 0.5rem 1rem;
+			background-color: rgba(0, 0, 0, 0.5);
+			width: 15rem;
+			height: max-content;
+			max-width: 80%;
+			max-height: 80%;
+			padding: 1rem;
+			border-radius: 1rem;
+			overflow: auto;
+			scrollbar-color: white transparent;
+			scrollbar-width: thin;
+			scrollbar-gutter: auto;
+
+			.setting {
+				width: 100%;
+				height: max-content;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+
+				label {
+					color: white;
+					font-size: small;
+				}
+
+				input {
+				}
+
+				#fpsCap {
+					width: 2.5rem;
+				}
+			}
+			
+		}
+
 		#canvas {
-			aspect-ratio: auto;
 			width: 100%;
 			height: 100%;
+		}
+
+		@media (max-aspect-ratio: 16 / 9) {
+			width: 100%;
+			height: auto;
 		}
 	}
 }

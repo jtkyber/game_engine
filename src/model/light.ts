@@ -1,6 +1,6 @@
 import { textSpanContainsTextSpan } from 'typescript';
 import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
-import { aspect, debugging } from '../control/app';
+import { aspect, globalToggles } from '../control/app';
 import { LightType } from '../types/enums';
 import { nodes } from '../view/gltf/loader';
 import { Camera } from './camera';
@@ -67,7 +67,7 @@ export default class Light {
 		this.position = vec3.fromValues(transform[12], transform[13], transform[14]);
 
 		if (nodes[this.nodeIndex].name === 'Flashlight') {
-			if (debugging.firstPersonMode) this.forward = vec3.negate(cameraForward);
+			if (globalToggles.firstPersonMode) this.forward = vec3.negate(cameraForward);
 			else this.forward = nodes[this.player].forward;
 		}
 
@@ -84,13 +84,13 @@ export default class Light {
 				this.lightViewProjMatrices.set(lightViewProjMatrix, 0);
 				this.lightViewMatrices.set(view, 0);
 
-				if (debugging.visualizeLightFrustums) {
+				if (globalToggles.visualizeLightFrustums) {
 					this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), 0);
 				}
 				break;
 			// case LightType.DIRECTIONAL:
 			// 	const splits: Float32Array = this.camera.cascadeSplits;
-			// 	if (debugging.lockDirectionalFrustums) {
+			// 	if (globalToggles.lockDirectionalFrustums) {
 			// 		if (this.counter > 50) return;
 			// 		this.counter++;
 			// 	}
@@ -131,16 +131,17 @@ export default class Light {
 			// 		this.lightViewProjMatrices.set(lightViewProjMatrix, i * 16);
 			// 		this.lightViewMatrices.set(lightViewMatrix, i * 16);
 
-			// 		if (debugging.visualizeLightFrustums) {
+			// 		if (globalToggles.visualizeLightFrustums) {
 			// 			this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), i * 16);
 			// 		}
 			// 	}
 			// 	break;
 			case LightType.DIRECTIONAL:
 				const splits: Float32Array = this.camera.cascadeSplits;
-				if (debugging.lockDirectionalFrustums) {
-					if (this.counter > 50) return;
-					this.counter++;
+				if (globalToggles.lockDirectionalFrustums) {
+					// if (this.counter > 50) return;
+					// this.counter++;
+					return;
 				}
 
 				for (let i = 0; i < this.camera.cascadeCount; i++) {
@@ -172,7 +173,7 @@ export default class Light {
 					this.lightViewProjMatrices.set(lightViewProjMatrix, i * 16);
 					this.lightViewMatrices.set(lightViewMatrix, i * 16);
 
-					if (debugging.visualizeLightFrustums) {
+					if (globalToggles.visualizeLightFrustums) {
 						this.inverseLightViewProjMatrices.set(mat4.inverse(lightViewProjMatrix), i * 16);
 					}
 				}

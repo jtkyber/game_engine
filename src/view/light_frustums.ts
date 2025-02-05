@@ -1,3 +1,4 @@
+import { globalToggles } from '../control/app';
 import shader from './shaders/frustum.wgsl';
 
 export class LightFrustums {
@@ -9,6 +10,7 @@ export class LightFrustums {
 	shaderModule: GPUShaderModule;
 	bindGroup: GPUBindGroup;
 	pipeline: GPURenderPipeline;
+	bindGroupLayout: GPUBindGroupLayout;
 
 	constructor(
 		device: GPUDevice,
@@ -29,7 +31,7 @@ export class LightFrustums {
 			this.device.createShaderModule({ label: 'Light Frustum Shader', code: shader })
 		);
 
-		const bindGroupLayout = this.device.createBindGroupLayout({
+		this.bindGroupLayout = this.device.createBindGroupLayout({
 			label: 'Light Frustum BGL',
 			entries: [
 				{
@@ -50,7 +52,7 @@ export class LightFrustums {
 
 		this.bindGroup = this.device.createBindGroup({
 			label: 'Light Frustum Bind Group',
-			layout: bindGroupLayout,
+			layout: this.bindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -67,10 +69,14 @@ export class LightFrustums {
 			],
 		});
 
+		this.createPipeline();
+	}
+
+	createPipeline() {
 		this.pipeline = this.device.createRenderPipeline({
 			label: 'Light Frustum Layout',
 			layout: this.device.createPipelineLayout({
-				bindGroupLayouts: [bindGroupLayout],
+				bindGroupLayouts: [this.bindGroupLayout],
 			}),
 			vertex: {
 				module: this.shaderModule,
@@ -87,6 +93,9 @@ export class LightFrustums {
 			},
 			primitive: {
 				topology: 'line-list',
+			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
 			},
 			depthStencil: { format: this.depthFormat, depthWriteEnabled: true, depthCompare: 'greater-equal' },
 		});

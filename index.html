@@ -9,7 +9,50 @@
 <body>
     <div class="container">
         <div id="fps_counter">0</div>
-        <canvas id="canvas" width="1920" height="1080"></canvas>
+        <menu>
+            <div class="setting">
+                <label for="showAABBs">Show AABBs</label>
+                <input type="checkbox" id="showAABBs" />
+            </div>
+            <div class="setting">
+                <label for="showOBBs">Show OBB</label>
+                <input type="checkbox" id="showOBBs" />
+            </div>
+            <div class="setting">
+                <label for="visualizeLightFrustums">Visualize Light Frustums</label>
+                <input type="checkbox" id="visualizeLightFrustums" />
+            </div>
+            <div class="setting">
+                <label for="lockDirectionalFrustums">Lock Directional Frustums</label>
+                <input type="checkbox" id="lockDirectionalFrustums" />
+            </div>
+            <div class="setting">
+                <label for="antialiasing">Antialiasing</label>
+                <input type="checkbox" id="antialiasing" />
+            </div>
+            <div class="setting">
+                <label for="showFPS">Show Framerate</label>
+                <input type="checkbox" id="showFPS" />
+            </div>
+            <div class="setting">
+                <label for="fpsCap">FPS Cap</label>
+                <input type="number" id="fpsCap" />
+            </div>
+            <div class="setting">
+                <label for="resolution">Resolution</label>
+                <select name="Resolution" id="resolution">
+                    <option value="none" selected disabled hidden></option>
+                    <option value="640x360">640 x 360</option>
+                    <option value="960x540">960 x 540</option>
+                    <option value="1280x720">1280 x 720</option>
+                    <option value="1600x900">1600 x 900</option>
+                    <option value="1920x1080">1920 x 1080</option>
+                    <option value="2560x1440">2560 x 1440</option>
+                    <option value="3840x2160">3840 x 2160</option>
+                </select>
+            </div>
+        </menu>
+        <canvas id="canvas" width="1280" height="720"></canvas>
     </div>
     <script src="./dist/main.js"></script>
 </body>

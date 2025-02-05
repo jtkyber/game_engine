@@ -1,5 +1,6 @@
-import { Mat4, mat4, quat, vec3 } from 'wgpu-matrix';
-import { debugging } from '../control/app';
+import { Mat4, mat4, quat, Vec3, vec3 } from 'wgpu-matrix';
+import Actions from '../control/actions';
+import { globalToggles } from '../control/app';
 import { Flag, LightType } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
@@ -17,6 +18,7 @@ export default class Scene {
 	allJoints: Set<number>;
 	lights: Light[];
 	terrainNodeIndex: number;
+	actions: Actions;
 	nodeTransforms: Float32Array;
 	normalTransforms: Float32Array;
 	jointMatricesBufferList: GPUBuffer[];
@@ -32,19 +34,22 @@ export default class Scene {
 	lightViewProjMatrices: Float32Array;
 	lightViewMatrices: Float32Array;
 	inverseLightViewProjMatrices: Float32Array;
+	sunAboveHorizon: Float32Array;
 
 	constructor(
 		modelNodeChunks: IModelNodeChunks,
 		device: GPUDevice,
 		allJoints: Set<number>,
 		lights: Light[],
-		terrainNodeIndex: number
+		terrainNodeIndex: number,
+		actions: Actions
 	) {
 		this.modelNodeChunks = modelNodeChunks;
 		this.device = device;
 		this.allJoints = allJoints;
 		this.lights = lights;
 		this.terrainNodeIndex = terrainNodeIndex;
+		this.actions = actions;
 		this.nodeTransforms = new Float32Array(16 * nodes.length);
 		this.normalTransforms = new Float32Array(16 * nodes.length);
 		this.jointMatricesBufferList = [];
@@ -59,6 +64,8 @@ export default class Scene {
 		this.lightViewProjMatrices = new Float32Array(lights.length * 16 * 6);
 		this.lightViewMatrices = new Float32Array(lights.length * 16 * 6);
 		this.inverseLightViewProjMatrices = new Float32Array(lights.length * 16 * 6);
+
+		this.sunAboveHorizon = new Float32Array(1);
 	}
 
 	update() {
@@ -104,14 +111,31 @@ export default class Scene {
 			node.set_direction_vectors();
 			node.set_current_velocity();
 			node.apply_gravity();
+
+			if (node.objectClass === 'fish') {
+				this.actions.swim(node);
+			}
+
+			if (node.name === 'Sun') {
+				node.rotateAroundPoint(
+					window.myLib.deltaTime * 0.000008,
+					vec3.create(0, 0, -1),
+					vec3.create(0, 0, 0)
+				);
+				const cameraDelta = vec3.sub(this.camera.position, this.camera.previousPosition);
+				const transformedDelta = vec3.transformQuat(cameraDelta, node.quat);
+				node.position = vec3.add(node.position, transformedDelta);
+			}
 		}
+
+		this.camera.previousPosition = vec3.copy(this.camera.position);
 	}
 
 	set_light_data(i: number) {
 		const light: Light = this.lights[i];
 		const lightNode: GLTFNode = nodes[light.nodeIndex];
 
-		if (lightNode.name === 'Flashlight' && !debugging.flashlightOn) {
+		if (lightNode.name === 'Flashlight' && !globalToggles.flashlightOn) {
 			this.lightIntensities[i] = 0;
 			return;
 		}
@@ -126,11 +150,22 @@ export default class Scene {
 		this.lightDirections.set([...light.forward, 0], i * 4);
 		this.lightAngleData.set([light.angleScale, light.angleOffset], i * 2);
 
-		if (debugging.visualizeLightFrustums) {
+		if (globalToggles.visualizeLightFrustums) {
 			this.inverseLightViewProjMatrices.set(light.inverseLightViewProjMatrices, i * 16 * 6);
 		}
 
-		if (lightNode.name === 'Sun') {
+		if (lightNode.name === 'SunLight') {
+			const sunAboveHorizon: number = vec3.dot(vec3.normalize(light.forward), [0, 1, 0]);
+			// Set sun dist above horizon
+			this.sunAboveHorizon[0] = sunAboveHorizon;
+
+			// Add warm glow to sunlight during sunrise and sunset
+			const lerpValue: number = 1 - Math.max(sunAboveHorizon, 0);
+			let newColor: Vec3 = vec3.lerp(light.color, vec3.create(1.0, 0.5, 0.2), lerpValue);
+
+			vec3.normalize(newColor, newColor);
+			this.lightColors.set([...newColor, 0], i * 4);
+
 			// const rotationQuat = quat.fromAxisAngle([0, 1, 0], 0.01);
 			// quat.mul(rotationQuat, lightNode.quat, lightNode.quat);
 			// quat.rotateX(lightNode.quat, 0.00003 * window.myLib.deltaTime, lightNode.quat);
@@ -205,6 +240,7 @@ export default class Scene {
 			lightViewProjMatrices: this.lightViewProjMatrices,
 			lightViewMatrices: this.lightViewMatrices,
 			inverseLightViewProjMatrices: this.inverseLightViewProjMatrices,
+			sunAboveHorizon: this.sunAboveHorizon,
 		};
 	}
 }

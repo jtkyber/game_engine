@@ -2,7 +2,7 @@ import { Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import { ControlBoard } from '../types/types';
 import { animations, nodes } from '../view/gltf/loader';
-import { debugging } from './app';
+import { globalToggles } from './app';
 
 export default class Controller {
 	canvas: HTMLCanvasElement;
@@ -31,7 +31,7 @@ export default class Controller {
 		document.addEventListener('keydown', e => this.handleKeyDown(e));
 		document.addEventListener('keyup', e => this.handleKeyUp(e));
 		document.addEventListener('mousemove', e => this.handleMouseMove(e));
-		document.addEventListener('mousedown', () => this.handleMouseDown());
+		canvas.addEventListener('mouseup', e => this.handleMouseDown(e));
 		canvas.addEventListener('wheel', e => this.handleScrollWheel(e), { passive: true });
 		document.addEventListener(
 			'pointerlockchange',
@@ -51,13 +51,13 @@ export default class Controller {
 		this.moveVec[0] = this.controlBoard.f - this.controlBoard.b;
 		this.moveVec[1] = this.controlBoard.r - this.controlBoard.l;
 
-		const speedMult: number = this.controlBoard.shift ? 3 : 1;
+		const speedMult: number = this.controlBoard.shift && !globalToggles.forceWalking ? 3 : 1;
 
 		const endDir: Vec3 = this.get_rotated_direction_with_forward(this.camera.forwardMove);
-		if (debugging.firstPersonMode) nodes[this.player].spin_to(this.camera.yaw);
+		if (globalToggles.firstPersonMode) nodes[this.player].spin_to(this.camera.yaw);
 
 		if (this.moveVec[0] !== 0 || this.moveVec[1] !== 0) {
-			if (debugging.firstPersonMode) {
+			if (globalToggles.firstPersonMode) {
 				if (this.moveVec[0] !== 0) {
 					nodes[this.player].move(
 						vec3.mulScalar(nodes[this.player].forwardMove, -this.moveVec[0]),
@@ -72,18 +72,22 @@ export default class Controller {
 				nodes[this.player].move(vec3.mulScalar(nodes[this.player].forwardMove, -1), speedMult);
 			}
 
-			if (debugging.flashlightOn) {
-				animations['Walk_flashlight'].play(1.4 * speedMult);
+			if (globalToggles.flashlightOn) {
+				// animations['Walk_flashlight'].play(1.4 * speedMult);
 			} else {
 				animations['Walk'].play(1.4 * speedMult);
 			}
 		} else {
-			if (debugging.flashlightOn) {
-				animations['Idle_flashlight'].play();
+			if (globalToggles.flashlightOn) {
+				// animations['Idle_flashlight'].play();
 			} else {
 				animations['Idle'].play();
 			}
 		}
+
+		animations['Angelfish|Angelfish|Swim'].play();
+		animations['Angelfish|Angelfish|SwimHover'].play();
+		animations['Trout|Swim'].play(1.5);
 
 		this.scrollAmt = 0;
 	}
@@ -185,11 +189,11 @@ export default class Controller {
 				this.controlBoard.space = 0;
 				break;
 			case 'KeyV':
-				debugging.firstPersonMode = !debugging.firstPersonMode;
+				globalToggles.firstPersonMode = !globalToggles.firstPersonMode;
 				this.camera.setInitialCamDists();
 				break;
 			case 'KeyQ':
-				debugging.flashlightOn = !debugging.flashlightOn;
+				globalToggles.flashlightOn = !globalToggles.flashlightOn;
 				break;
 			case 'ShiftLeft':
 				this.controlBoard.shift = 0;
@@ -203,10 +207,9 @@ export default class Controller {
 		this.camera.pitch -= e.movementY * 0.0005;
 	}
 
-	handleMouseDown() {
+	handleMouseDown(e: MouseEvent) {
 		if (!this.pointerLocked) {
 			this.lockPointer();
-		} else {
 		}
 	}
 

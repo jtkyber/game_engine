@@ -129,8 +129,26 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 	const node1Proportion = (massFactor1 + velocityFactor1) / totalFactor;
 	const node2Proportion = (massFactor2 + velocityFactor2) / totalFactor;
 
-	const node1Offset = vec3.scale(mtv, node1Proportion);
-	const node2Offset = vec3.scale(mtv, -node2Proportion);
+	let node1Offset = vec3.scale(mtv, node1Proportion);
+	let node2Offset = vec3.scale(mtv, -node2Proportion);
+
+	let diff: number = 0;
+
+	if (node1.name === 'Player') {
+		const stepMax: number = (node1.AABB.max[1] - node1.AABB.min[1]) / 3;
+		diff = node2.AABB.max[1] - node1.AABB.min[1];
+		if (diff < stepMax && diff > 0) {
+			node1Offset = vec3.create(0, diff, 0);
+			node2Offset = vec3.create();
+		}
+	} else if (node2.name === 'Player') {
+		const stepMax: number = (node2.AABB.max[1] - node2.AABB.min[1]) / 3;
+		diff = node1.AABB.max[1] - node2.AABB.min[1];
+		if (diff < stepMax && diff > 0) {
+			node2Offset = vec3.create(0, diff, 0);
+			node1Offset = vec3.create();
+		}
+	}
 
 	offset_root_position(node1, node1Offset, node1Pos);
 	offset_root_position(node2, node2Offset, node2Pos);

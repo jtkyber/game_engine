@@ -22,5 +22,5 @@ fn v_main(vert: VertexInput) -> VertexOutput {
 
 @fragment
 fn f_main(in: VertexOutput) -> @location(0) vec4f {
-    return vec4f(0.0, 1.0, 1.0, 0.01);
+    return vec4f(0.0, 1.0, 1.0, 0.2);
 }

@@ -29,6 +29,7 @@ export interface IRenderData {
 	lightViewProjMatrices: Float32Array;
 	lightViewMatrices: Float32Array;
 	inverseLightViewProjMatrices?: Float32Array;
+	sunAboveHorizon: Float32Array;
 }
 
 export function getFlagType(name: string): Flag | null {
@@ -101,4 +102,8 @@ export interface IDebug {
 	lockDirectionalFrustums: boolean;
 	firstPersonMode: boolean;
 	flashlightOn: boolean;
+	forceWalking: boolean;
+	antialiasing: boolean;
+	showFPS: boolean;
+	frameCap: number;
 }

@@ -784,6 +784,10 @@ export default class GTLFLoader {
 		const isBB: boolean = node?.extras?.isBB ?? false;
 		const hasPhysics: boolean = node?.extras?.hasPhysics ?? false;
 		let hidden: boolean = node?.extras?.hidden ?? false;
+		const hideShadow: boolean = node?.extras?.hideShadow ?? false;
+		const objectClass: string = node?.extras?.objectClass ?? null;
+		const maxRadius: number = node?.extras?.maxRadius ?? 20;
+		const turnSpeed: number = node?.extras?.turnSpeed ?? 0.008;
 
 		if (name === 'Terrain' || hidden) hasBoundingBox = false;
 		if (isBB) hidden = true;
@@ -827,7 +831,11 @@ export default class GTLFLoader {
 				hasBoundingBox,
 				isBB,
 				hasPhysics,
-				hidden
+				hidden,
+				hideShadow,
+				objectClass,
+				maxRadius,
+				turnSpeed
 			)
 		);
 		const lastNodeIndex: number = nodes.length - 1;

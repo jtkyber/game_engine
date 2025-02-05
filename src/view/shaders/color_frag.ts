@@ -66,6 +66,10 @@ const baseColorSplat: string = /*wgsl*/ `
     }
 
     N = normalize(N);
+    let target_normal = in.N;
+    let difference = target_normal - N;
+    let adjustment = difference * (1 - normal_intensity);
+    N = normalize(N + adjustment);
 
     base_color = vec4f(base_texture_color, alpha_temp);
 `;
@@ -78,9 +82,19 @@ const baseColor: string = /*wgsl*/ `
     let base_texture_color = textureSample(base_color_texture, base_color_sampler, in.texcoords);
     let metallic_roughness = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.texcoords);
     var uv_normal  = textureSample(normal_texture, normal_sampler, in.texcoords).rgb;
-    uv_normal  = uv_normal  * 2.0 - 1.0;
-    if (hasNormalTexture) { N = normalize(TBN * uv_normal ); }
+    uv_normal = uv_normal * 2.0 - 1.0;
 
+    
+    if (hasNormalTexture) { 
+        N = normalize(TBN * uv_normal); 
+        
+        let target_normal = in.N;
+        let difference = target_normal - N;
+        let adjustment = difference * (1 - normal_intensity);
+        N = normalize(N + adjustment);
+    }
+
+    
     var metallic = material_params.metallic_factor;
     var roughness = material_params.roughness_factor;
     let emission = material_params.emissive_factor;
@@ -130,6 +144,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     @group(0) @binding(5) var<storage, read> lightViewProjMatrix: array<mat4x4f>;
     @group(0) @binding(6) var splatMapTexture: texture_2d<f32>;
     @group(0) @binding(7) var<uniform> terrainAABB: TerrainAABB;
+    @group(0) @binding(8) var<uniform> sunAboveHorizon: f32;
 
     @group(1) @binding(0) var<${splatMap ? 'storage, read' : 'uniform'}> material_params: ${
 	splatMap ? 'array<MaterialParams>' : 'MaterialParams'
@@ -158,7 +173,9 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     */
 
     const PI = 3.14159265359; 
-    const lightIntensityAdjustment = 0.001;
+    const lightIntensityAdjustment = 0.0025;
+    const ambientAdjustment = 0.1;
+    const normal_intensity = 0.5;
     const cascadeCount = 3;
 
     @fragment
@@ -167,7 +184,8 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
         var N = normalize(in.N);
         // Determine Base color -----------------------------------------------
         var base_color = vec4f(1.0, 1.0, 1.0, 1.0);
-    
+
+        
         ${splatMap ? baseColorSplat : baseColor}
         // N = normalize(in.N);
 
@@ -217,7 +235,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
 
             let numerator = NDF * G * F;
             let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-            let specular = numerator / denominator;
+            var specular = numerator / denominator;
 
             // Shadows ------------------
 
@@ -249,7 +267,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             // var bias = tan(acos(dot(in.N, lightDirections[i])));
             // bias *= 0.00029;
 
-            // let bias = max(0.0025 * (1.0 - dot(N, lightDirections[i])), 0.001);
+            // let bias = max(0.004 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
             let bias = max(0.003 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
 
             let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
@@ -278,15 +296,20 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
         }
 
         // let ambient = vec3f(0.03) * albedo;
-        let ambient = vec3f(0.08) * albedo;
+        let ambient = vec3f(clamp(sunAboveHorizon, ambientAdjustment, 0.5)) * albedo;
         color = ambient + Lo;
-        color += emission;
         color = color / (color + vec3f(1.0));
+        
+        color += emission;
+        
         // color = pow(color, vec3f(1.0 / 2.2));
         color[0] = linear_to_srgb(color[0]);
         color[1] = linear_to_srgb(color[1]);
         color[2] = linear_to_srgb(color[2]);
+        
 
+        // return vec4f(albedo, alpha);
+        // return vec4f(emission, alpha);
         return vec4f(color, alpha);
         // return vec4f(normalize(in.T) * 0.5 + 0.5, 1.0);
         // return vec4f(N * 0.5 + 0.5, 1.0);

@@ -5,19 +5,25 @@ import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import GLTFImage from '../view/gltf/image';
-import GTLFLoader, { models, nodes } from '../view/gltf/loader';
+import GTLFLoader, { animations, models, nodes, terrainHeightMap } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
 import { Skybox } from '../view/skybox';
+import Actions from './actions';
 import Controller from './controller';
+import Menu from './menu';
 
-export const debugging: IDebug = {
+export const globalToggles: IDebug = {
 	showAABBs: false,
 	showOBBs: false,
 	visualizeLightFrustums: false,
 	lockDirectionalFrustums: false,
-	firstPersonMode: false,
-	flashlightOn: true,
+	firstPersonMode: true,
+	flashlightOn: false,
+	forceWalking: false,
+	antialiasing: true,
+	showFPS: true,
+	frameCap: 1000 / 30,
 };
 
 export let aspect: number = 0;
@@ -27,21 +33,24 @@ export default class App {
 	then: number;
 	startTime: number;
 	now: number;
-	frameCap: number = 1000 / 30;
 	framerateChunk: number[] = [];
 	framerateChunk_2: number[] = [];
 	framesPerFPSupdate: number = 50;
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
+	menu: Menu;
 	firstFrameCompleted: boolean = false;
 	bindGroupLayouts: BindGroupLayouts;
+	framerateElement: HTMLElement = document.getElementById('fps_counter') as HTMLElement;
 
 	constructor(canvas: HTMLCanvasElement) {
 		this.canvas = canvas;
 	}
 
 	async init() {
+		this.loadFromSessionStorage();
+
 		aspect = this.canvas.width / this.canvas.height;
 		window.myLib = window.myLib || {};
 		window.myLib.deltaTime = 0;
@@ -52,7 +61,7 @@ export default class App {
 		this.bindGroupLayouts.createBindGroupLayouts();
 
 		const skybox = new Skybox();
-		await skybox.initialize(this.renderer.device, 'dist/skybox_day.png');
+		await skybox.initialize(this.renderer.device, 'dist/skybox_space2.png');
 		this.renderer.skybox = skybox;
 
 		const gltfLoader = new GTLFLoader(this.renderer.device, this.bindGroupLayouts);
@@ -61,9 +70,8 @@ export default class App {
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 
 		const splatMap: GLTFImage = await gltfLoader.get_splat_map('dist/splat_map.png');
-		// console.log(splatMap);
 
-		await gltfLoader.get_terrain_height_map('dist/yosemiteHeightMap.png', 0);
+		await gltfLoader.get_terrain_height_map('dist/HeightMapTest.png', 60);
 		const terrainNodeIndex: number = gltfLoader.terrainNodeIndex;
 		const terrainMaterialIndex: number = gltfLoader.terrainMaterialIndex;
 
@@ -73,13 +81,17 @@ export default class App {
 		// console.log(nodes.filter((n, i) => models.includes(i)));
 		// console.log(gltfLoader.lights);
 		// console.log(animations);
+		// console.log(terrainHeightMap);
+
+		const actions = new Actions();
 
 		this.scene = new Scene(
 			gltfScene.modelNodeChunks,
 			this.renderer.device,
 			gltfLoader.allJoints,
 			gltfLoader.lights,
-			terrainNodeIndex
+			terrainNodeIndex,
+			actions
 		);
 		this.scene.set_models(gltfScene.player);
 
@@ -94,7 +106,90 @@ export default class App {
 			gltfLoader.terrainMaterial
 		);
 
+		this.setMenuOptions();
+
 		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
+
+		this.menu = new Menu(
+			this.renderer,
+			this.bindGroupLayouts,
+			skybox,
+			this.framerateElement,
+			this.canvas,
+			this.controller,
+			this.frame.bind(this)
+		);
+	}
+
+	setMenuOptions() {
+		const inputs = Array.from(document.querySelectorAll('input'));
+		const selects = Array.from(document.querySelectorAll('select'));
+
+		for (let input of inputs) {
+			switch (input.id) {
+				case 'showAABBs':
+					input.checked = globalToggles.showAABBs;
+					break;
+				case 'showOBBs':
+					input.checked = globalToggles.showOBBs;
+					break;
+				case 'visualizeLightFrustums':
+					input.checked = globalToggles.visualizeLightFrustums;
+					break;
+				case 'lockDirectionalFrustums':
+					input.checked = globalToggles.lockDirectionalFrustums;
+					break;
+				case 'antialiasing':
+					input.checked = globalToggles.antialiasing;
+					break;
+				case 'showFPS':
+					input.checked = globalToggles.showFPS;
+					break;
+				case 'fpsCap':
+					input.value = Math.round(1000 / globalToggles.frameCap).toString();
+					break;
+			}
+		}
+
+		for (let select of selects) {
+			switch (select.id) {
+				case 'resolution':
+					const select: HTMLSelectElement = document.querySelector('#resolution');
+					select.value = `${this.canvas.width}x${this.canvas.height}`;
+					break;
+			}
+		}
+	}
+
+	loadFromSessionStorage() {
+		const showAABBsCached = sessionStorage.getItem('showAABBs');
+		const showOBBsCached = sessionStorage.getItem('showOBBs');
+		const visualizeLightFrustumsCached = sessionStorage.getItem('visualizeLightFrustums');
+		const lockDirectionalFrustumsCached = sessionStorage.getItem('lockDirectionalFrustums');
+		const antialiasingCached = sessionStorage.getItem('antialiasing');
+		const showFPSCached = sessionStorage.getItem('showFPS');
+		globalToggles.frameCap = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.frameCap;
+
+		if (showAABBsCached) globalToggles.showAABBs = sessionStorage.getItem('showAABBs') === 'true';
+		if (showOBBsCached) globalToggles.showOBBs = sessionStorage.getItem('showOBBs') === 'true';
+		if (visualizeLightFrustumsCached)
+			globalToggles.visualizeLightFrustums = sessionStorage.getItem('visualizeLightFrustums') === 'true';
+		if (lockDirectionalFrustumsCached)
+			globalToggles.lockDirectionalFrustums = sessionStorage.getItem('lockDirectionalFrustums') === 'true';
+		if (antialiasingCached) globalToggles.antialiasing = sessionStorage.getItem('antialiasing') === 'true';
+		if (showFPSCached) globalToggles.showFPS = sessionStorage.getItem('showFPS') === 'true';
+
+		this.framerateElement.style.display = globalToggles.showFPS ? 'block' : 'none';
+
+		const res: string = sessionStorage.getItem('resolution');
+		if (res) {
+			const index: number = res.indexOf('x');
+			const width = res.substring(0, index);
+			const height = res.substring(index + 1);
+
+			this.canvas.width = parseInt(width);
+			this.canvas.height = parseInt(height);
+		}
 	}
 
 	async fetch_and_update_parameters() {
@@ -134,7 +229,7 @@ export default class App {
 		this.now = performance.now();
 		window.myLib.deltaTime = this.now - this.then;
 
-		if (window.myLib.deltaTime > this.frameCap) {
+		if (window.myLib.deltaTime > globalToggles.frameCap) {
 			this.then = performance.now();
 
 			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
@@ -144,8 +239,10 @@ export default class App {
 				this.firstFrameCompleted = true;
 			}
 
-			this.framerateChunk.push(window.myLib.deltaTime);
-			if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+			if (globalToggles.showFPS) {
+				this.framerateChunk.push(window.myLib.deltaTime);
+				if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+			}
 
 			// this.framerateChunk_2.push(performance.now() - this.then);
 			// if (this.framerateChunk_2.length === 10) {
@@ -165,7 +262,7 @@ export default class App {
 	}
 
 	show_framerate() {
-		(document.getElementById('fps_counter') as HTMLElement).innerText = (~~(
+		this.framerateElement.innerText = (~~(
 			// (1000 / this.frameCap)
 			(1000 / this.get_framerate_average(this.framerateChunk))
 		)).toString();

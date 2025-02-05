@@ -1,5 +1,5 @@
 import { Mat4, mat4, vec3, Vec3, vec4 } from 'wgpu-matrix';
-import { aspect, debugging } from '../control/app';
+import { aspect, globalToggles } from '../control/app';
 import { LightType } from '../types/enums';
 import { IModelNodeChunks, IModelNodeIndices } from '../types/gltf';
 import { IRenderData } from '../types/types';
@@ -106,6 +106,9 @@ export default class Renderer {
 	cameraPositionBuffer: GPUBuffer;
 	inverseLightViewProjBuffer: GPUBuffer;
 	terrainMinMaxBuffer: GPUBuffer;
+	sunAboveHorizonBuffer: GPUBuffer;
+
+	multisampleTexture: GPUTexture;
 
 	boundingBoxBuffer: GPUBuffer;
 	cullResultBuffer: GPUBuffer;
@@ -274,6 +277,12 @@ export default class Renderer {
 			nodes?.[this.terrainNodeIndex]?.max ?? vec4.create(0, 0, 0, 0)
 		);
 
+		this.sunAboveHorizonBuffer = this.device.createBuffer({
+			label: 'sunAboveHorizonBuffer',
+			size: 4,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
 		this.boundingBoxBuffer = this.device.createBuffer({
 			label: 'boundingBoxBuffer',
 			size: 4 * 4 * 2 * models.length,
@@ -322,6 +331,7 @@ export default class Renderer {
 			size: { width: this.canvas.width, height: this.canvas.height, depthOrArrayLayers: 1 },
 			format: this.depthFormat,
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
+			sampleCount: globalToggles.antialiasing ? 4 : 1,
 		});
 
 		this.depthStencilView = this.depthTexture.createView({
@@ -383,6 +393,12 @@ export default class Renderer {
 					binding: 7,
 					resource: {
 						buffer: this.terrainMinMaxBuffer,
+					},
+				},
+				{
+					binding: 8,
+					resource: {
+						buffer: this.sunAboveHorizonBuffer,
 					},
 				},
 			],
@@ -576,11 +592,13 @@ export default class Renderer {
 				format: this.format,
 				blend: {
 					color: {
-						srcFactor: 'one',
+						operation: 'add',
+						srcFactor: 'src-alpha',
 						dstFactor: 'one-minus-src-alpha',
 					},
 					alpha: {
-						srcFactor: 'one',
+						operation: 'add',
+						srcFactor: 'src-alpha',
 						dstFactor: 'one-minus-src-alpha',
 					},
 				},
@@ -588,6 +606,7 @@ export default class Renderer {
 		];
 
 		this.pipelineOpaque = this.device.createRenderPipeline({
+			label: 'pipelineOpaque',
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineOpaque',
 				bindGroupLayouts: bindGroupLayoutArray,
@@ -608,10 +627,15 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: this.depthStencilState,
 		});
 
 		this.pipelineOpaqueSkinned = this.device.createRenderPipeline({
+			label: 'pipelineOpaque',
+
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineOpaqueSkinned',
 				bindGroupLayouts: bindGroupLayoutsSkinned,
@@ -632,10 +656,14 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: this.depthStencilState,
 		});
 
 		this.pipelineTransparent = this.device.createRenderPipeline({
+			label: 'pipelineTransparent',
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineTransparent',
 				bindGroupLayouts: bindGroupLayoutArray,
@@ -656,6 +684,9 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
@@ -664,6 +695,7 @@ export default class Renderer {
 		});
 
 		this.pipelineTransparentSkinned = this.device.createRenderPipeline({
+			label: 'pipelineTransparentSkinned',
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineTransparentSkinned',
 				bindGroupLayouts: bindGroupLayoutsSkinned,
@@ -684,6 +716,9 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
@@ -692,6 +727,7 @@ export default class Renderer {
 		});
 
 		this.pipelineTerrainBlend = this.device.createRenderPipeline({
+			label: 'pipelineTerrainBlend',
 			layout: this.device.createPipelineLayout({
 				label: 'pipelineTerrainBlend',
 				bindGroupLayouts: bindGroupLayoutArraySplat,
@@ -712,6 +748,9 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: true,
@@ -720,6 +759,7 @@ export default class Renderer {
 		});
 
 		this.OBBPipeline = this.device.createRenderPipeline({
+			label: 'OBBPipeline',
 			layout: this.device.createPipelineLayout({
 				label: 'OBBPipeline',
 				bindGroupLayouts: [bindGroupLayouts.boundingBoxBindGroupLayout],
@@ -748,6 +788,9 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
@@ -756,6 +799,7 @@ export default class Renderer {
 		});
 
 		this.AABBPipeline = this.device.createRenderPipeline({
+			label: 'AABBPipeline',
 			layout: this.device.createPipelineLayout({
 				label: 'AABBPipeline',
 				bindGroupLayouts: [bindGroupLayouts.boundingBoxBindGroupLayout],
@@ -784,6 +828,9 @@ export default class Renderer {
 			primitive: {
 				topology: 'triangle-list',
 			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
+			},
 			depthStencil: {
 				format: this.depthFormat,
 				depthWriteEnabled: false,
@@ -792,6 +839,7 @@ export default class Renderer {
 		});
 
 		this.cullingPipeline = this.device.createComputePipeline({
+			label: 'cullingPipeline',
 			layout: this.device.createPipelineLayout({
 				label: 'cullingPipeline',
 				bindGroupLayouts: [bindGroupLayouts.cullingBindGroupLayout],
@@ -1022,7 +1070,7 @@ export default class Renderer {
 				const nodeIndex: number = modelIndexChunk.nodeIndex;
 				const primIndex: number = modelIndexChunk.primitiveIndex;
 				const node: GLTFNode = nodes[nodeIndex];
-				if (!node.mesh || node.hidden) continue;
+				if (!node.mesh || node.hidden || node.hideShadow) continue;
 
 				const p: GLTFPrimitive = node.mesh.primitives[primIndex];
 
@@ -1161,6 +1209,9 @@ export default class Renderer {
 			])
 		);
 
+		this.device.queue.writeBuffer(this.skybox.sunAboveHorizonBuffer, 0, renderables.sunAboveHorizon);
+		this.device.queue.writeBuffer(this.sunAboveHorizonBuffer, 0, renderables.sunAboveHorizon);
+
 		this.device.queue.writeBuffer(this.modelTransformsBuffer, 0, renderables.nodeTransforms);
 		this.device.queue.writeBuffer(this.normalTransformBuffer, 0, renderables.normalTransforms);
 		this.device.queue.writeBuffer(this.projectionViewBuffer, 0, renderables.camera.view);
@@ -1177,7 +1228,7 @@ export default class Renderer {
 		this.device.queue.writeBuffer(this.lightCascadeSplitsBuffer, 0, renderables.camera.cascadeRadiusArr);
 		this.device.queue.writeBuffer(this.cameraPositionBuffer, 0, renderables.camera.position);
 
-		if (debugging.visualizeLightFrustums) {
+		if (globalToggles.visualizeLightFrustums) {
 			this.device.queue.writeBuffer(
 				this.inverseLightViewProjBuffer,
 				0,
@@ -1189,17 +1240,49 @@ export default class Renderer {
 
 		this.set_joint_buffers(renderables.jointMatricesBufferList, modelNodeChunks);
 
-		this.renderPass = <GPURenderPassEncoder>this.encoder.beginRenderPass({
+		const canvasTexture = this.context.getCurrentTexture();
+
+		const renderPassDescriptor: GPURenderPassDescriptor = {
 			colorAttachments: [
 				{
 					view: this.view,
 					loadOp: 'clear',
-					clearValue: [0.0, 0.0, 0.0, 0.0],
+					clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
 					storeOp: 'store',
 				},
 			],
 			depthStencilAttachment: this.depthStencilAttachment,
-		});
+		};
+
+		if (globalToggles.antialiasing) {
+			// If the multisample texture doesn't exist or
+			// is the wrong size then make a new one.
+			if (
+				!this.multisampleTexture ||
+				this.multisampleTexture.width !== canvasTexture.width ||
+				this.multisampleTexture.height !== canvasTexture.height
+			) {
+				// If we have an existing multisample texture destroy it.
+				if (this.multisampleTexture) this.multisampleTexture.destroy();
+
+				// Create a new multisample texture that matches our
+				// canvas's size
+				this.multisampleTexture = this.device.createTexture({
+					format: canvasTexture.format,
+					usage: GPUTextureUsage.RENDER_ATTACHMENT,
+					size: [canvasTexture.width, canvasTexture.height],
+					sampleCount: globalToggles.antialiasing ? 4 : 1,
+				});
+			}
+			// Set the multisample texture as the texture to render to
+			(renderPassDescriptor.colorAttachments as GPURenderPassColorAttachment[])[0].view =
+				this.multisampleTexture.createView();
+			// Set the canvas texture as the texture to "resolve" the multisample texture to.
+			(renderPassDescriptor.colorAttachments as GPURenderPassColorAttachment[])[0].resolveTarget =
+				canvasTexture.createView();
+		}
+
+		this.renderPass = <GPURenderPassEncoder>this.encoder.beginRenderPass(renderPassDescriptor);
 
 		this.renderPass.setPipeline(this.skybox.pipeline);
 		this.renderPass.setBindGroup(0, this.skybox.bindGroup);
@@ -1210,18 +1293,18 @@ export default class Renderer {
 			this.renderChunk('transparent', modelNodeChunks.transparent);
 		}
 
-		if (debugging.showAABBs) {
+		if (globalToggles.showAABBs) {
 			this.renderPass.setPipeline(this.AABBPipeline);
 			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
 			this.renderBoundingBoxes(true);
 		}
-		if (debugging.showOBBs) {
+		if (globalToggles.showOBBs) {
 			this.renderPass.setPipeline(this.OBBPipeline);
 			this.renderPass.setBindGroup(0, this.boundingBoxBindGroup);
 			this.renderBoundingBoxes(false);
 		}
 
-		if (debugging.visualizeLightFrustums) {
+		if (globalToggles.visualizeLightFrustums) {
 			this.renderPass.setPipeline(this.lightFrustums.pipeline);
 			this.renderPass.setBindGroup(0, this.lightFrustums.bindGroup);
 

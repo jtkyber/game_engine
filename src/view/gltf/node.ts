@@ -1,7 +1,8 @@
-import { Mat4, Quat, Vec3, mat4, quat, vec3 } from 'wgpu-matrix';
-import { debugging } from '../../control/app';
+import { Mat4, Quat, Vec2, Vec3, Vec4, mat4, quat, vec2, vec3, vec4 } from 'wgpu-matrix';
+import { globalToggles } from '../../control/app';
 import { Flag } from '../../types/enums';
 import { IAABB, IOBB } from '../../types/types';
+import { bilinearInterpolation } from '../../utils/math';
 import { getAABBverticesFromMinMax, getPixel } from '../../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from './loader';
 import GLTFMesh from './mesh';
@@ -15,6 +16,7 @@ export default class GLTFNode {
 	children: number[] = [];
 	rootNode: number;
 	position: Vec3;
+	initialPosition: Vec3;
 	quat: Quat;
 	scale: Vec3;
 	transform: Mat4;
@@ -32,9 +34,11 @@ export default class GLTFNode {
 	isBB: boolean = false;
 	hasPhysics: boolean = false;
 	hidden: boolean = false;
+	hideShadow: boolean = false;
+	objectClass: string = null;
 	_currentSpeed: number = 0;
 	_currentVelocity: Vec3 = vec3.create(0, 0, 0);
-	turnSpeed: number = 0.008;
+	turnSpeed: number;
 	initialOBB: IOBB = null;
 	OBB: IOBB = null;
 	AABB: IAABB = null;
@@ -42,6 +46,8 @@ export default class GLTFNode {
 	previousPosition: Vec3;
 	preTransformed: boolean;
 	terrainNodeIndex: number = null;
+	targetPosition: Vec3;
+	maxRadius: number;
 
 	// For debug
 	initialOBBMesh: Float32Array = null;
@@ -51,6 +57,8 @@ export default class GLTFNode {
 	gravitySpeedStart: number = 0;
 	gravitySpeed: number = 0;
 	gravityAcc: number = 0.0006;
+
+	terrainStepAmt: number = 100;
 
 	forward: Vec3;
 	forwardMove: Vec3;
@@ -78,7 +86,11 @@ export default class GLTFNode {
 		hasBoundingBox: boolean,
 		isBB: boolean,
 		hasPhysics: boolean,
-		hidden: boolean
+		hidden: boolean,
+		hideShadow: boolean,
+		objectClass: string,
+		maxRadius: number,
+		turnSpeed: number
 	) {
 		this.device = device;
 		this.name = name;
@@ -87,6 +99,7 @@ export default class GLTFNode {
 		this.children = children;
 		this.rootNode = rootNode;
 		this.position = position;
+		this.initialPosition = position;
 		this.quat = quat;
 		this.scale = scale;
 		this.transform = transform;
@@ -100,7 +113,12 @@ export default class GLTFNode {
 		this.isBB = isBB;
 		this.hasPhysics = hasPhysics;
 		this.hidden = hidden;
+		this.hideShadow = hideShadow;
+		this.objectClass = objectClass;
+		this.maxRadius = maxRadius;
+		this.turnSpeed = turnSpeed;
 		this.previousPosition = vec3.fromValues(...this.position);
+		this.targetPosition = position;
 	}
 
 	update() {
@@ -129,6 +147,11 @@ export default class GLTFNode {
 		this.position = vec3.addScaled(this.position, dir, amt);
 	}
 
+	move_forward(speedMult: number = 1) {
+		const amt = this.speed * window.myLib.deltaTime * 0.01 * speedMult;
+		this.position = vec3.addScaled(this.position, vec3.negate(this.forward), amt);
+	}
+
 	spin_to(yaw: number) {
 		this.quat = quat.fromEuler(0, yaw + Math.PI, 0, 'yxz');
 	}
@@ -144,6 +167,18 @@ export default class GLTFNode {
 		if (angleToTurn <= spinAmt + 1) spinAmt *= angleToTurn * 0.8;
 
 		quat.rotateY(this.quat, sign * spinAmt, this.quat);
+	}
+
+	rotateAroundPoint(angleRad: number, axis: Vec3, pivot: Vec3) {
+		const translateToOrigin: Mat4 = mat4.translation(vec3.negate(pivot));
+		const translatedPosition: Vec3 = vec3.transformMat4(this.position, translateToOrigin);
+		const rotationMatrix: Mat4 = mat4.rotation(axis, angleRad);
+		const rotatedPosition: Vec3 = vec3.transformMat4(translatedPosition, rotationMatrix);
+		const translateBack: Mat4 = mat4.translation(pivot);
+		const rotationQuat: Quat = quat.fromAxisAngle(axis, angleRad);
+
+		this.position = vec3.transformMat4(rotatedPosition, translateBack);
+		this.quat = quat.mul(rotationQuat, this.quat);
 	}
 
 	get currentVelocity() {
@@ -195,16 +230,45 @@ export default class GLTFNode {
 		const nFractAlongMeshX: number = (this.position[0] - nodes[this.terrainNodeIndex].min[0]) / mapLength;
 		const nFractAlongMeshY: number = (this.position[2] - nodes[this.terrainNodeIndex].min[2]) / mapWidth;
 
-		const col: number = Math.floor(nFractAlongMeshX * (terrainHeightMapSize - 1));
-		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));
+		const pLocInMapContextX: number = nFractAlongMeshX * (terrainHeightMapSize - 1);
+		const pLocInMapContextY: number = nFractAlongMeshY * (terrainHeightMapSize - 1);
 
-		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
+		const xIndex: number = Math.floor(pLocInMapContextX);
+		const yIndex: number = Math.floor(pLocInMapContextY);
+
+		const interpolationSquare: Vec2[] = [
+			vec2.create(xIndex, yIndex + 1), // LT
+			vec2.create(xIndex + 1, yIndex + 1), // RT
+			vec2.create(xIndex, yIndex), // LB
+			vec2.create(xIndex + 1, yIndex), // RB
+		];
+
+		const interpolationPoints: Vec3[] = [];
+		for (let p of interpolationSquare) {
+			const height = getPixel(terrainHeightMap, p[1], p[0], terrainHeightMapSize) ?? -Infinity;
+			interpolationPoints.push(vec3.create(p[0], p[1], height));
+		}
+
+		const terrainHeight: number = bilinearInterpolation(
+			pLocInMapContextX,
+			pLocInMapContextY,
+			interpolationPoints[0],
+			interpolationPoints[1],
+			interpolationPoints[2],
+			interpolationPoints[3]
+		);
+
+		// const terrainHeight2 = getPixel(terrainHeightMap, yIndex, xIndex, terrainHeightMapSize) ?? -Infinity;
 
 		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
 
 		if (terrainHeightAbovePlayer > 0) {
-			if (terrainHeightAbovePlayer < 0.4) this.position[1] = terrainHeight;
-			else this.position = this.previousPosition;
+			if (terrainHeightAbovePlayer < this.terrainStepAmt || this._currentSpeed === 0) {
+				this.position[1] = terrainHeight;
+			} else {
+				this.position = this.previousPosition;
+			}
+			// this.position[1] = terrainHeight;
 			this.reset_gravity();
 		}
 	}
@@ -224,7 +288,7 @@ export default class GLTFNode {
 	initialize_bounding_boxes() {
 		if (!this.hasBoundingBox || !this.min?.length || !this.max?.length) return;
 
-		if (debugging.showOBBs) {
+		if (globalToggles.showOBBs) {
 			this.OBBBuffer = this.device.createBuffer({
 				label: `${this.name} node OBBBuffer`,
 				size: 4 * 36 * 3,
@@ -234,7 +298,7 @@ export default class GLTFNode {
 			this.initialOBBMesh = getAABBverticesFromMinMax(this.min, this.max);
 		}
 
-		if (debugging.showAABBs) {
+		if (globalToggles.showAABBs) {
 			this.AABBBuffer = this.device.createBuffer({
 				label: `${this.name} node AABBBuffer`,
 				size: 4 * 36 * 3,
@@ -297,12 +361,12 @@ export default class GLTFNode {
 		this.AABB.max = minMax.max;
 
 		// Only if debugging
-		if (debugging.showOBBs) {
+		if (globalToggles.showOBBs) {
 			const obbMesh = this.getTransformedOBBMesh([...this.initialOBBMesh]);
 			await this.updateOBBBuffer(obbMesh);
 		}
 
-		if (debugging.showAABBs) {
+		if (globalToggles.showAABBs) {
 			const AABBMesh = getAABBverticesFromMinMax(minMax.min, minMax.max);
 			await this.updateAABBBuffer(AABBMesh);
 		}
@@ -398,7 +462,7 @@ export default class GLTFNode {
 			this.initialOBB.vertices[j] = vec3.transformMat4(this.initialOBB.vertices[j], t);
 		}
 
-		if (debugging.showOBBs) {
+		if (globalToggles.showOBBs) {
 			for (let j = 0; j < this.initialOBBMesh.length / 3; j++) {
 				const v: Vec3 = this.initialOBBMesh.slice(j * 3, j * 3 + 3);
 				const newPos: Vec3 = vec3.transformMat4(v, t);

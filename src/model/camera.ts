@@ -1,6 +1,7 @@
-import { Mat4, Vec3, mat4, quat, utils, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec2, Vec3, mat4, quat, utils, vec2, vec3 } from 'wgpu-matrix';
 import { degToRad } from 'wgpu-matrix/dist/3.x/utils';
-import { aspect, debugging } from '../control/app';
+import { aspect, globalToggles } from '../control/app';
+import { bilinearInterpolation, normalFromTriangle } from '../utils/math';
 import { getPixel } from '../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from '../view/gltf/loader';
 
@@ -29,6 +30,7 @@ export class Camera {
 	cascadeCount: number = 3;
 	cascadeSplits: Float32Array = new Float32Array(this.cascadeCount + 1);
 	cascadeRadiusArr: Float32Array = new Float32Array(this.cascadeCount);
+	previousPosition: Vec3 = vec3.create(0, 0, 0);
 
 	constructor(targetNode: number) {
 		this.targetNode = targetNode;
@@ -51,7 +53,7 @@ export class Camera {
 	setInitialCamDists() {
 		const height: number = nodes[this.targetNode].height;
 
-		if (debugging.firstPersonMode) {
+		if (globalToggles.firstPersonMode) {
 			this.distAboveModel = height * 0.9;
 			this.distFromModel = height * -0.15;
 			this.distFromModelMin = this.distFromModel;
@@ -60,7 +62,7 @@ export class Camera {
 			this.distAboveModel = height * 0.9;
 			this.distFromModel = height * 2;
 			this.distFromModelMin = height * 0.25;
-			this.distFromModelMax = height * 5;
+			this.distFromModelMax = height * 500;
 		}
 	}
 
@@ -87,7 +89,7 @@ export class Camera {
 
 		// Move camera back out along forward vector
 
-		if (debugging.firstPersonMode) {
+		if (globalToggles.firstPersonMode) {
 			this.position = vec3.addScaled(this.position, this.forwardMove, -this.distFromModel);
 		} else {
 			this.position = vec3.addScaled(this.position, this.forward, -this.distFromModel);
@@ -114,12 +116,43 @@ export class Camera {
 		const nFractAlongMeshX: number = (this.position[0] - nodes[terrainNodeIndex].min[0]) / mapLength;
 		const nFractAlongMeshY: number = (this.position[2] - nodes[terrainNodeIndex].min[2]) / mapWidth;
 
-		const col: number = Math.floor(nFractAlongMeshX * (terrainHeightMapSize - 1));
-		const row: number = Math.floor(nFractAlongMeshY * (terrainHeightMapSize - 1));
+		const pLocInMapContextX: number = nFractAlongMeshX * (terrainHeightMapSize - 1);
+		const pLocInMapContextY: number = nFractAlongMeshY * (terrainHeightMapSize - 1);
 
-		const terrainHeight = getPixel(terrainHeightMap, row, col, terrainHeightMapSize) ?? -Infinity;
+		const xIndex: number = Math.floor(pLocInMapContextX);
+		const yIndex: number = Math.floor(pLocInMapContextY);
 
-		if (this.position[1] < terrainHeight + 0.2) this.position[1] = terrainHeight + 0.2;
+		const interpolationSquare: Vec2[] = [
+			vec2.create(xIndex, yIndex + 1), // LT
+			vec2.create(xIndex + 1, yIndex + 1), // RT
+			vec2.create(xIndex, yIndex), // LB
+			vec2.create(xIndex + 1, yIndex), // RB
+		];
+
+		const interpolationPoints: Vec3[] = [];
+		for (let p of interpolationSquare) {
+			const height = getPixel(terrainHeightMap, p[1], p[0], terrainHeightMapSize) ?? -Infinity;
+			interpolationPoints.push(vec3.create(p[0], p[1], height));
+		}
+
+		let terrainHeight: number = bilinearInterpolation(
+			pLocInMapContextX,
+			pLocInMapContextY,
+			interpolationPoints[0],
+			interpolationPoints[1],
+			interpolationPoints[2],
+			interpolationPoints[3]
+		);
+
+		// const terrainNormal: Vec3 = normalFromTriangle(
+		// 	interpolationPoints[0],
+		// 	interpolationPoints[1],
+		// 	interpolationPoints[2]
+		// );
+
+		// const terrainHeight = getPixel(terrainHeightMap, yIndex, xIndex, terrainHeightMapSize) ?? -Infinity;
+
+		if (this.position[1] < terrainHeight + 0.8) this.position[1] = terrainHeight + 0.8;
 	}
 
 	move_FB(sign: number, amt: number) {

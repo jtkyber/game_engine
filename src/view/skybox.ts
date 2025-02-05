@@ -1,3 +1,4 @@
+import { globalToggles } from '../control/app';
 import skyboxShader from './shaders/skybox_shader.wgsl';
 
 export class Skybox {
@@ -8,6 +9,8 @@ export class Skybox {
 	camDirectionBuffer: GPUBuffer;
 	pipeline: GPURenderPipeline;
 	skyboxShaderModule: GPUShaderModule;
+	sunAboveHorizonBuffer: GPUBuffer;
+	bindGroupLayout: GPUBindGroupLayout;
 
 	async initialize(device: GPUDevice, url: string) {
 		const response: Response = await fetch(url);
@@ -53,7 +56,13 @@ export class Skybox {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		const bindGroupLayout = device.createBindGroupLayout({
+		this.sunAboveHorizonBuffer = device.createBuffer({
+			label: 'sunAboveHorizonBuffer',
+			size: 4,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
+		this.bindGroupLayout = device.createBindGroupLayout({
 			label: 'skyboxBindGroupLayout',
 			entries: [
 				{
@@ -75,6 +84,13 @@ export class Skybox {
 					visibility: GPUShaderStage.FRAGMENT,
 					sampler: {},
 				},
+				{
+					binding: 3,
+					visibility: GPUShaderStage.FRAGMENT,
+					buffer: {
+						type: 'uniform',
+					},
+				},
 			],
 		});
 
@@ -84,7 +100,7 @@ export class Skybox {
 
 		this.bindGroup = device.createBindGroup({
 			label: 'skyboxBindGroup',
-			layout: bindGroupLayout,
+			layout: this.bindGroupLayout,
 			entries: [
 				{
 					binding: 0,
@@ -100,12 +116,23 @@ export class Skybox {
 					binding: 2,
 					resource: this.sampler,
 				},
+				{
+					binding: 3,
+					resource: {
+						buffer: this.sunAboveHorizonBuffer,
+					},
+				},
 			],
 		});
 
+		this.createPipeline(device);
+	}
+
+	createPipeline(device: GPUDevice) {
 		this.pipeline = device.createRenderPipeline({
+			label: 'skyboxPipeline',
 			layout: device.createPipelineLayout({
-				bindGroupLayouts: [bindGroupLayout],
+				bindGroupLayouts: [this.bindGroupLayout],
 			}),
 			vertex: {
 				module: this.skyboxShaderModule,
@@ -122,6 +149,9 @@ export class Skybox {
 			},
 			primitive: {
 				topology: 'triangle-list',
+			},
+			multisample: {
+				count: globalToggles.antialiasing ? 4 : 1,
 			},
 			depthStencil: {
 				format: 'depth24plus',

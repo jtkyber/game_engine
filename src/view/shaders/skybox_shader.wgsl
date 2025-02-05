@@ -7,6 +7,7 @@ struct Camera {
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var skyboxTexture: texture_cube<f32>;
 @group(0) @binding(2) var skyboxSampler: sampler;
+@group(0) @binding(3) var<uniform> sunAboveHorizon: f32;
 
 struct VertexOutput {
     @builtin(position) Position: vec4f,
@@ -36,5 +37,9 @@ fn v_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
 
 @fragment
 fn f_main(@location(0) direction: vec3f) -> @location(0) vec4f {
-    return textureSample(skyboxTexture, skyboxSampler, direction);
+    let texSample = textureSample(skyboxTexture, skyboxSampler, direction);
+    var lerpValue = saturate(sunAboveHorizon + 0.2);
+    if (lerpValue > 0.0) { lerpValue /= 0.2; }
+    let finalColor = mix(texSample.xyz, vec3f(0.42, 0.65, 1.0), saturate(lerpValue));
+    return vec4f(finalColor, 1.0);
 }
