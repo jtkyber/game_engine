@@ -11,8 +11,10 @@
         <div id="status"></div>
         <div id="fps_counter">0</div>
         <div class="menuContainer">
-            <button class="menuBtn">Settings</button>
+            <button class="menuBtn">&#9881;</button>
             <menu>
+                <h5 class="title">Debugging</h5>
+
                 <div class="setting">
                     <label for="showStatus">Show Status Messages</label>
                     <input type="checkbox" id="showStatus" />
@@ -33,6 +35,9 @@
                     <label for="lockDirectionalFrustums">Lock Directional Frustums</label>
                     <input type="checkbox" id="lockDirectionalFrustums" />
                 </div>
+                
+                <h5 class="title">Graphics / Gameplay</h5>
+
                 <div class="setting">
                     <label for="antialiasing">Antialiasing</label>
                     <input type="checkbox" id="antialiasing" />
@@ -72,6 +77,39 @@
                 <div class="setting">
                     <label for="tod">Time of Day</label>
                     <input type="time" id="tod"/>
+                </div>
+
+                <h5 class="title">Controls</h5>
+
+                <div class="controls">
+                    <div class="controlContainer">
+                        <h5 class="action">Toggle Settings:</h5>
+                        <h5 class="control">Click Gear Icon</h5>
+                    </div>
+                    <div class="controlContainer">
+                        <h5 class="action">Interact With Game:</h5>
+                        <h5 class="control">Click Canvas</h5>
+                    </div>
+                    <div class="controlContainer">
+                        <h5 class="action">Stop Game Interaction:</h5>
+                        <h5 class="control">Esc</h5>
+                    </div>
+                    <div class="controlContainer">
+                        <h5 class="action">First/Third Person Toggle:</h5>
+                        <h5 class="control">V</h5>
+                    </div>
+                    <div class="controlContainer">
+                        <h5 class="action">Walk:</h5>
+                        <h5 class="control">WASD</h5>
+                    </div>
+                    <div class="controlContainer">
+                        <h5 class="action">Look:</h5>
+                        <h5 class="control">Mouse</h5>
+                    </div>
+                    <div class="controlContainer">
+                        <h5 class="action">Sprint:</h5>
+                        <h5 class="control">Shift</h5>
+                    </div>
                 </div>
             </menu>
         </div>

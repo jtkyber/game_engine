@@ -52,7 +52,9 @@ export default class App {
 
 	async init() {
 		const menuBtn = document.querySelector('.menuBtn');
-		const menuDisplay = sessionStorage.getItem('menu');
+		let menuDisplay = sessionStorage.getItem('menu');
+		menuDisplay = menuDisplay ? menuDisplay : 'block';
+
 		document.querySelector('menu').style.display = menuDisplay;
 		if (menuDisplay === 'block') menuBtn.classList.add('active');
 		else menuBtn.classList.remove('active');

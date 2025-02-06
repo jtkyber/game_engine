@@ -1,6 +1,7 @@
 * {
 	box-sizing: border-box;
 	margin: 0;
+	padding: 0;
 }
 
 body {
@@ -78,17 +79,22 @@ body {
 			gap: 0.2rem;
 
 			.menuBtn {
-				background-color: rgba(245, 245, 245, 0.9);
-				color: black;
+				background-color: transparent;
+				color: white;
 				border: none;
-				padding: 0.5rem 0.7em;
 				cursor: pointer;
-				border-radius: 0.5rem;
-				box-shadow: -0.05rem 0.05rem 0.3rem black;
+				border-radius: 50%;
+				transition: opacity 0.15s ease-out;
+				opacity: 0.7;
+				font-size: 2.5rem;
+				margin-top: -0.7rem;
 
 				&.active {
-					transform: translate(-0.05rem, 0.05rem);
-					box-shadow: none;
+					opacity: 1;
+				}
+
+				&:hover {
+					opacity: 1;
 				}
 			}
 			
@@ -101,7 +107,6 @@ body {
 				scrollbar-color: darkgrey transparent;
 				scrollbar-width: thin;
 				scrollbar-gutter: auto;
-				display: none;
 	
 				.setting {
 					width: 100%;
@@ -130,6 +135,36 @@ body {
 						input {
 							height: 0.3rem;
 						}
+					}
+				}
+
+				.title {
+					margin: 1rem;
+					text-align: center;
+					color: white;
+					font-weight: 400;
+					text-decoration: underline;
+
+					&:first-child {
+						margin-top: 0;
+					}
+				}
+
+				.controls {
+					display: flex;
+					flex-flow: column nowrap;
+					gap: 0.2rem;
+
+					.controlContainer {
+						display: flex;
+						flex-flow: row nowrap;
+						justify-content: space-between;
+						align-items: center;
+					}
+
+					h5 {
+						color: white;
+						font-weight: 400;
 					}
 				}
 			}
