@@ -4,7 +4,7 @@ import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
 import { quatToEuler } from '../utils/math';
-import { timeToQuat } from '../utils/misc';
+import { newStatus, timeToQuat } from '../utils/misc';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import GLTFImage from '../view/gltf/image';
 import GTLFLoader, { models, nodes } from '../view/gltf/loader';
@@ -51,6 +51,12 @@ export default class App {
 	}
 
 	async init() {
+		const menuBtn = document.querySelector('.menuBtn');
+		const menuDisplay = sessionStorage.getItem('menu');
+		document.querySelector('menu').style.display = menuDisplay;
+		if (menuDisplay === 'block') menuBtn.classList.add('active');
+		else menuBtn.classList.remove('active');
+
 		const res: string = sessionStorage.getItem('resolution');
 		if (res) {
 			const index: number = res.indexOf('x');
@@ -61,10 +67,19 @@ export default class App {
 			this.canvas.height = parseInt(height);
 		}
 
+		const showStatus = sessionStorage.getItem('showStatus');
+		if (showStatus) {
+			document.getElementById('status').style.display = showStatus === 'true' ? 'block' : 'none';
+		}
+
+		const antialiasingCached = sessionStorage.getItem('antialiasing');
+		if (antialiasingCached) globalToggles.antialiasing = antialiasingCached === 'true';
+
 		aspect = this.canvas.width / this.canvas.height;
 		window.myLib = window.myLib || {};
 		window.myLib.deltaTime = 0;
 
+		newStatus('setting up renderer');
 		this.renderer = new Renderer(this.canvas);
 		await this.renderer.setupDevice();
 		this.bindGroupLayouts = new BindGroupLayouts(this.renderer.device);
@@ -73,9 +88,12 @@ export default class App {
 		const skybox = new Skybox();
 		await skybox.initialize(this.renderer.device, 'dist/skybox_space2.png');
 		this.renderer.skybox = skybox;
+		newStatus('skybox loaded');
 
+		newStatus('parsing and loading gltf file');
 		const gltfLoader = new GTLFLoader(this.renderer.device, this.bindGroupLayouts);
 		await gltfLoader.parse_gltf('dist/scene');
+		newStatus('gltf file loaded');
 
 		const gltfScene: IGLTFScene = gltfLoader.load_scene(0);
 
@@ -140,6 +158,9 @@ export default class App {
 
 		for (let input of inputs) {
 			switch (input.id) {
+				case 'showStatus':
+					input.checked = document.getElementById('status').style.display !== 'none';
+					break;
 				case 'showAABBs':
 					input.checked = globalToggles.showAABBs;
 					break;
@@ -209,7 +230,6 @@ export default class App {
 		const showOBBsCached = sessionStorage.getItem('showOBBs');
 		const visualizeLightFrustumsCached = sessionStorage.getItem('visualizeLightFrustums');
 		const lockDirectionalFrustumsCached = sessionStorage.getItem('lockDirectionalFrustums');
-		const antialiasingCached = sessionStorage.getItem('antialiasing');
 		const showFPSCached = sessionStorage.getItem('showFPS');
 		const todCached = sessionStorage.getItem('tod');
 		globalToggles.frameCap = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.frameCap;
@@ -230,7 +250,6 @@ export default class App {
 			}
 		}, 1000);
 
-		if (antialiasingCached) globalToggles.antialiasing = antialiasingCached === 'true';
 		if (showFPSCached) globalToggles.showFPS = showFPSCached === 'true';
 		if (todCached) {
 			for (let m of models) {

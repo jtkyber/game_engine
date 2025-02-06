@@ -1,6 +1,8 @@
 import { Mat4, mat4, quat, Quat, vec3, Vec3 } from 'wgpu-matrix';
 import GLTFNode from '../view/gltf/node';
 
+const statusDiv: HTMLElement = document.getElementById('status');
+
 export async function logGPUBufferValues(buffer: GPUBuffer) {
 	await buffer.mapAsync(GPUMapMode.READ, 0, buffer.size);
 	const arr = new Float32Array(buffer.getMappedRange(0, buffer.size));
@@ -84,4 +86,11 @@ export function timeToQuat(timeString: string): Quat {
 	const qz = Math.sin(hourAngle / 2);
 
 	return quat.create(0, 0, -qw, qz);
+}
+
+export function newStatus(msg: string) {
+	const newMsg: HTMLElement = document.createElement('h5');
+	newMsg.innerText = msg;
+	statusDiv.appendChild(newMsg);
+	statusDiv.scrollTop = statusDiv.scrollHeight;
 }

@@ -26,7 +26,7 @@ import {
 } from '../../types/gltf';
 import { getFlagType, TypedArray } from '../../types/types';
 import { fromRotationTranslationScale } from '../../utils/matrix';
-import { getPixel } from '../../utils/misc';
+import { getPixel, newStatus } from '../../utils/misc';
 import BindGroupLayouts from '../bindGroupLayouts';
 import GLTFAccessor from './accessor';
 import GLTFAnimation from './animation';
@@ -107,6 +107,8 @@ export default class GTLFLoader {
 		image.setUsage(ImageUsage.BASE_COLOR);
 		image.upload(this.device);
 
+		newStatus('splat map loaded');
+
 		return image;
 	}
 
@@ -128,7 +130,7 @@ export default class GTLFLoader {
 
 		await this.load_terrain();
 
-		console.log('terrain height map loaded');
+		newStatus('terrain height map loaded');
 	}
 
 	async load_terrain() {
@@ -292,7 +294,7 @@ export default class GTLFLoader {
 			throw Error('Invalid glB: The first chunk of the glB file is not a JSON chunk!');
 		}
 
-		console.log('.glb file validated');
+		newStatus('.glb file validated');
 
 		await this.set_chunks(buffer, header);
 	}
@@ -307,7 +309,7 @@ export default class GTLFLoader {
 
 		this.binaryChunk = new GLTFBuffer(buffer, 28 + header[3], binaryHeader[0]);
 
-		console.log('gltf json and binary extracted');
+		newStatus('gltf json and binary extracted');
 
 		await this.load_gltf_constants();
 	}
@@ -348,7 +350,7 @@ export default class GTLFLoader {
 			const bufferView: IGLTFBufferView = this.jsonChunk['bufferViews'][i];
 			this.bufferViews.push(new GLTFBufferView(this.binaryChunk, bufferView));
 		}
-		console.log('gltf buffer views loaded');
+		newStatus('gltf buffer views loaded');
 	}
 
 	load_accessors() {
@@ -357,7 +359,7 @@ export default class GTLFLoader {
 			let viewID = accessor['bufferView'];
 			this.accessors.push(new GLTFAccessor(this.bufferViews[viewID], accessor));
 		}
-		console.log('gltf accessors views loaded');
+		newStatus('gltf accessors views loaded');
 	}
 
 	async load_images() {
@@ -374,7 +376,8 @@ export default class GTLFLoader {
 
 			this.images.push(new GLTFImage(img['name'], bitmap));
 		}
-		console.log('gltf images loaded');
+
+		newStatus('gltf images loaded');
 	}
 
 	load_samplers() {
@@ -394,7 +397,8 @@ export default class GTLFLoader {
 				)
 			);
 		}
-		console.log('gltf samplers loaded');
+
+		newStatus('gltf samplers loaded');
 	}
 
 	load_textures() {
@@ -427,7 +431,8 @@ export default class GTLFLoader {
 		if (usedDefaultSampler) {
 			this.samplers.push(defaultSampler);
 		}
-		console.log('gltf textures loaded');
+
+		newStatus('gltf textures loaded');
 	}
 
 	loadMaterials() {
@@ -470,7 +475,8 @@ export default class GTLFLoader {
 				)
 			);
 		}
-		console.log('gltf materials loaded');
+
+		newStatus('gltf materials loaded');
 	}
 
 	load_skins() {
@@ -554,7 +560,8 @@ export default class GTLFLoader {
 			this.meshes.push(new GLTFMesh(mesh['name'], meshPrimitives));
 			this.primitives.push(...meshPrimitives);
 		}
-		console.log('gltf meshes loaded');
+
+		newStatus('gltf meshes loaded');
 	}
 
 	load_animations() {
@@ -646,7 +653,8 @@ export default class GTLFLoader {
 		this.remap_joint_indices();
 		this.setup_models();
 		this.set_bounding_boxes();
-		console.log('gltf nodes loaded');
+
+		newStatus('gltf nodes loaded');
 
 		return <IGLTFScene>{
 			player: this.player,

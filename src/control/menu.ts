@@ -19,6 +19,8 @@ export default class Menu {
 	controller: Controller;
 	frame: () => any;
 	camera: Camera;
+	menuElement: HTMLMenuElement;
+	menuBtn: HTMLButtonElement;
 
 	constructor(
 		renderer: Renderer,
@@ -38,9 +40,18 @@ export default class Menu {
 		this.controller = controller;
 		this.frame = frame;
 		this.camera = camera;
+		this.menuElement = document.querySelector('menu');
+		this.menuBtn = document.querySelector('.menuBtn');
 
-		document.addEventListener('change', e => this.handleMenuSelection(e));
-		document.addEventListener('input', e => this.handleInput(e));
+		this.menuElement.addEventListener('change', e => this.handleMenuSelection(e));
+		this.menuElement.addEventListener('input', e => this.handleInput(e));
+		this.menuBtn.addEventListener('click', () => {
+			const display: string = this.menuElement.style.display === 'block' ? 'none' : 'block';
+			this.menuElement.style.display = display;
+			if (display === 'block') this.menuBtn.classList.add('active');
+			else this.menuBtn.classList.remove('active');
+			sessionStorage.setItem('menu', display);
+		});
 	}
 
 	handleMenuSelection(e: Event) {
@@ -48,6 +59,10 @@ export default class Menu {
 
 		if (el instanceof HTMLInputElement) {
 			switch (el.id) {
+				case 'showStatus':
+					document.getElementById('status').style.display = el.checked ? 'block' : 'none';
+					sessionStorage.setItem(el.id, el.checked.toString());
+					break;
 				case 'showAABBs':
 					globalToggles.showAABBs = el.checked;
 					for (let m of models) {
