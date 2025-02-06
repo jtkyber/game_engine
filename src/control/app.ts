@@ -181,7 +181,11 @@ export default class App {
 								hours -= 24;
 							}
 							hours = Math.round(hours * 100) / 100;
-							let time = Math.floor(hours) + ':' + String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+							let time =
+								String(Math.floor(hours)).padStart(2, '0') +
+								':' +
+								String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+
 							input.value = time;
 							break;
 						}

@@ -120,18 +120,9 @@ export default class Scene {
 
 			if (node.name === 'Sun') {
 				// node.rotateAroundPoint(window.myLib.deltaTime * 0.0001, vec3.create(0, 0, 1), vec3.create(0, 0, 0));
-				// const cameraDelta = vec3.sub(this.camera.position, this.camera.previousPosition);
-				// const transformedDelta = vec3.transformQuat(cameraDelta, node.quat);
-				// node.position = vec3.add(node.position, transformedDelta);
-				// const euler = quatToEuler(node.quat);
-				// const hourAngle = euler[2];
-				// let hours = (hourAngle / (2 * Math.PI)) * 24;
-				// if (hours < 12) {
-				// 	hours += 12;
-				// } else if (hours >= 24) {
-				// 	hours -= 24;
-				// }
-				// let time = Math.floor(hours) + ':' + String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+				const cameraDelta = vec3.sub(this.camera.position, this.camera.previousPosition);
+				const transformedDelta = vec3.transformQuat(cameraDelta, node.quat);
+				node.position = vec3.add(node.position, transformedDelta);
 			}
 		}
 
