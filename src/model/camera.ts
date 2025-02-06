@@ -50,6 +50,11 @@ export class Camera {
 		// console.log(this.cascadeSplits);
 	}
 
+	setFOV(angleDeg: number) {
+		this.fov = utils.degToRad(angleDeg);
+		this.projection = mat4.perspectiveReverseZ(this.fov, aspect, this.near, this.far);
+	}
+
 	setInitialCamDists() {
 		const height: number = nodes[this.targetNode].height;
 

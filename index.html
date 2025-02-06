@@ -35,10 +35,6 @@
                 <input type="checkbox" id="showFPS" />
             </div>
             <div class="setting">
-                <label for="fpsCap">FPS Cap</label>
-                <input type="number" id="fpsCap" />
-            </div>
-            <div class="setting">
                 <label for="resolution">Resolution</label>
                 <select name="Resolution" id="resolution">
                     <option value="none" selected disabled hidden></option>
@@ -50,6 +46,21 @@
                     <option value="2560x1440">2560 x 1440</option>
                     <option value="3840x2160">3840 x 2160</option>
                 </select>
+            </div>
+            <div class="setting">
+                <label for="fpsCap">FPS Cap</label>
+                <h5 id="fpsCapValue"></h5>
+                <input type="range" id="fpsCap" min="5" max="250" step="5"/>
+            </div>
+            <div class="setting">
+                <label for="fov">FOV</label>
+                <h5 id="fovValue"></h5>
+                <input type="range" id="fov" min="10" max="170" step="5"/>
+            </div>
+           
+            <div class="setting">
+                <label for="tod">Time of Day</label>
+                <input type="time" id="tod"/>
             </div>
         </menu>
         <canvas id="canvas" width="1280" height="720"></canvas>

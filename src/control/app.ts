@@ -1,11 +1,13 @@
-import { mat4, utils } from 'wgpu-matrix';
+import { Mat4, mat4, utils, vec3, Vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
+import { quatToEuler } from '../utils/math';
+import { timeToQuat } from '../utils/misc';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import GLTFImage from '../view/gltf/image';
-import GTLFLoader, { animations, models, nodes, terrainHeightMap } from '../view/gltf/loader';
+import GTLFLoader, { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
 import { Skybox } from '../view/skybox';
@@ -49,7 +51,15 @@ export default class App {
 	}
 
 	async init() {
-		this.loadFromSessionStorage();
+		const res: string = sessionStorage.getItem('resolution');
+		if (res) {
+			const index: number = res.indexOf('x');
+			const width = res.substring(0, index);
+			const height = res.substring(index + 1);
+
+			this.canvas.width = parseInt(width);
+			this.canvas.height = parseInt(height);
+		}
 
 		aspect = this.canvas.width / this.canvas.height;
 		window.myLib = window.myLib || {};
@@ -106,6 +116,8 @@ export default class App {
 			gltfLoader.terrainMaterial
 		);
 
+		this.loadFromSessionStorage();
+
 		this.setMenuOptions();
 
 		this.controller = new Controller(this.canvas, this.scene.camera, this.scene.player);
@@ -117,7 +129,8 @@ export default class App {
 			this.framerateElement,
 			this.canvas,
 			this.controller,
-			this.frame.bind(this)
+			this.frame.bind(this),
+			this.scene.camera
 		);
 	}
 
@@ -137,7 +150,9 @@ export default class App {
 					input.checked = globalToggles.visualizeLightFrustums;
 					break;
 				case 'lockDirectionalFrustums':
-					input.checked = globalToggles.lockDirectionalFrustums;
+					setTimeout(() => {
+						input.checked = globalToggles.lockDirectionalFrustums;
+					}, 1100);
 					break;
 				case 'antialiasing':
 					input.checked = globalToggles.antialiasing;
@@ -147,6 +162,30 @@ export default class App {
 					break;
 				case 'fpsCap':
 					input.value = Math.round(1000 / globalToggles.frameCap).toString();
+					document.getElementById('fpsCapValue').innerText = input.value;
+					break;
+				case 'fov':
+					input.value = utils.radToDeg(this.scene.camera.fov).toString();
+					document.getElementById('fovValue').innerText = input.value;
+					break;
+				case 'tod':
+					for (let m of models) {
+						const node: GLTFNode = nodes[m];
+						if (node.name === 'Sun') {
+							const euler = quatToEuler(node.quat);
+							const hourAngle = euler[2];
+							let hours = (hourAngle / (2 * Math.PI)) * 24;
+							if (hours < 12) {
+								hours += 12;
+							} else if (hours >= 24) {
+								hours -= 24;
+							}
+							hours = Math.round(hours * 100) / 100;
+							let time = Math.floor(hours) + ':' + String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+							input.value = time;
+							break;
+						}
+					}
 					break;
 			}
 		}
@@ -168,28 +207,51 @@ export default class App {
 		const lockDirectionalFrustumsCached = sessionStorage.getItem('lockDirectionalFrustums');
 		const antialiasingCached = sessionStorage.getItem('antialiasing');
 		const showFPSCached = sessionStorage.getItem('showFPS');
+		const todCached = sessionStorage.getItem('tod');
 		globalToggles.frameCap = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.frameCap;
+		this.scene.camera.setFOV(
+			parseFloat(sessionStorage.getItem('fov')) || utils.radToDeg(this.scene.camera.fov)
+		);
 
-		if (showAABBsCached) globalToggles.showAABBs = sessionStorage.getItem('showAABBs') === 'true';
-		if (showOBBsCached) globalToggles.showOBBs = sessionStorage.getItem('showOBBs') === 'true';
-		if (visualizeLightFrustumsCached)
-			globalToggles.visualizeLightFrustums = sessionStorage.getItem('visualizeLightFrustums') === 'true';
-		if (lockDirectionalFrustumsCached)
-			globalToggles.lockDirectionalFrustums = sessionStorage.getItem('lockDirectionalFrustums') === 'true';
-		if (antialiasingCached) globalToggles.antialiasing = sessionStorage.getItem('antialiasing') === 'true';
-		if (showFPSCached) globalToggles.showFPS = sessionStorage.getItem('showFPS') === 'true';
+		if (showAABBsCached) globalToggles.showAABBs = showAABBsCached === 'true';
+		if (showOBBsCached) globalToggles.showOBBs = showOBBsCached === 'true';
+		if (visualizeLightFrustumsCached) {
+			globalToggles.visualizeLightFrustums = visualizeLightFrustumsCached === 'true';
+		}
+
+		globalToggles.lockDirectionalFrustums = false;
+		setTimeout(() => {
+			if (lockDirectionalFrustumsCached) {
+				globalToggles.lockDirectionalFrustums = lockDirectionalFrustumsCached === 'true';
+			}
+		}, 1000);
+
+		if (antialiasingCached) globalToggles.antialiasing = antialiasingCached === 'true';
+		if (showFPSCached) globalToggles.showFPS = showFPSCached === 'true';
+		if (todCached) {
+			for (let m of models) {
+				const node: GLTFNode = nodes[m];
+				if (node.name === 'Sun') {
+					node.quat = timeToQuat(todCached);
+
+					const rotationMatrix: Mat4 = mat4.fromQuat(node.quat);
+					const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
+					const movement: Vec3 = vec3.scale(worldDirection, 400);
+					node.position = movement;
+					break;
+				}
+			}
+		}
 
 		this.framerateElement.style.display = globalToggles.showFPS ? 'block' : 'none';
 
-		const res: string = sessionStorage.getItem('resolution');
-		if (res) {
-			const index: number = res.indexOf('x');
-			const width = res.substring(0, index);
-			const height = res.substring(index + 1);
-
-			this.canvas.width = parseInt(width);
-			this.canvas.height = parseInt(height);
+		for (let m of models) {
+			if (globalToggles.showAABBs) nodes[m].initialize_bounding_boxes();
+			if (globalToggles.showOBBs) nodes[m].initialize_bounding_boxes();
 		}
+
+		// document.getElementById('fpsCapValue').innerText = Math.round(1000 / globalToggles.frameCap).toString();
+		// document.getElementById('fovValue').innerText = utils.radToDeg(this.scene.camera.fov).toString();
 	}
 
 	async fetch_and_update_parameters() {

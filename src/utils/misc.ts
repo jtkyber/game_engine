@@ -1,4 +1,5 @@
-import { Vec3 } from 'wgpu-matrix';
+import { Mat4, mat4, quat, Quat, vec3, Vec3 } from 'wgpu-matrix';
+import GLTFNode from '../view/gltf/node';
 
 export async function logGPUBufferValues(buffer: GPUBuffer) {
 	await buffer.mapAsync(GPUMapMode.READ, 0, buffer.size);
@@ -68,4 +69,19 @@ export function getPixel(data: Float32Array, row: number, col: number, textureSi
 		return data[index];
 	}
 	return null;
+}
+
+export function timeToQuat(timeString: string): Quat {
+	const [hours, minutes] = timeString.split(':').map(Number);
+	let totalHours = hours + minutes / 60;
+
+	if (totalHours >= 24) totalHours -= 24;
+	if (totalHours < 0) totalHours += 24;
+
+	let hourAngle = (totalHours / 24) * (2 * Math.PI);
+
+	const qw = Math.cos(hourAngle / 2);
+	const qz = Math.sin(hourAngle / 2);
+
+	return quat.create(0, 0, -qw, qz);
 }

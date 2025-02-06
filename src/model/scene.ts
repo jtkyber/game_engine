@@ -4,6 +4,8 @@ import { globalToggles } from '../control/app';
 import { Flag, LightType } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
+import { quatToEuler } from '../utils/math';
+import { timeToQuat } from '../utils/misc';
 import { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import JointMatrices from '../view/joint_matrices';
@@ -117,14 +119,19 @@ export default class Scene {
 			}
 
 			if (node.name === 'Sun') {
-				node.rotateAroundPoint(
-					window.myLib.deltaTime * 0.000008,
-					vec3.create(0, 0, -1),
-					vec3.create(0, 0, 0)
-				);
-				const cameraDelta = vec3.sub(this.camera.position, this.camera.previousPosition);
-				const transformedDelta = vec3.transformQuat(cameraDelta, node.quat);
-				node.position = vec3.add(node.position, transformedDelta);
+				// node.rotateAroundPoint(window.myLib.deltaTime * 0.0001, vec3.create(0, 0, 1), vec3.create(0, 0, 0));
+				// const cameraDelta = vec3.sub(this.camera.position, this.camera.previousPosition);
+				// const transformedDelta = vec3.transformQuat(cameraDelta, node.quat);
+				// node.position = vec3.add(node.position, transformedDelta);
+				// const euler = quatToEuler(node.quat);
+				// const hourAngle = euler[2];
+				// let hours = (hourAngle / (2 * Math.PI)) * 24;
+				// if (hours < 12) {
+				// 	hours += 12;
+				// } else if (hours >= 24) {
+				// 	hours -= 24;
+				// }
+				// let time = Math.floor(hours) + ':' + String(Math.floor((hours % 1) * 60)).padStart(2, '0');
 			}
 		}
 

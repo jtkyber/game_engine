@@ -1,4 +1,4 @@
-import { vec3, Vec3 } from 'wgpu-matrix';
+import { Quat, vec3, Vec3 } from 'wgpu-matrix';
 
 export function toPrincipleRangeRadians(theta: number): number {
 	const mod = theta % (2 * Math.PI);
@@ -43,4 +43,22 @@ export function normalFromTriangle(v1: Vec3, v2: Vec3, v3: Vec3): Vec3 {
 
 	// Normalize the resulting vector
 	return vec3.normalize(vec3.create(), normal);
+}
+
+export function quatToEuler(q: Quat): Vec3 {
+	const [qw, qx, qy, qz] = q;
+
+	// Calculate yaw (ψ) around Z-axis
+	const yaw = Math.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz));
+
+	// Calculate pitch (θ) around Y-axis
+	// Here, we use asin for pitch to handle the singularity at ±90 degrees
+	let pitch = Math.asin(2 * (qw * qy - qz * qx));
+	if (pitch > Math.PI / 2) pitch = Math.PI - pitch; // handle the case where pitch is above 90 degrees
+	if (pitch < -Math.PI / 2) pitch = -Math.PI - pitch; // handle the case where pitch is below -90 degrees
+
+	// Calculate roll (φ) around X-axis
+	const roll = Math.atan2(2 * (qw * qx + qy * qz), 1 - 2 * (qx * qx + qy * qy));
+
+	return vec3.create(yaw, pitch, roll); // return in radians, adjust for degrees if needed
 }
