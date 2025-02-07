@@ -268,7 +268,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
             // bias *= 0.00029;
 
             // let bias = max(0.004 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
-            let bias = max(0.003 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
+            let bias = max(0.004 * (1.0 - dot(in.N, lightDirections[i])), 0.0002);
 
             let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
             for (var y = -1; y <= 1; y++) {
