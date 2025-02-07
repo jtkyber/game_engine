@@ -140,14 +140,18 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 		if (diff < stepMax && diff > 0) {
 			node1Offset = vec3.create(0, diff, 0);
 			node2Offset = vec3.create();
-		}
+
+			node1.inAir = false;
+		} else node1.inAir = true;
 	} else if (node2.name === 'Player') {
 		const stepMax: number = (node2.AABB.max[1] - node2.AABB.min[1]) / 3;
 		diff = node1.AABB.max[1] - node2.AABB.min[1];
 		if (diff < stepMax && diff > 0) {
-			node2Offset = vec3.create(0, diff, 0);
 			node1Offset = vec3.create();
-		}
+			node2Offset = vec3.create(0, diff, 0);
+
+			node2.inAir = false;
+		} else node2.inAir = true;
 	}
 
 	offset_root_position(node1, node1Offset, node1Pos);

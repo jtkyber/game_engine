@@ -56,9 +56,11 @@ export default class GLTFNode {
 
 	gravitySpeedStart: number = 0;
 	gravitySpeed: number = 0;
-	gravityAcc: number = 0.0006;
+	gravityAcc: number = 0.000016;
 
 	terrainStepAmt: number = 100;
+
+	inAir: boolean = true;
 
 	forward: Vec3;
 	forwardMove: Vec3;
@@ -211,13 +213,24 @@ export default class GLTFNode {
 
 	apply_gravity() {
 		if (this.rootNode === null && this.name !== 'Terrain' && this.hasPhysics) {
+			this.inAir = true;
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
-			this.gravitySpeed += this.gravityAcc;
+			this.gravitySpeed += this.gravityAcc * window.myLib.deltaTime;
 			this.position[1] -= this.gravitySpeed * window.myLib.deltaTime;
 			if (terrainHeightMap && this.terrainNodeIndex >= 0) this.limit_height_to_terrain();
-			if (this.position[1] < 0) this.position[1] = 0;
+			if (this.position[1] < 0) {
+				this.position[1] = 0;
+				this.inAir = false;
+			}
 			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
 			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);
+		}
+	}
+
+	jump() {
+		if (!this.inAir) {
+			this.gravitySpeed = -0.007;
+			this.inAir = true;
 		}
 	}
 
@@ -262,7 +275,7 @@ export default class GLTFNode {
 
 		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
 
-		if (terrainHeightAbovePlayer > 0) {
+		if (terrainHeightAbovePlayer >= -0.15 && this.gravitySpeed >= 0) {
 			if (terrainHeightAbovePlayer < this.terrainStepAmt || this._currentSpeed === 0) {
 				this.position[1] = terrainHeight;
 			} else {
@@ -270,7 +283,8 @@ export default class GLTFNode {
 			}
 			// this.position[1] = terrainHeight;
 			this.reset_gravity();
-		}
+			this.inAir = false;
+		} else this.inAir = true;
 	}
 
 	reset_gravity() {

@@ -161,7 +161,11 @@ export default class Controller {
 				if (!this.controlBoard.r) this.controlBoard.r = 1;
 				break;
 			case 'Space':
-				if (!this.controlBoard.space) this.controlBoard.space = 1;
+				if (!this.controlBoard.space) {
+					nodes[this.player].jump();
+					this.controlBoard.space = 1;
+				}
+
 				break;
 			case 'ShiftLeft':
 				if (!this.controlBoard.shift) this.controlBoard.shift = 1;
