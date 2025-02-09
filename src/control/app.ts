@@ -253,18 +253,18 @@ export default class App {
 		}, 1000);
 
 		if (showFPSCached) globalToggles.showFPS = showFPSCached === 'true';
-		if (todCached) {
-			for (let m of models) {
-				const node: GLTFNode = nodes[m];
-				if (node.name === 'Sun') {
-					node.quat = timeToQuat(todCached);
 
-					const rotationMatrix: Mat4 = mat4.fromQuat(node.quat);
-					const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
-					const movement: Vec3 = vec3.scale(worldDirection, 400);
-					node.position = movement;
-					break;
-				}
+		for (let m of models) {
+			const node: GLTFNode = nodes[m];
+			if (node.name === 'Sun') {
+				const tod: string = todCached ? todCached : '09:00';
+				node.quat = timeToQuat(tod);
+
+				const rotationMatrix: Mat4 = mat4.fromQuat(node.quat);
+				const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
+				const movement: Vec3 = vec3.scale(worldDirection, 400);
+				node.position = movement;
+				break;
 			}
 		}
 

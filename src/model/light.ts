@@ -64,8 +64,8 @@ export default class Light {
 	update(cameraForward: Vec3) {
 		const transform: Mat4 = nodes[this.nodeIndex].globalTransform;
 		this.forward = vec3.fromValues(transform[8], transform[9], transform[10]);
+		if (this.forward[0] === 0) this.forward[0] = 0.0001;
 		this.position = vec3.fromValues(transform[12], transform[13], transform[14]);
-
 		if (nodes[this.nodeIndex].name === 'Flashlight') {
 			if (globalToggles.firstPersonMode) this.forward = vec3.negate(cameraForward);
 			else this.forward = nodes[this.player].forward;
