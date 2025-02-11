@@ -37,6 +37,7 @@ export default class Scene {
 	lightViewMatrices: Float32Array;
 	inverseLightViewProjMatrices: Float32Array;
 	sunAboveHorizon: Float32Array;
+	todElement = <HTMLInputElement>document.getElementById('tod');
 
 	constructor(
 		modelNodeChunks: IModelNodeChunks,
@@ -120,7 +121,30 @@ export default class Scene {
 			}
 
 			if (node.name === 'Sun') {
-				// node.rotateAroundPoint(window.myLib.deltaTime * 0.0001, vec3.create(0, 0, 1), vec3.create(0, 0, 0));
+				if (!globalToggles.todLocked) {
+					node.rotateAroundPoint(
+						window.myLib.deltaTime * 0.00001,
+						vec3.create(0, 0, 1),
+						vec3.create(0, 0, 0)
+					);
+
+					const euler = quatToEuler(node.quat);
+					const hourAngle = euler[2];
+					let hours = (hourAngle / (2 * Math.PI)) * 24;
+					if (hours < 12) {
+						hours += 12;
+					} else if (hours >= 24) {
+						hours -= 24;
+					}
+					hours = Math.round(hours * 100) / 100;
+					let time =
+						String(Math.floor(hours)).padStart(2, '0') +
+						':' +
+						String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+
+					this.todElement.value = time;
+				}
+
 				node.adjustedPosition = vec3.add(node.position, this.camera.position);
 			}
 		}
@@ -221,7 +245,7 @@ export default class Scene {
 			this.lights[i].player = this.player;
 		}
 
-		this.camera.yaw -= Math.PI / 1.4;
+		this.camera.yaw -= Math.PI / 3.2;
 		// this.camera.yaw += Math.PI / 2;
 	}
 

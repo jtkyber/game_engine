@@ -106,4 +106,5 @@ export interface IDebug {
 	antialiasing: boolean;
 	showFPS: boolean;
 	frameCap: number;
+	todLocked: boolean;
 }

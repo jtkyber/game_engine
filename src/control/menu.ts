@@ -101,6 +101,10 @@ export default class Menu {
 					this.framerateElement.style.display = el.checked ? 'block' : 'none';
 					sessionStorage.setItem(el.id, el.checked.toString());
 					break;
+				case 'todLock':
+					globalToggles.todLocked = el.checked;
+					sessionStorage.setItem(el.id, el.checked.toString());
+					break;
 			}
 		}
 

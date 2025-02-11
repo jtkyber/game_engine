@@ -26,6 +26,7 @@ export const globalToggles: IDebug = {
 	antialiasing: true,
 	showFPS: true,
 	frameCap: 1000 / 30,
+	todLocked: false,
 };
 
 export let aspect: number = 0;
@@ -37,7 +38,7 @@ export default class App {
 	startTime: number;
 	framerateChunk: number[] = [];
 	framerateChunk_2: number[] = [];
-	framesPerFPSupdate: number = 50;
+	framesPerFPSupdate: number = 30;
 	renderer: Renderer;
 	scene: Scene;
 	controller: Controller;
@@ -214,6 +215,9 @@ export default class App {
 						}
 					}
 					break;
+				case 'todLock':
+					input.checked = globalToggles.todLocked;
+					break;
 			}
 		}
 
@@ -234,6 +238,7 @@ export default class App {
 		const lockDirectionalFrustumsCached = sessionStorage.getItem('lockDirectionalFrustums');
 		const showFPSCached = sessionStorage.getItem('showFPS');
 		const todCached = sessionStorage.getItem('tod');
+		const todLockedCached = sessionStorage.getItem('todLock');
 		globalToggles.frameCap = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.frameCap;
 		this.scene.camera.setFOV(
 			parseFloat(sessionStorage.getItem('fov')) || utils.radToDeg(this.scene.camera.fov)
@@ -257,7 +262,7 @@ export default class App {
 		for (let m of models) {
 			const node: GLTFNode = nodes[m];
 			if (node.name === 'Sun') {
-				const tod: string = todCached ? todCached : '09:00';
+				const tod: string = todCached ? todCached : '06:00';
 				node.quat = timeToQuat(tod);
 
 				const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
@@ -267,6 +272,8 @@ export default class App {
 				break;
 			}
 		}
+
+		if (todLockedCached) globalToggles.todLocked = todLockedCached === 'true';
 
 		this.framerateElement.style.display = globalToggles.showFPS ? 'block' : 'none';
 
@@ -308,13 +315,6 @@ export default class App {
 		this.then = performance.now();
 		this.startTime = this.then;
 		this.frame(this.then);
-
-		// setInterval(() => {
-		// 	if (this.get_frame_perc_below_cap(this.framerateChunk_2) > 0.9) {
-		// 		globalToggles.frameCap += 1;
-		// 	} else globalToggles.frameCap -= 1;
-		// 	this.framerateChunk_2 = [];
-		// }, 1000);
 	};
 
 	frame = (now: number) => {
@@ -335,7 +335,6 @@ export default class App {
 			if (globalToggles.showFPS) {
 				const deltaTime = performance.now() - this.sinceLastRender;
 				this.framerateChunk.push(deltaTime);
-				// this.framerateChunk_2.push(deltaTime);
 				if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
 			}
 
@@ -343,14 +342,14 @@ export default class App {
 		}
 	};
 
-	get_frame_perc_below_cap(chunk: number[]) {
+	get_fps_below_cap(chunk: number[], margin: number = 0) {
 		let count: number = 0;
 		for (let frame of chunk) {
-			if (frame <= globalToggles.frameCap) {
+			if (frame >= 1000 / globalToggles.frameCap - margin) {
 				count++;
 			}
 		}
-		return count / globalToggles.frameCap;
+		return count / chunk.length;
 	}
 
 	get_framerate_average(chunk: number[]): number {
@@ -363,11 +362,17 @@ export default class App {
 	}
 
 	show_framerate() {
-		this.framerateElement.innerText = (~~(
-			// (1000 / this.frameCap)
-			(1000 / this.get_framerate_average(this.framerateChunk))
-		)).toString();
+		const averageFps: number = ~~(1000 / this.get_framerate_average(this.framerateChunk));
+		this.framerateElement.innerText = averageFps.toString();
 
 		this.framerateChunk = [];
+
+		// this.framerateChunk_2.push(averageFps || ~~(1000 / globalToggles.frameCap));
+		// if (this.framerateChunk_2.length >= 10) {
+		// 	if (this.get_fps_below_cap(this.framerateChunk_2, 2) < 0.7) {
+		// 		newStatus('Lag Detected --> Reduce FPS Cap or Graphics Settings');
+		// 	}
+		// 	this.framerateChunk_2 = [];
+		// }
 	}
 }
