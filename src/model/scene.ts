@@ -76,7 +76,8 @@ export default class Scene {
 
 		for (let i = 0; i < nodes.length; i++) {
 			const node: GLTFNode = nodes[i];
-			node.update();
+			if (node.adjustedPosition) node.update(node.adjustedPosition);
+			else node.update(node.position);
 
 			node.globalTransform = this.get_node_transform(i, node.transform, i);
 			for (let j = 0; j < 16; j++) {
@@ -120,9 +121,7 @@ export default class Scene {
 
 			if (node.name === 'Sun') {
 				// node.rotateAroundPoint(window.myLib.deltaTime * 0.0001, vec3.create(0, 0, 1), vec3.create(0, 0, 0));
-				const cameraDelta = vec3.sub(this.camera.position, this.camera.previousPosition);
-				const transformedDelta = vec3.transformQuat(cameraDelta, node.quat);
-				node.position = vec3.add(node.position, transformedDelta);
+				node.adjustedPosition = vec3.add(node.position, this.camera.position);
 			}
 		}
 
@@ -221,6 +220,9 @@ export default class Scene {
 			this.lights[i].camera = this.camera;
 			this.lights[i].player = this.player;
 		}
+
+		// this.camera.yaw -= Math.PI / 1.4;
+		this.camera.yaw += Math.PI / 2;
 	}
 
 	get_render_data(): IRenderData {

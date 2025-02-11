@@ -16,6 +16,7 @@ export default class GLTFNode {
 	children: number[] = [];
 	rootNode: number;
 	position: Vec3;
+	adjustedPosition: Vec3 = null;
 	initialPosition: Vec3;
 	quat: Quat;
 	scale: Vec3;
@@ -123,10 +124,10 @@ export default class GLTFNode {
 		this.targetPosition = position;
 	}
 
-	update() {
+	update(position: Vec3) {
 		this.transform = mat4.create();
 
-		mat4.translation(this.position, this.transform);
+		mat4.translation(position, this.transform);
 
 		const rotFromQuat = quat.toAxisAngle(this.quat);
 		mat4.rotate(this.transform, rotFromQuat.axis, rotFromQuat.angle, this.transform);

@@ -1,4 +1,4 @@
-import { Mat4, mat4, utils, vec3, Vec3 } from 'wgpu-matrix';
+import { mat3, Mat4, mat4, utils, vec3, Vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
@@ -260,7 +260,7 @@ export default class App {
 				const tod: string = todCached ? todCached : '09:00';
 				node.quat = timeToQuat(tod);
 
-				const rotationMatrix: Mat4 = mat4.fromQuat(node.quat);
+				const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
 				const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
 				const movement: Vec3 = vec3.scale(worldDirection, 400);
 				node.position = movement;

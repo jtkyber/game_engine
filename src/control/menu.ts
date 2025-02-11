@@ -1,4 +1,4 @@
-import { mat4, Mat4, quat, Vec3, vec3 } from 'wgpu-matrix';
+import { mat3, mat4, Mat4, quat, Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import { quatToEuler } from '../utils/math';
 import { timeToQuat } from '../utils/misc';
@@ -136,7 +136,7 @@ export default class Menu {
 						sessionStorage.setItem(el.id, el.value);
 						node.quat = timeToQuat(el.value);
 
-						const rotationMatrix: Mat4 = mat4.fromQuat(node.quat);
+						const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
 						const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
 						const movement: Vec3 = vec3.scale(worldDirection, 400);
 						node.position = movement;
