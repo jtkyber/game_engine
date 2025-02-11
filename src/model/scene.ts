@@ -143,6 +143,8 @@ export default class Scene {
 						String(Math.floor((hours % 1) * 60)).padStart(2, '0');
 
 					this.todElement.value = time;
+
+					sessionStorage.setItem('tod', time);
 				}
 
 				node.adjustedPosition = vec3.add(node.position, this.camera.position);
