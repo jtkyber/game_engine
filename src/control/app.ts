@@ -33,8 +33,8 @@ export let aspect: number = 0;
 export default class App {
 	canvas: HTMLCanvasElement;
 	then: number;
+	sinceLastRender: number;
 	startTime: number;
-	now: number;
 	framerateChunk: number[] = [];
 	framerateChunk_2: number[] = [];
 	framesPerFPSupdate: number = 50;
@@ -307,17 +307,23 @@ export default class App {
 
 		this.then = performance.now();
 		this.startTime = this.then;
-		this.frame();
+		this.frame(this.then);
+
+		// setInterval(() => {
+		// 	if (this.get_frame_perc_below_cap(this.framerateChunk_2) > 0.9) {
+		// 		globalToggles.frameCap += 1;
+		// 	} else globalToggles.frameCap -= 1;
+		// 	this.framerateChunk_2 = [];
+		// }, 1000);
 	};
 
-	frame = () => {
+	frame = (now: number) => {
 		requestAnimationFrame(this.frame);
 
-		this.now = performance.now();
-		window.myLib.deltaTime = this.now - this.then;
+		window.myLib.deltaTime = now - this.then;
 
-		if (window.myLib.deltaTime > globalToggles.frameCap) {
-			this.then = performance.now();
+		if (window.myLib.deltaTime >= globalToggles.frameCap) {
+			this.then = now - (window.myLib.deltaTime % globalToggles.frameCap);
 
 			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
 				this.controller.update();
@@ -327,17 +333,25 @@ export default class App {
 			}
 
 			if (globalToggles.showFPS) {
-				this.framerateChunk.push(window.myLib.deltaTime);
+				const deltaTime = performance.now() - this.sinceLastRender;
+				this.framerateChunk.push(deltaTime);
+				// this.framerateChunk_2.push(deltaTime);
 				if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
 			}
 
-			// this.framerateChunk_2.push(performance.now() - this.then);
-			// if (this.framerateChunk_2.length === 10) {
-			// 	this.frameCap = this.get_framerate_average(this.framerateChunk_2);
-			// 	this.framerateChunk_2 = [];
-			// }
+			this.sinceLastRender = performance.now();
 		}
 	};
+
+	get_frame_perc_below_cap(chunk: number[]) {
+		let count: number = 0;
+		for (let frame of chunk) {
+			if (frame <= globalToggles.frameCap) {
+				count++;
+			}
+		}
+		return count / globalToggles.frameCap;
+	}
 
 	get_framerate_average(chunk: number[]): number {
 		const count: number = chunk.length;

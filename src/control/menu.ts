@@ -17,7 +17,7 @@ export default class Menu {
 	framerateElement: HTMLElement;
 	canvas: HTMLCanvasElement;
 	controller: Controller;
-	frame: () => any;
+	frame: (currentTime: number) => any;
 	camera: Camera;
 	menuElement: HTMLMenuElement;
 	menuBtn: HTMLButtonElement;
@@ -29,7 +29,7 @@ export default class Menu {
 		framerateElement: HTMLElement,
 		canvas: HTMLCanvasElement,
 		controller: Controller,
-		frame: () => any,
+		frame: (currentTime: number) => any,
 		camera: Camera
 	) {
 		this.renderer = renderer;
