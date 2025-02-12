@@ -136,6 +136,10 @@ body {
 							height: 0.3rem;
 						}
 					}
+
+					input#tod {
+						width: 13ch;
+					}
 				}
 
 				.title {
