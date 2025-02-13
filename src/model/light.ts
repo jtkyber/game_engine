@@ -61,7 +61,7 @@ export default class Light {
 		this.nodeIndex = nodeIndex;
 	}
 
-	update(cameraForward: Vec3) {
+	update(cameraForward: Vec3, setLVPL: boolean = true) {
 		const transform: Mat4 = nodes[this.nodeIndex].globalTransform;
 		this.forward = vec3.fromValues(transform[8], transform[9], transform[10]);
 		if (this.forward[0] === 0) this.forward[0] = 0.0001;
@@ -71,7 +71,7 @@ export default class Light {
 			else this.forward = nodes[this.player].forward;
 		}
 
-		this.set_lvp_matrix();
+		if (setLVPL) this.set_lvp_matrix();
 	}
 
 	set_lvp_matrix() {

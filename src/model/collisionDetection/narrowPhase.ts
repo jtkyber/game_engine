@@ -4,63 +4,66 @@ import { nodes } from '../../view/gltf/loader';
 import GLTFNode from '../../view/gltf/node';
 
 export function narrow_phase(pairs: AABBResultPair[]) {
-	pairLoop: for (let pair of pairs) {
+	for (let pair of pairs) {
 		const node1: GLTFNode = nodes[pair[0]];
 		const node2: GLTFNode = nodes[pair[1]];
 
 		const OBB1: IOBB = node1.OBB;
 		const OBB2: IOBB = node2.OBB;
 
-		const moveVec1: Vec3 = vec3.sub(node1.position, node1.previousPosition);
-		const moveVec2: Vec3 = vec3.sub(node2.position, node2.previousPosition);
+		sat(node1, node2, OBB1, OBB2);
 
-		// const sweepNum: number = Math.ceil(vec3.len(vec3.sub(moveVec1, moveVec2)) * 4);
-		const sweepNum: number = 3;
-		// step-size = bounding box size / (constant * |velocity|)
+		// sat_continous(node1, node2, OBB1, OBB2);
+	}
+}
 
-		// sweepLoop: for (let i = sweepNum; i > 0; i--) {
-		// 	const stepRatio: number = (i - 1) / sweepNum;
+function sat(node1: GLTFNode, node2: GLTFNode, OBB1: IOBB, OBB2: IOBB) {
+	const axes: Vec3[] = get_axes(OBB1, OBB2);
+	let minOverlap = Infinity;
+	let mtvAxis: Vec3 = null;
 
-		// 	const vert1: Vec3[] = OBB1.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec1, stepRatio)));
-		// 	const vert2: Vec3[] = OBB2.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec2, stepRatio)));
+	for (let j = 0; j < axes.length; j++) {
+		const axis: Vec3 = axes[j];
 
-		// 	const axes: Vec3[] = get_axes(OBB1, OBB2);
-		// 	let minOverlap = Infinity;
-		// 	let mtvAxis: Vec3 = null;
+		const range1: Vec2 = get_min_max(OBB1.vertices, axis);
+		const range2: Vec2 = get_min_max(OBB2.vertices, axis);
 
-		// 	for (let j = 0; j < axes.length; j++) {
-		// 		const axis: Vec3 = axes[j];
+		if (!ranges_overlap(range1, range2)) {
+			return;
+		} else {
+			let overlap = Math.min(range1[1], range2[1]) - Math.max(range1[0], range2[0]);
+			if (overlap < minOverlap) {
+				minOverlap = overlap;
+				mtvAxis = axis;
+			}
+		}
+	}
 
-		// 		const range1: Vec2 = get_min_max(vert1, axis);
-		// 		const range2: Vec2 = get_min_max(vert2, axis);
+	const center1: Vec3 = get_center(OBB1.vertices);
+	const center2: Vec3 = get_center(OBB2.vertices);
 
-		// 		if (!ranges_overlap(range1, range2)) {
-		// 			if (i === 1) continue pairLoop;
-		// 			else continue sweepLoop;
-		// 		} else {
-		// 			let overlap = Math.min(range1[1], range2[1]) - Math.max(range1[0], range2[0]);
-		// 			if (overlap < minOverlap) {
-		// 				minOverlap = overlap;
-		// 				mtvAxis = axis;
-		// 			}
-		// 		}
-		// 	}
+	const direction: Vec3 = vec3.sub(center2, center1);
+	let offsetVector = vec3.scale(mtvAxis, minOverlap);
+	if (vec3.dot(direction, offsetVector) > 0) {
+		vec3.negate(offsetVector, offsetVector);
+	}
 
-		// 	const center1: Vec3 = get_center(vert1);
-		// 	const center2: Vec3 = get_center(vert2);
+	offset_nodes(offsetVector, node1, node2, node1.position, node2.position);
+}
 
-		// 	const direction: Vec3 = vec3.sub(center2, center1);
-		// 	let offsetVector = vec3.scale(mtvAxis, minOverlap);
-		// 	if (vec3.dot(direction, offsetVector) > 0) {
-		// 		vec3.negate(offsetVector, offsetVector);
-		// 	}
+function sat_continous(node1: GLTFNode, node2: GLTFNode, OBB1: IOBB, OBB2: IOBB) {
+	const moveVec1: Vec3 = vec3.sub(node1.position, node1.previousPosition);
+	const moveVec2: Vec3 = vec3.sub(node2.position, node2.previousPosition);
 
-		// 	let steppedPos1: Vec3 = vec3.sub(node1.position, vec3.mulScalar(moveVec1, stepRatio));
-		// 	let steppedPos2: Vec3 = vec3.sub(node2.position, vec3.mulScalar(moveVec2, stepRatio));
+	const sweepNum: number = Math.ceil(vec3.dist(moveVec1, moveVec2) * 4);
+	// const sweepNum: number = 3;
+	// step-size = bounding box size / (constant * |velocity|)
 
-		// 	offset_nodes(offsetVector, node1, node2, steppedPos1, steppedPos2);
-		// 	break sweepLoop;
-		// }
+	sweepLoop: for (let i = sweepNum; i > 0; i--) {
+		const stepRatio: number = (i - 1) / sweepNum;
+
+		const vert1: Vec3[] = OBB1.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec1, stepRatio)));
+		const vert2: Vec3[] = OBB2.vertices.map(v => vec3.sub(v, vec3.mulScalar(moveVec2, stepRatio)));
 
 		const axes: Vec3[] = get_axes(OBB1, OBB2);
 		let minOverlap = Infinity;
@@ -69,11 +72,12 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 		for (let j = 0; j < axes.length; j++) {
 			const axis: Vec3 = axes[j];
 
-			const range1: Vec2 = get_min_max(OBB1.vertices, axis);
-			const range2: Vec2 = get_min_max(OBB2.vertices, axis);
+			const range1: Vec2 = get_min_max(vert1, axis);
+			const range2: Vec2 = get_min_max(vert2, axis);
 
 			if (!ranges_overlap(range1, range2)) {
-				continue pairLoop;
+				if (i === 1) return;
+				else continue sweepLoop;
 			} else {
 				let overlap = Math.min(range1[1], range2[1]) - Math.max(range1[0], range2[0]);
 				if (overlap < minOverlap) {
@@ -83,8 +87,8 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 			}
 		}
 
-		const center1: Vec3 = get_center(OBB1.vertices);
-		const center2: Vec3 = get_center(OBB2.vertices);
+		const center1: Vec3 = get_center(vert1);
+		const center2: Vec3 = get_center(vert2);
 
 		const direction: Vec3 = vec3.sub(center2, center1);
 		let offsetVector = vec3.scale(mtvAxis, minOverlap);
@@ -92,7 +96,11 @@ export function narrow_phase(pairs: AABBResultPair[]) {
 			vec3.negate(offsetVector, offsetVector);
 		}
 
-		offset_nodes(offsetVector, node1, node2, node1.position, node2.position);
+		let steppedPos1: Vec3 = vec3.sub(node1.position, vec3.mulScalar(moveVec1, stepRatio));
+		let steppedPos2: Vec3 = vec3.sub(node2.position, vec3.mulScalar(moveVec2, stepRatio));
+
+		offset_nodes(offsetVector, node1, node2, steppedPos1, steppedPos2);
+		break sweepLoop;
 	}
 }
 
@@ -142,7 +150,7 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 			node2Offset = vec3.create();
 
 			node1.inAir = false;
-		} else node1.inAir = true;
+		}
 	} else if (node2.name === 'Player') {
 		const stepMax: number = (node2.AABB.max[1] - node2.AABB.min[1]) / 3;
 		diff = node1.AABB.max[1] - node2.AABB.min[1];
@@ -151,7 +159,7 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 			node2Offset = vec3.create(0, diff, 0);
 
 			node2.inAir = false;
-		} else node2.inAir = true;
+		}
 	}
 
 	offset_root_position(node1, node1Offset, node1Pos);

@@ -158,23 +158,27 @@ export default class Scene {
 		const light: Light = this.lights[i];
 		const lightNode: GLTFNode = nodes[light.nodeIndex];
 
-		if (lightNode.name === 'Flashlight' && !globalToggles.flashlightOn) {
-			this.lightIntensities[i] = 0;
-			return;
+		if (lightNode.name === 'Flashlight') {
+			this.lightIntensities[i] = globalToggles.flashlightOn ? light.intensity : 0;
 		}
-		light.update(this.camera.forward);
 
-		this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);
-		this.lightViewMatrices.set(light.lightViewMatrices, i * 16 * 6);
-		this.lightTypes[i] = light.type;
-		this.lightPositions.set([...light.position, 0], i * 4);
-		this.lightColors.set([...light.color, 0], i * 4);
-		this.lightIntensities[i] = light.intensity;
-		this.lightDirections.set([...light.forward, 0], i * 4);
-		this.lightAngleData.set([light.angleScale, light.angleOffset], i * 2);
+		const setLVP: boolean = this.lightIntensities[i] > 0;
 
-		if (globalToggles.visualizeLightFrustums) {
-			this.inverseLightViewProjMatrices.set(light.inverseLightViewProjMatrices, i * 16 * 6);
+		light.update(this.camera.forward, setLVP);
+
+		if (setLVP) {
+			this.lightViewProjMatrices.set(light.lightViewProjMatrices, i * 16 * 6);
+			this.lightViewMatrices.set(light.lightViewMatrices, i * 16 * 6);
+			this.lightTypes[i] = light.type;
+			this.lightPositions.set([...light.position, 0], i * 4);
+			this.lightColors.set([...light.color, 0], i * 4);
+			this.lightIntensities[i] = light.intensity;
+			this.lightDirections.set([...light.forward, 0], i * 4);
+			this.lightAngleData.set([light.angleScale, light.angleOffset], i * 2);
+
+			if (globalToggles.visualizeLightFrustums) {
+				this.inverseLightViewProjMatrices.set(light.inverseLightViewProjMatrices, i * 16 * 6);
+			}
 		}
 
 		if (lightNode.name === 'SunLight') {
@@ -188,6 +192,8 @@ export default class Scene {
 
 			vec3.normalize(newColor, newColor);
 			this.lightColors.set([...newColor, 0], i * 4);
+
+			this.lightIntensities[i] = sunAboveHorizon < -0.2 ? 0 : light.intensity;
 
 			// const rotationQuat = quat.fromAxisAngle([0, 1, 0], 0.01);
 			// quat.mul(rotationQuat, lightNode.quat, lightNode.quat);

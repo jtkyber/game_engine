@@ -73,13 +73,13 @@ export default class Controller {
 			}
 
 			if (globalToggles.flashlightOn) {
-				// animations['Walk_flashlight'].play(1.4 * speedMult);
+				animations['Walk_flashlight'].play(1.4 * speedMult);
 			} else {
 				animations['Walk'].play(1.4 * speedMult);
 			}
 		} else {
 			if (globalToggles.flashlightOn) {
-				// animations['Idle_flashlight'].play();
+				animations['Idle_flashlight'].play();
 			} else {
 				animations['Idle'].play();
 			}

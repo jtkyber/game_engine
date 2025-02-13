@@ -7,7 +7,7 @@ import { quatToEuler } from '../utils/math';
 import { newStatus, timeToQuat } from '../utils/misc';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import GLTFImage from '../view/gltf/image';
-import GTLFLoader, { models, nodes } from '../view/gltf/loader';
+import GTLFLoader, { animations, models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
 import { Skybox } from '../view/skybox';
