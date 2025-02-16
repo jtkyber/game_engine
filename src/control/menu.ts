@@ -114,6 +114,10 @@ export default class Menu {
 					sessionStorage.setItem(el.id, el.value);
 					window.location.reload();
 					break;
+				case 'collisionDetection':
+					sessionStorage.setItem(el.id, el.value);
+					globalToggles.collisionDetection = el.value;
+					break;
 			}
 		}
 	}
@@ -124,8 +128,8 @@ export default class Menu {
 
 		switch (el.id) {
 			case 'fpsCap':
-				globalToggles.frameCap = 1000 / parseInt(el.value);
-				sessionStorage.setItem(el.id, globalToggles.frameCap.toString());
+				globalToggles.fixedTimeStep = 1000 / parseInt(el.value);
+				sessionStorage.setItem(el.id, globalToggles.fixedTimeStep.toString());
 				document.getElementById('fpsCapValue').innerText = el.value;
 				break;
 			case 'fov':

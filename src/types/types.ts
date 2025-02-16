@@ -105,6 +105,7 @@ export interface IDebug {
 	forceWalking: boolean;
 	antialiasing: boolean;
 	showFPS: boolean;
-	frameCap: number;
+	fixedTimeStep: number;
 	todLocked: boolean;
+	collisionDetection: string;
 }

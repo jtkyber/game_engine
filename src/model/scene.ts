@@ -74,37 +74,47 @@ export default class Scene {
 	update() {
 		this.camera.update(this.terrainNodeIndex);
 		this.update_models();
+		let count: number = 0;
 
-		for (let i = 0; i < nodes.length; i++) {
-			const node: GLTFNode = nodes[i];
-			if (node.adjustedPosition) node.update(node.adjustedPosition);
-			else node.update(node.position);
+		const update_nodes = () => {
+			for (let i = 0; i < nodes.length; i++) {
+				const node: GLTFNode = nodes[i];
+				if (node.adjustedPosition) node.update(node.adjustedPosition);
+				else node.update(node.position);
 
-			node.globalTransform = this.get_node_transform(i, node.transform, i);
-			for (let j = 0; j < 16; j++) {
-				this.nodeTransforms[i * 16 + j] = node.globalTransform[j];
+				node.globalTransform = this.get_node_transform(i, node.transform, i);
+				for (let j = 0; j < 16; j++) {
+					this.nodeTransforms[i * 16 + j] = node.globalTransform[j];
+				}
+
+				node.normalTransform = mat4.transpose(mat4.invert(node.globalTransform));
+				for (let j = 0; j < 16; j++) {
+					this.normalTransforms[i * 16 + j] = node.normalTransform[j];
+				}
 			}
 
-			node.normalTransform = mat4.transpose(mat4.invert(node.globalTransform));
-			for (let j = 0; j < 16; j++) {
-				this.normalTransforms[i * 16 + j] = node.normalTransform[j];
-			}
-		}
+			for (let i = 0; i < models.length; i++) nodes[models[i]].setBoundingBoxes();
 
-		for (let i = 0; i < models.length; i++) nodes[models[i]].setBoundingBoxes();
+			if (globalToggles.collisionDetection === 'none') return;
+
+			const broadPhaseIndices = broad_phase();
+			const nodesWereAdjusted = narrow_phase(broadPhaseIndices);
+
+			count++;
+			if (nodesWereAdjusted && count < 3) update_nodes();
+		};
+
+		update_nodes();
 
 		for (let i = 0; i < this.lights.length; i++) this.set_light_data(i);
+		for (let i = 0; i < models.length; i++) nodes[models[i]].set_previous_position();
 
 		this.jointMatricesBufferList = this.jointMatrixCompute.get_joint_matrices(
 			this.modelNodeChunks,
 			this.nodeTransforms
 		);
+
 		this.sortTransparent();
-
-		const broadPhaseIndices = broad_phase();
-		narrow_phase(broadPhaseIndices);
-
-		for (let i = 0; i < models.length; i++) nodes[models[i]].set_previous_position();
 	}
 
 	update_models() {
@@ -130,12 +140,9 @@ export default class Scene {
 
 					const euler = quatToEuler(node.quat);
 					const hourAngle = euler[2];
-					let hours = (hourAngle / (2 * Math.PI)) * 24;
-					if (hours < 12) {
-						hours += 12;
-					} else if (hours >= 24) {
-						hours -= 24;
-					}
+					let hours = ((hourAngle / (2 * Math.PI)) * 24) % 24;
+					if (hours < 0) hours += 24; // Ensure hours stay positive
+
 					hours = Math.round(hours * 100) / 100;
 					let time =
 						String(Math.floor(hours)).padStart(2, '0') +

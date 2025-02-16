@@ -1,20 +1,41 @@
 import { Vec2, Vec3, vec2, vec3 } from 'wgpu-matrix';
+import { globalToggles } from '../../control/app';
 import { AABBResultPair, IOBB } from '../../types/types';
 import { nodes } from '../../view/gltf/loader';
 import GLTFNode from '../../view/gltf/node';
 
-export function narrow_phase(pairs: AABBResultPair[]) {
+let nodesAdjusted: boolean = true;
+
+export function narrow_phase(pairs: AABBResultPair[]): boolean {
+	nodesAdjusted = false;
+
 	for (let pair of pairs) {
 		const node1: GLTFNode = nodes[pair[0]];
 		const node2: GLTFNode = nodes[pair[1]];
 
+		if (
+			vec3.dist(node1.position, node1.previousPosition) < 0.001 &&
+			vec3.dist(node2.position, node2.previousPosition) < 0.001
+		) {
+			continue;
+		}
+
 		const OBB1: IOBB = node1.OBB;
 		const OBB2: IOBB = node2.OBB;
 
-		sat(node1, node2, OBB1, OBB2);
-
-		// sat_continous(node1, node2, OBB1, OBB2);
+		switch (globalToggles.collisionDetection) {
+			case 'sat':
+				sat(node1, node2, OBB1, OBB2);
+				break;
+			case 'satContinuous':
+				sat_continous(node1, node2, OBB1, OBB2);
+				break;
+			default:
+				return;
+		}
 	}
+
+	return nodesAdjusted;
 }
 
 function sat(node1: GLTFNode, node2: GLTFNode, OBB1: IOBB, OBB2: IOBB) {
@@ -96,8 +117,19 @@ function sat_continous(node1: GLTFNode, node2: GLTFNode, OBB1: IOBB, OBB2: IOBB)
 			vec3.negate(offsetVector, offsetVector);
 		}
 
-		let steppedPos1: Vec3 = vec3.sub(node1.position, vec3.mulScalar(moveVec1, stepRatio));
-		let steppedPos2: Vec3 = vec3.sub(node2.position, vec3.mulScalar(moveVec2, stepRatio));
+		const MAX_MOVE_STEP = 0.1;
+
+		let clampedMoveVec1 = vec3.scale(
+			moveVec1,
+			Math.min(stepRatio * globalToggles.fixedTimeStep, MAX_MOVE_STEP)
+		);
+		let clampedMoveVec2 = vec3.scale(
+			moveVec2,
+			Math.min(stepRatio * globalToggles.fixedTimeStep, MAX_MOVE_STEP)
+		);
+
+		let steppedPos1: Vec3 = vec3.sub(node1.position, clampedMoveVec1);
+		let steppedPos2: Vec3 = vec3.sub(node2.position, clampedMoveVec2);
 
 		offset_nodes(offsetVector, node1, node2, steppedPos1, steppedPos2);
 		break sweepLoop;
@@ -140,25 +172,27 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 	let node1Offset = vec3.scale(mtv, node1Proportion);
 	let node2Offset = vec3.scale(mtv, -node2Proportion);
 
+	let playerNode: GLTFNode = null;
+	let otherNode: GLTFNode = null;
+	if (node1.name === 'Player') {
+		playerNode = node1;
+		otherNode = node2;
+	} else if (node2.name === 'Player') {
+		playerNode = node2;
+		otherNode = node1;
+	}
+
 	let diff: number = 0;
 
-	if (node1.name === 'Player') {
-		const stepMax: number = (node1.AABB.max[1] - node1.AABB.min[1]) / 3;
-		diff = node2.AABB.max[1] - node1.AABB.min[1];
+	if (playerNode !== null) {
+		const stepMax: number = (playerNode.AABB.max[1] - playerNode.AABB.min[1]) / 3;
+		diff = otherNode.AABB.max[1] - playerNode.AABB.min[1];
 		if (diff < stepMax && diff > 0) {
-			node1Offset = vec3.create(0, diff, 0);
-			node2Offset = vec3.create();
+			// If within max step height
+			node1Offset = vec3.create(0, node1.name === 'Player' ? diff : 0, 0);
+			node2Offset = vec3.create(0, node2.name === 'Player' ? diff : 0, 0);
 
-			node1.inAir = false;
-		}
-	} else if (node2.name === 'Player') {
-		const stepMax: number = (node2.AABB.max[1] - node2.AABB.min[1]) / 3;
-		diff = node1.AABB.max[1] - node2.AABB.min[1];
-		if (diff < stepMax && diff > 0) {
-			node1Offset = vec3.create();
-			node2Offset = vec3.create(0, diff, 0);
-
-			node2.inAir = false;
+			playerNode.inAir = false;
 		}
 	}
 
@@ -166,12 +200,17 @@ function offset_nodes(mtv: Vec3, node1: GLTFNode, node2: GLTFNode, node1Pos: Vec
 	offset_root_position(node2, node2Offset, node2Pos);
 
 	if (mtv[1] !== 0) {
+		// If collision is on y-axis
 		if (node1.currentVelocity[1] < node2.currentVelocity[1]) {
+			node1.inAir = false;
 			node1.reset_gravity();
 		} else if (node2.currentVelocity[1] < node1.currentVelocity[1]) {
+			node2.inAir = false;
 			node2.reset_gravity();
 		}
 	}
+
+	nodesAdjusted = true;
 }
 
 function offset_root_position(node: GLTFNode, offset: Vec3, pos: Vec3) {

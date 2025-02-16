@@ -214,15 +214,17 @@ export default class GLTFNode {
 
 	apply_gravity() {
 		if (this.rootNode === null && this.name !== 'Terrain' && this.hasPhysics) {
-			this.inAir = true;
 			const posTemp: Vec3 = vec3.fromValues(...this.position);
 			this.gravitySpeed += this.gravityAcc * window.myLib.deltaTime;
 			this.position[1] -= this.gravitySpeed * window.myLib.deltaTime;
+
 			if (terrainHeightMap && this.terrainNodeIndex >= 0) this.limit_height_to_terrain();
+
 			if (this.position[1] < 0) {
 				this.position[1] = 0;
 				this.inAir = false;
 			}
+
 			const dropVeocity: Vec3 = vec3.sub(this.position, posTemp);
 			this._currentVelocity = vec3.add(this._currentVelocity, dropVeocity);
 		}
@@ -277,13 +279,17 @@ export default class GLTFNode {
 		const terrainHeightAbovePlayer: number = terrainHeight - this.position[1];
 
 		if (terrainHeightAbovePlayer >= -0.15 && this.gravitySpeed >= 0) {
-			if (terrainHeightAbovePlayer < this.terrainStepAmt || this._currentSpeed === 0) {
-				this.position[1] = terrainHeight;
-			} else {
-				this.position = this.previousPosition;
-			}
-			// this.position[1] = terrainHeight;
-			this.reset_gravity();
+			// If node has intersected with terrain
+
+			// if (terrainHeightAbovePlayer < this.terrainStepAmt || this._currentSpeed === 0) {
+			// 	// If player-terrain deltaY is less than stepAmt
+			// 	this.position[1] = terrainHeight;
+			// } else {
+			// 	this.position = this.previousPosition;
+			// }
+
+			this.position[1] = terrainHeight;
+
 			this.inAir = false;
 		} else this.inAir = true;
 	}

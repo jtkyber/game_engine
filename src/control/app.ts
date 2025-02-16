@@ -7,7 +7,7 @@ import { quatToEuler } from '../utils/math';
 import { newStatus, timeToQuat } from '../utils/misc';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import GLTFImage from '../view/gltf/image';
-import GTLFLoader, { animations, models, nodes } from '../view/gltf/loader';
+import GTLFLoader, { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import Renderer from '../view/renderer';
 import { Skybox } from '../view/skybox';
@@ -25,8 +25,9 @@ export const globalToggles: IDebug = {
 	forceWalking: false,
 	antialiasing: true,
 	showFPS: true,
-	frameCap: 1000 / 30,
+	fixedTimeStep: 1000 / 30,
 	todLocked: false,
+	collisionDetection: 'satContinuous',
 };
 
 export let aspect: number = 0;
@@ -185,7 +186,7 @@ export default class App {
 					input.checked = globalToggles.showFPS;
 					break;
 				case 'fpsCap':
-					input.value = Math.round(1000 / globalToggles.frameCap).toString();
+					input.value = Math.round(1000 / globalToggles.fixedTimeStep).toString();
 					document.getElementById('fpsCapValue').innerText = input.value;
 					break;
 				case 'fov':
@@ -227,6 +228,10 @@ export default class App {
 					const select: HTMLSelectElement = document.querySelector('#resolution');
 					select.value = `${this.canvas.width}x${this.canvas.height}`;
 					break;
+				case 'collisionDetection':
+					const select2: HTMLSelectElement = document.querySelector('#collisionDetection');
+					select2.value = globalToggles.collisionDetection;
+					break;
 			}
 		}
 	}
@@ -239,7 +244,8 @@ export default class App {
 		const showFPSCached = sessionStorage.getItem('showFPS');
 		const todCached = sessionStorage.getItem('tod');
 		const todLockedCached = sessionStorage.getItem('todLock');
-		globalToggles.frameCap = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.frameCap;
+		const collisionDetection = sessionStorage.getItem('collisionDetection');
+		globalToggles.fixedTimeStep = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.fixedTimeStep;
 		this.scene.camera.setFOV(
 			parseFloat(sessionStorage.getItem('fov')) || utils.radToDeg(this.scene.camera.fov)
 		);
@@ -276,6 +282,8 @@ export default class App {
 		if (todLockedCached) globalToggles.todLocked = todLockedCached === 'true';
 
 		this.framerateElement.style.display = globalToggles.showFPS ? 'block' : 'none';
+
+		if (collisionDetection) globalToggles.collisionDetection = collisionDetection;
 
 		for (let m of models) {
 			if (globalToggles.showAABBs) nodes[m].initialize_bounding_boxes();
@@ -322,30 +330,31 @@ export default class App {
 
 		window.myLib.deltaTime = now - this.then;
 
-		if (window.myLib.deltaTime >= globalToggles.frameCap) {
-			this.then = now - (window.myLib.deltaTime % globalToggles.frameCap);
+		if (window.myLib.deltaTime >= globalToggles.fixedTimeStep) {
+			this.then = now - (window.myLib.deltaTime % globalToggles.fixedTimeStep);
 
 			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
 				this.controller.update();
 				this.scene.update();
+
 				this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
 				this.firstFrameCompleted = true;
 			}
 
 			if (globalToggles.showFPS) {
-				const deltaTime = performance.now() - this.sinceLastRender;
+				const perfNow = performance.now();
+				const deltaTime = perfNow - this.sinceLastRender;
 				this.framerateChunk.push(deltaTime);
 				if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+				this.sinceLastRender = perfNow;
 			}
-
-			this.sinceLastRender = performance.now();
 		}
 	};
 
 	get_fps_below_cap(chunk: number[], margin: number = 0) {
 		let count: number = 0;
 		for (let frame of chunk) {
-			if (frame >= 1000 / globalToggles.frameCap - margin) {
+			if (frame >= 1000 / globalToggles.fixedTimeStep - margin) {
 				count++;
 			}
 		}
