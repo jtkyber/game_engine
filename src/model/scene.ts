@@ -251,7 +251,7 @@ export default class Scene {
 			this.lights[i].player = this.player;
 		}
 
-		this.camera.yaw -= Math.PI / 3.2;
+		// this.camera.yaw -= Math.PI / 3.2;
 		// this.camera.yaw += Math.PI / 2;
 	}
 

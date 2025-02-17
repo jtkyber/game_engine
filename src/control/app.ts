@@ -1,4 +1,4 @@
-import { mat3, Mat4, mat4, utils, vec3, Vec3 } from 'wgpu-matrix';
+import { mat3, Mat4, mat4, quat, utils, vec3, Vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
@@ -249,6 +249,11 @@ export default class App {
 		const todCached = sessionStorage.getItem('tod');
 		const todLockedCached = sessionStorage.getItem('todLock');
 		const collisionDetection = sessionStorage.getItem('collisionDetection');
+		const isFirstPerson = sessionStorage.getItem('isFirstPerson');
+		const playerPosition = sessionStorage.getItem('playerPosition');
+		const playerRotation = sessionStorage.getItem('playerRotation');
+		const cameraYaw = sessionStorage.getItem('cameraYaw');
+		const cameraPitch = sessionStorage.getItem('cameraPitch');
 		globalToggles.fixedTimeStep = parseFloat(sessionStorage.getItem('fpsCap')) || globalToggles.fixedTimeStep;
 		this.scene.camera.setFOV(
 			parseFloat(sessionStorage.getItem('fov')) || utils.radToDeg(this.scene.camera.fov)
@@ -289,6 +294,23 @@ export default class App {
 
 		if (collisionDetection) globalToggles.collisionDetection = collisionDetection;
 
+		if (isFirstPerson) {
+			globalToggles.firstPersonMode = isFirstPerson === 'true';
+			this.scene.camera.setInitialCamDists();
+		}
+
+		if (playerPosition) {
+			nodes[this.scene.player].position = JSON.parse(playerPosition);
+			nodes[this.scene.player].position[1] += 0.5;
+		}
+
+		if (playerRotation) nodes[this.scene.player].quat = JSON.parse(playerRotation);
+
+		if (cameraYaw) this.scene.camera.yaw = parseFloat(cameraYaw);
+		else this.scene.camera.yaw -= Math.PI / 3.2;
+
+		if (cameraPitch) this.scene.camera.pitch = parseFloat(cameraPitch);
+
 		for (let m of models) {
 			if (globalToggles.showAABBs) nodes[m].initialize_bounding_boxes();
 			if (globalToggles.showOBBs) nodes[m].initialize_bounding_boxes();
@@ -321,12 +343,22 @@ export default class App {
 		player._mass = data.player.mass;
 	}
 
+	periodic_save() {
+		sessionStorage.setItem('isFirstPerson', JSON.stringify(globalToggles.firstPersonMode));
+		sessionStorage.setItem('playerPosition', JSON.stringify(Array.from(nodes[this.scene.player].position)));
+		sessionStorage.setItem('playerRotation', JSON.stringify(Array.from(nodes[this.scene.player].quat)));
+		sessionStorage.setItem('cameraYaw', JSON.stringify(this.scene.camera.yaw));
+		sessionStorage.setItem('cameraPitch', JSON.stringify(this.scene.camera.pitch));
+	}
+
 	start = () => {
 		// setInterval(() => this.fetch_and_update_parameters(), 3000);
 
 		this.then = performance.now();
 		this.startTime = this.then;
 		this.frame(this.then);
+
+		setInterval(() => this.periodic_save(), 3000);
 	};
 
 	frame = (now: number) => {
