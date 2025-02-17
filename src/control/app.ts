@@ -3,8 +3,8 @@ import { Camera } from '../model/camera';
 import Scene from '../model/scene';
 import { IGLTFScene } from '../types/gltf';
 import { IDebug } from '../types/types';
-import { quatToEuler } from '../utils/math';
-import { newStatus, timeToQuat } from '../utils/misc';
+import { eulerFromQuat } from '../utils/math';
+import { newStatus, quatFromTime } from '../utils/misc';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import GLTFImage from '../view/gltf/image';
 import GTLFLoader, { models, nodes } from '../view/gltf/loader';
@@ -28,6 +28,7 @@ export const globalToggles: IDebug = {
 	fixedTimeStep: 1000 / 30,
 	todLocked: false,
 	collisionDetection: 'satContinuous',
+	sunAngle: 0,
 };
 
 export let aspect: number = 0;
@@ -197,8 +198,10 @@ export default class App {
 					for (let m of models) {
 						const node: GLTFNode = nodes[m];
 						if (node.name === 'Sun') {
-							const euler = quatToEuler(node.quat);
+							const euler = eulerFromQuat(node.quat);
 							const hourAngle = euler[2];
+							globalToggles.sunAngle = hourAngle;
+
 							let hours = (hourAngle / (2 * Math.PI)) * 24;
 							if (hours < 12) {
 								hours += 12;
@@ -206,6 +209,7 @@ export default class App {
 								hours -= 24;
 							}
 							hours = Math.round(hours * 100) / 100;
+
 							let time =
 								String(Math.floor(hours)).padStart(2, '0') +
 								':' +
@@ -269,7 +273,7 @@ export default class App {
 			const node: GLTFNode = nodes[m];
 			if (node.name === 'Sun') {
 				const tod: string = todCached ? todCached : '06:00';
-				node.quat = timeToQuat(tod);
+				node.quat = quatFromTime(tod);
 
 				const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
 				const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);

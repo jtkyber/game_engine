@@ -1,11 +1,10 @@
-import { Mat4, mat4, quat, Vec3, vec3 } from 'wgpu-matrix';
+import { mat3, Mat4, mat4, quat, Vec3, vec3 } from 'wgpu-matrix';
 import Actions from '../control/actions';
 import { globalToggles } from '../control/app';
-import { Flag, LightType } from '../types/enums';
+import { Flag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
-import { quatToEuler } from '../utils/math';
-import { timeToQuat } from '../utils/misc';
+import { timeFromQuat } from '../utils/misc';
 import { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import JointMatrices from '../view/joint_matrices';
@@ -132,26 +131,18 @@ export default class Scene {
 
 			if (node.name === 'Sun') {
 				if (!globalToggles.todLocked) {
-					node.rotateAroundPoint(
-						window.myLib.deltaTime * 0.00001,
-						vec3.create(0, 0, 1),
-						vec3.create(0, 0, 0)
-					);
+					globalToggles.sunAngle += 0.0003;
+					const rotationQuat = quat.fromAxisAngle([0, 0, 1], globalToggles.sunAngle);
+					node.quat = rotationQuat;
 
-					const euler = quatToEuler(node.quat);
-					const hourAngle = euler[2];
-					let hours = ((hourAngle / (2 * Math.PI)) * 24) % 24;
-					if (hours < 0) hours += 24; // Ensure hours stay positive
+					const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
+					const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
+					const movement: Vec3 = vec3.scale(worldDirection, 400);
+					node.position = movement;
 
-					hours = Math.round(hours * 100) / 100;
-					let time =
-						String(Math.floor(hours)).padStart(2, '0') +
-						':' +
-						String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+					this.todElement.value = timeFromQuat(node.quat);
 
-					this.todElement.value = time;
-
-					sessionStorage.setItem('tod', time);
+					sessionStorage.setItem('tod', this.todElement.value);
 				}
 
 				node.adjustedPosition = vec3.add(node.position, this.camera.position);

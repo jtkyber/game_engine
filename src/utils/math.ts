@@ -1,4 +1,4 @@
-import { Quat, vec3, Vec3 } from 'wgpu-matrix';
+import { quat, Quat, vec3, Vec3 } from 'wgpu-matrix';
 
 export function toPrincipleRangeRadians(theta: number): number {
 	const mod = theta % (2 * Math.PI);
@@ -45,20 +45,21 @@ export function normalFromTriangle(v1: Vec3, v2: Vec3, v3: Vec3): Vec3 {
 	return vec3.normalize(vec3.create(), normal);
 }
 
-export function quatToEuler(q: Quat): Vec3 {
-	const [qw, qx, qy, qz] = q;
+export function eulerFromQuat(q: Quat): Vec3 {
+	const [x, y, z, w] = q;
 
-	// Calculate yaw (ψ) around Z-axis
-	const yaw = Math.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz));
+	const t0 = 2.0 * (w * x + y * z);
+	const t1 = 1.0 - 2.0 * (x * x + y * y);
+	const roll = Math.atan2(t0, t1);
 
-	// Calculate pitch (θ) around Y-axis
-	// Here, we use asin for pitch to handle the singularity at ±90 degrees
-	let pitch = Math.asin(2 * (qw * qy - qz * qx));
-	if (pitch > Math.PI / 2) pitch = Math.PI - pitch; // handle the case where pitch is above 90 degrees
-	if (pitch < -Math.PI / 2) pitch = -Math.PI - pitch; // handle the case where pitch is below -90 degrees
+	let t2 = 2.0 * (w * y - z * x);
+	t2 = t2 > 1.0 ? 1.0 : t2;
+	t2 = t2 < -1.0 ? -1.0 : t2;
+	const pitch = Math.asin(t2);
 
-	// Calculate roll (φ) around X-axis
-	const roll = Math.atan2(2 * (qw * qx + qy * qz), 1 - 2 * (qx * qx + qy * qy));
+	const t3 = 2.0 * (w * z + x * y);
+	const t4 = 1.0 - 2.0 * (y * y + z * z);
+	const yaw = Math.atan2(t3, t4);
 
-	return vec3.create(yaw, pitch, roll); // return in radians, adjust for degrees if needed
+	return vec3.create(roll, pitch, yaw);
 }

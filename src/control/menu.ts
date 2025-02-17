@@ -1,7 +1,7 @@
-import { mat3, mat4, Mat4, quat, Vec3, vec3 } from 'wgpu-matrix';
+import { mat3, Mat4, Vec3, vec3 } from 'wgpu-matrix';
 import { Camera } from '../model/camera';
-import { quatToEuler } from '../utils/math';
-import { timeToQuat } from '../utils/misc';
+import { eulerFromQuat } from '../utils/math';
+import { quatFromTime } from '../utils/misc';
 import BindGroupLayouts from '../view/bindGroupLayouts';
 import { models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
@@ -142,7 +142,10 @@ export default class Menu {
 					const node: GLTFNode = nodes[m];
 					if (node.name === 'Sun') {
 						sessionStorage.setItem(el.id, el.value);
-						node.quat = timeToQuat(el.value);
+						node.quat = quatFromTime(el.value);
+						const euler = eulerFromQuat(node.quat);
+						const hourAngle = euler[2];
+						globalToggles.sunAngle = hourAngle;
 
 						const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
 						const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);

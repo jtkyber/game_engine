@@ -108,4 +108,5 @@ export interface IDebug {
 	fixedTimeStep: number;
 	todLocked: boolean;
 	collisionDetection: string;
+	sunAngle: number;
 }

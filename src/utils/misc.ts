@@ -1,5 +1,5 @@
 import { Mat4, mat4, quat, Quat, vec3, Vec3 } from 'wgpu-matrix';
-import GLTFNode from '../view/gltf/node';
+import { eulerFromQuat } from './math';
 
 const statusDiv: HTMLElement = document.getElementById('status');
 
@@ -73,7 +73,7 @@ export function getPixel(data: Float32Array, row: number, col: number, textureSi
 	return null;
 }
 
-export function timeToQuat(timeString: string): Quat {
+export function quatFromTime(timeString: string): Quat {
 	const [hours, minutes] = timeString.split(':').map(Number);
 	let totalHours = hours + minutes / 60;
 
@@ -88,9 +88,45 @@ export function timeToQuat(timeString: string): Quat {
 	return quat.create(0, 0, -qw, qz);
 }
 
+export function timeFromQuat(q: Quat): string {
+	const euler = eulerFromQuat(q);
+	const hourAngle = euler[2];
+
+	let hours = (hourAngle / (2 * Math.PI)) * 24;
+	if (hours < 12) {
+		hours += 12;
+	} else if (hours >= 24) {
+		hours -= 24;
+	}
+
+	hours = Math.round(hours * 100) / 100;
+
+	let time =
+		String(Math.floor(hours)).padStart(2, '0') + ':' + String(Math.floor((hours % 1) * 60)).padStart(2, '0');
+
+	return time;
+}
+
 export function newStatus(msg: string) {
 	const newMsg: HTMLElement = document.createElement('h5');
 	newMsg.innerText = msg;
 	statusDiv.appendChild(newMsg);
 	statusDiv.scrollTop = statusDiv.scrollHeight;
+}
+
+export function incrementTime(timeStr: string): string {
+	let [hours, minutes] = timeStr.split(':').map(Number);
+
+	minutes += 1;
+
+	if (minutes === 60) {
+		minutes = 0;
+		hours += 1;
+
+		if (hours === 24) {
+			hours = 0;
+		}
+	}
+
+	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
