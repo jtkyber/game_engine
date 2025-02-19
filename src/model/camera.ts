@@ -67,7 +67,7 @@ export class Camera {
 			this.distAboveModel = height * 0.9;
 			this.distFromModel = height * 2;
 			this.distFromModelMin = height * 0.25;
-			this.distFromModelMax = height * 500;
+			this.distFromModelMax = height * 10;
 		}
 	}
 
