@@ -131,9 +131,8 @@ export default class Scene {
 
 			if (node.name === 'Sun') {
 				if (!globalToggles.todLocked) {
-					globalToggles.sunAngle += 0.0003;
-					const rotationQuat = quat.fromAxisAngle([0, 0, 1], globalToggles.sunAngle);
-					node.quat = rotationQuat;
+					globalToggles.sunAngle += 0.000012 * window.myLib.deltaTime;
+					node.quat = quat.fromAxisAngle([0, 0, 1], globalToggles.sunAngle);
 
 					const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
 					const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);

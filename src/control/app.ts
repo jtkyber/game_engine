@@ -38,6 +38,8 @@ export default class App {
 	then: number;
 	sinceLastRender: number;
 	startTime: number;
+	accumulator: number = 0;
+	totalFrames: number = 0;
 	framerateChunk: number[] = [];
 	framerateChunk_2: number[] = [];
 	framesPerFPSupdate: number = 30;
@@ -45,7 +47,6 @@ export default class App {
 	scene: Scene;
 	controller: Controller;
 	menu: Menu;
-	firstFrameCompleted: boolean = false;
 	bindGroupLayouts: BindGroupLayouts;
 	framerateElement: HTMLElement = document.getElementById('fps_counter') as HTMLElement;
 
@@ -279,6 +280,7 @@ export default class App {
 			if (node.name === 'Sun') {
 				const tod: string = todCached ? todCached : '06:00';
 				node.quat = quatFromTime(tod);
+				globalToggles.sunAngle = quat.toAxisAngle(node.quat).angle;
 
 				const rotationMatrix: Mat4 = mat3.fromQuat(node.quat);
 				const worldDirection: Vec3 = vec3.transformMat3([0, 1, 0], rotationMatrix);
@@ -356,36 +358,102 @@ export default class App {
 
 		this.then = performance.now();
 		this.startTime = this.then;
-		this.frame(this.then);
+		requestAnimationFrame(this.frame);
 
 		setInterval(() => this.periodic_save(), 3000);
 	};
 
+	// frame = (now: number) => {
+	// 	requestAnimationFrame(this.frame);
+
+	// 	window.myLib.deltaTime = now - this.then;
+
+	// 	if (window.myLib.deltaTime >= globalToggles.fixedTimeStep) {
+	// 		this.then = now - (window.myLib.deltaTime % globalToggles.fixedTimeStep);
+
+	// 		if (this.controller.pointerLocked || !this.firstFrameCompleted) {
+	// 			this.controller.update();
+	// 			this.scene.update();
+
+	// 			this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
+	// 			this.firstFrameCompleted = true;
+	// 		}
+
+	// 		if (globalToggles.showFPS) {
+	// 			const perfNow = performance.now();
+	// 			const deltaTime = perfNow - this.sinceLastRender;
+	// 			this.framerateChunk.push(deltaTime);
+	// 			if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+	// 			this.sinceLastRender = perfNow;
+	// 		}
+	// 	}
+	// };
+
 	frame = (now: number) => {
 		requestAnimationFrame(this.frame);
 
-		window.myLib.deltaTime = now - this.then;
+		let deltaTime = now - this.then;
+		deltaTime = Math.min(deltaTime, globalToggles.fixedTimeStep * 4);
 
-		if (window.myLib.deltaTime >= globalToggles.fixedTimeStep) {
-			this.then = now - (window.myLib.deltaTime % globalToggles.fixedTimeStep);
+		window.myLib.deltaTime = globalToggles.fixedTimeStep;
 
-			if (this.controller.pointerLocked || !this.firstFrameCompleted) {
+		this.then = now;
+
+		this.accumulator += deltaTime;
+
+		let updated = false;
+
+		let count = 0;
+		while (this.accumulator >= globalToggles.fixedTimeStep) {
+			if (this.controller.pointerLocked || this.totalFrames < 2) {
 				this.controller.update();
 				this.scene.update();
 
-				this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
-				this.firstFrameCompleted = true;
+				updated = true;
+				this.totalFrames++;
 			}
 
-			if (globalToggles.showFPS) {
-				const perfNow = performance.now();
-				const deltaTime = perfNow - this.sinceLastRender;
-				this.framerateChunk.push(deltaTime);
-				if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
-				this.sinceLastRender = perfNow;
-			}
+			this.accumulator -= globalToggles.fixedTimeStep;
+			count++;
+		}
+
+		if (updated) {
+			this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
+		}
+
+		if (globalToggles.showFPS) {
+			const perfNow = performance.now();
+			const renderDelta = perfNow - this.sinceLastRender;
+			this.framerateChunk.push(
+				renderDelta > globalToggles.fixedTimeStep ? renderDelta : globalToggles.fixedTimeStep
+			);
+			if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+			this.sinceLastRender = perfNow;
 		}
 	};
+
+	// frame = (now: number) => {
+	// 	requestAnimationFrame(this.frame);
+
+	// 	window.myLib.deltaTime = now - this.then;
+
+	// 	this.then = now;
+
+	// 	if (this.controller.pointerLocked || !this.firstFrameCompleted) {
+	// 		this.controller.update();
+	// 		this.scene.update();
+	// 		this.renderer.render(this.scene.get_render_data(), this.scene.modelNodeChunks);
+	// 		this.firstFrameCompleted = true;
+	// 	}
+
+	// 	if (globalToggles.showFPS) {
+	// 		const perfNow = performance.now();
+	// 		const renderDelta = perfNow - this.sinceLastRender;
+	// 		this.framerateChunk.push(renderDelta);
+	// 		if (this.framerateChunk.length === this.framesPerFPSupdate) this.show_framerate();
+	// 		this.sinceLastRender = perfNow;
+	// 	}
+	// };
 
 	get_fps_below_cap(chunk: number[], margin: number = 0) {
 		let count: number = 0;

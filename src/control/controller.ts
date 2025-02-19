@@ -20,6 +20,8 @@ export default class Controller {
 	};
 	spinInterpolationCoefficient: number;
 	scrollAmt: number;
+	yawDelta: number = 0;
+	pitchDelta: number = 0;
 
 	constructor(canvas: HTMLCanvasElement, camera: Camera, player: number) {
 		this.canvas = canvas;
@@ -45,6 +47,9 @@ export default class Controller {
 	}
 
 	update() {
+		this.camera.yaw -= this.yawDelta * 0.0009;
+		this.camera.pitch -= this.pitchDelta * 0.0009;
+
 		this.spinInterpolationCoefficient += 0.01;
 		this.camera.distFromModel += this.scrollAmt;
 
@@ -85,11 +90,13 @@ export default class Controller {
 			}
 		}
 
-		animations['Angelfish|Angelfish|Swim'].play();
+		animations['Angelfish|Angelfish|Swim'].play(1.5);
 		animations['Angelfish|Angelfish|SwimHover'].play();
-		animations['Trout|Swim'].play(1.5);
+		animations['Trout|Swim'].play(3);
 
 		this.scrollAmt = 0;
+		this.yawDelta = 0;
+		this.pitchDelta = 0;
 	}
 
 	get_rotated_direction_with_forward(forward: Vec3): Vec3 {
@@ -207,8 +214,8 @@ export default class Controller {
 
 	handleMouseMove(e: MouseEvent) {
 		if (!this.pointerLocked) return;
-		this.camera.yaw -= e.movementX * 0.0005;
-		this.camera.pitch -= e.movementY * 0.0005;
+		this.yawDelta += e.movementX;
+		this.pitchDelta += e.movementY;
 	}
 
 	handleMouseDown(e: MouseEvent) {
