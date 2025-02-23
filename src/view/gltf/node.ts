@@ -2,7 +2,7 @@ import { Mat4, Quat, Vec2, Vec3, Vec4, mat4, quat, vec2, vec3, vec4 } from 'wgpu
 import { globalToggles } from '../../control/app';
 import { Flag } from '../../types/enums';
 import { IAABB, IOBB } from '../../types/types';
-import { bilinearInterpolation } from '../../utils/math';
+import { bilinearInterpolation, computeTargetQuat } from '../../utils/math';
 import { getAABBverticesFromMinMax, getPixel } from '../../utils/misc';
 import { nodes, terrainHeightMap, terrainHeightMapSize } from './loader';
 import GLTFMesh from './mesh';
@@ -145,7 +145,7 @@ export default class GLTFNode {
 		this.up = vec3.normalize(vec3.cross(this.right, this.forward));
 	}
 
-	move(dir: Vec3, mult: number) {
+	move(dir: Vec3, mult: number = 1) {
 		const amt = this.speed * window.myLib.deltaTime * 0.01 * mult;
 		this.position = vec3.addScaled(this.position, dir, amt);
 	}
@@ -169,7 +169,39 @@ export default class GLTFNode {
 
 		if (angleToTurn <= spinAmt + 1) spinAmt *= angleToTurn * 0.8;
 
-		quat.rotateY(this.quat, sign * spinAmt, this.quat);
+		// quat.rotateY(this.quat, sign * spinAmt, this.quat);
+
+		const rotationQuat: Quat = quat.fromAxisAngle([0, 1, 0], sign * spinAmt);
+		this.quat = quat.normalize(quat.mul(rotationQuat, this.quat));
+	}
+
+	rotate_lerp(endDir: Vec3) {
+		const currentQuat = this.quat;
+		const targetQuat = computeTargetQuat(endDir);
+
+		// Compute the angle between current and target quaternions
+		const dot = quat.dot(currentQuat, targetQuat);
+		const totalAngle = 2 * Math.acos(Math.min(Math.abs(dot), 1));
+
+		// If already aligned, snap to target and exit
+		if (totalAngle < 1e-6) {
+			this.quat = targetQuat;
+			return;
+		}
+
+		// Calculate the rotation amount per frame
+		let spinAmt = this.turnSpeed * window.myLib.deltaTime;
+
+		// Prevent overshooting, similar to the original yaw-only logic
+		if (totalAngle <= spinAmt + 1) {
+			spinAmt *= totalAngle * 0.8;
+		}
+
+		// Compute interpolation parameter
+		const t = spinAmt / totalAngle;
+
+		// Interpolate between current and target quaternions
+		this.quat = quat.slerp(currentQuat, targetQuat, t);
 	}
 
 	rotateAroundPoint(angleRad: number, axis: Vec3, pivot: Vec3) {

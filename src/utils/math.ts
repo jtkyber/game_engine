@@ -1,4 +1,4 @@
-import { quat, Quat, vec3, Vec3 } from 'wgpu-matrix';
+import { mat3, mat4, quat, Quat, vec3, Vec3 } from 'wgpu-matrix';
 
 export function toPrincipleRangeRadians(theta: number): number {
 	const mod = theta % (2 * Math.PI);
@@ -62,4 +62,18 @@ export function eulerFromQuat(q: Quat): Vec3 {
 	const yaw = Math.atan2(t3, t4);
 
 	return vec3.create(roll, pitch, yaw);
+}
+
+export function computeTargetQuat(forwardDir: Vec3) {
+	const F = vec3.normalize(forwardDir); // Ensure endDir is normalized
+	const U = [0, 1, 0]; // Global up vector (adjust if different)
+	const R = vec3.cross(U, F); // Right vector
+	vec3.normalize(R);
+	const upCorrected = vec3.cross(F, R); // Adjusted up vector
+
+	// Build rotation matrix
+	const mat = mat3.create(R[0], R[1], R[2], upCorrected[0], upCorrected[1], upCorrected[2], F[0], F[1], F[2]);
+
+	// Convert to quaternion
+	return quat.fromMat(mat);
 }

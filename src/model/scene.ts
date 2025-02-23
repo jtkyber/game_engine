@@ -5,7 +5,7 @@ import { Flag } from '../types/enums';
 import { IModelNodeChunks } from '../types/gltf';
 import { IRenderData } from '../types/types';
 import { timeFromQuat } from '../utils/misc';
-import { models, nodes } from '../view/gltf/loader';
+import { animations, models, nodes } from '../view/gltf/loader';
 import GLTFNode from '../view/gltf/node';
 import JointMatrices from '../view/joint_matrices';
 import { Camera } from './camera';
@@ -127,6 +127,16 @@ export default class Scene {
 
 			if (node.objectClass === 'fish') {
 				this.actions.swim(node);
+			} else if (node.objectClass === 'bird') {
+				const mapLength: number = nodes[this.terrainNodeIndex].max[0] - nodes[this.terrainNodeIndex].min[0];
+
+				this.actions.fly(
+					node,
+					mapLength / 2,
+					animations['Eagle|Fly'],
+					animations['Eagle|Glide'],
+					animations['Eagle|Perch']
+				);
 			}
 
 			if (node.name === 'Sun') {

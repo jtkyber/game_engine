@@ -26,6 +26,7 @@ export interface IGLTFNode {
 		objectClass?: string;
 		maxRadius?: number;
 		turnSpeed?: number;
+		origin?: Vec3;
 	};
 }
 
