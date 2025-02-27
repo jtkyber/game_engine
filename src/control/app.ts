@@ -116,6 +116,7 @@ export default class App {
 		// console.log(gltfLoader.lights);
 		// console.log(animations);
 		// console.log(terrainHeightMap);
+		//
 
 		const actions = new Actions();
 
