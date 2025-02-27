@@ -195,7 +195,7 @@ export default class Scene {
 
 			// Add warm glow to sunlight during sunrise and sunset
 			const lerpValue: number = 1 - Math.max(sunAboveHorizon, 0);
-			let newColor: Vec3 = vec3.lerp(light.color, vec3.create(1.0, 0.5, 0.2), lerpValue);
+			let newColor: Vec3 = vec3.lerp(light.color, vec3.create(1.0, 0.4, 0.1), lerpValue);
 
 			vec3.normalize(newColor, newColor);
 			this.lightColors.set([...newColor, 0], i * 4);

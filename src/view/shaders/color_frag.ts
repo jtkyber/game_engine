@@ -174,7 +174,7 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
 
     const PI = 3.14159265359; 
     const lightIntensityAdjustment = 0.0025;
-    const ambientAdjustment = 0.1;
+    const ambientAdjustment = 0.05;
     const normal_intensity = 0.5;
     const cascadeCount = 3;
 

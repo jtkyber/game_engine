@@ -23,6 +23,8 @@ const positions = array<vec2f, 6> (
     vec2f(-1.0, 1.0)
 );
 
+const skyColor = vec3f(0.42, 0.65, 1.0);
+
 @vertex
 fn v_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
     var output: VertexOutput;
@@ -37,9 +39,11 @@ fn v_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
 
 @fragment
 fn f_main(@location(0) direction: vec3f) -> @location(0) vec4f {
+    if (sunAboveHorizon >= 1.0) { return vec4f(skyColor, 1.0); }
+
     let texSample = textureSample(skyboxTexture, skyboxSampler, direction);
     var lerpValue = saturate(sunAboveHorizon + 0.2);
-    if (lerpValue > 0.0) { lerpValue /= 0.2; }
-    let finalColor = mix(texSample.xyz, vec3f(0.42, 0.65, 1.0), saturate(lerpValue));
+    lerpValue /= 0.2;
+    let finalColor = mix(texSample.xyz, skyColor, saturate(lerpValue));
     return vec4f(finalColor, 1.0);
 }
