@@ -1,0 +1,18 @@
+## Features
+-   Mesh rendering
+-   PBR Material support (albedo, roughness, metallic, normal, emission)
+-   Directional, spot and point light support
+-   Directional and spot light shadow mapping  
+-   Terrain and heightmap support    
+-   Material splatting (like texture splatting but with materials) for terrain. Can use a splat map to blend up to 4 materials on the same mesh    
+-   Skybox support    
+-   Custom GLTF parser/loader    
+-   Transparency    
+-   Animation support    
+-   Continuous SAT collision detection    
+-   Basic physics (gravity and object pushing)    
+-   First and third person camera    
+-   Player controls    
+-   Nested node support    
+-   Day/night cycle    
+-   Debug, graphics and gameplay options on demo
