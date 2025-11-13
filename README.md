@@ -1,3 +1,6 @@
+## Try on Chrome
+Enable "Vulkan" and "Unsafe WebGPU Support" in chrome://flags
+
 ## Features
 -   Mesh rendering
 -   PBR Material support (albedo, roughness, metallic, normal, emission)
