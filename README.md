@@ -1,5 +1,6 @@
 ## Try on Chrome
-Enable "Vulkan" and "Unsafe WebGPU Support" in chrome://flags
+Enable "Unsafe WebGPU Support" and "Vulkon" (Linux) in \<browser-name>://flags (e.g. chrome://flags)
+- Note: There may be some visual bugs if using Linux
 
 ## Features
 -   Mesh rendering
