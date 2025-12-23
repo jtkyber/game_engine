@@ -146,16 +146,16 @@ export const colorFragShader = (splatMap: boolean = false) => /*wgsl*/ `
     @group(0) @binding(7) var<uniform> terrainAABB: TerrainAABB;
     @group(0) @binding(8) var<uniform> sunAboveHorizon: f32;
 
-    @group(1) @binding(0) var<${splatMap ? 'storage, read' : 'uniform'}> material_params: ${
-	splatMap ? 'array<MaterialParams>' : 'MaterialParams'
-};
+    @group(1) @binding(0) var<${splatMap ? "storage, read" : "uniform"}> material_params: ${
+      splatMap ? "array<MaterialParams>" : "MaterialParams"
+    };
     @group(1) @binding(1) var base_color_sampler: sampler;
-    @group(1) @binding(2) var base_color_texture: texture_2d${splatMap ? '_array' : ''}<f32>;
+    @group(1) @binding(2) var base_color_texture: texture_2d${splatMap ? "_array" : ""}<f32>;
     @group(1) @binding(3) var metallic_roughness_sampler: sampler;
-    @group(1) @binding(4) var metallic_roughness_texture: texture_2d${splatMap ? '_array' : ''}<f32>;
+    @group(1) @binding(4) var metallic_roughness_texture: texture_2d${splatMap ? "_array" : ""}<f32>;
     @group(1) @binding(5) var normal_sampler: sampler;
-    @group(1) @binding(6) var normal_texture: texture_2d${splatMap ? '_array' : ''}<f32>;
-    ${splatMap ? '@group(1) @binding(7) var<uniform> materialIndices: vec4f;' : ''}
+    @group(1) @binding(6) var normal_texture: texture_2d${splatMap ? "_array" : ""}<f32>;
+    ${splatMap ? "@group(1) @binding(7) var<uniform> materialIndices: vec4f;" : ""}
 
     @group(2) @binding(0) var<storage, read> lightTypes: array<f32>;
     @group(2) @binding(1) var<storage, read> lightPositions: array<vec3f>;

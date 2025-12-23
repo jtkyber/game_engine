@@ -1,46 +1,52 @@
-import { vec2 } from 'wgpu-matrix';
-import { AABBResultPair } from '../../types/types';
-import { models, nodes } from '../../view/gltf/loader';
-import GLTFNode from '../../view/gltf/node';
+import { vec2 } from "wgpu-matrix";
+import { AABBResultPair } from "../../types/types";
+import { models, nodes } from "../../view/gltf/loader";
+import GLTFNode from "../../view/gltf/node";
 
 export function broad_phase(): AABBResultPair[] {
-	const passed: AABBResultPair[] = [];
+  const passed: AABBResultPair[] = [];
 
-	for (let i = 0; i < models.length - 1; i++) {
-		const nodeIndex1: number = models[i];
-		const node1: GLTFNode = nodes[nodeIndex1];
-		if (!node1.hasBoundingBox || node1.max[1] === node1.min[1]) continue;
+  for (let i = 0; i < models.length - 1; i++) {
+    const nodeIndex1: number = models[i];
+    const node1: GLTFNode = nodes[nodeIndex1];
+    if (!node1.hasBoundingBox || node1.max[1] === node1.min[1]) continue;
 
-		for (let j = i + 1; j < models.length; j++) {
-			const nodeIndex2: number = models[j];
-			const node2: GLTFNode = nodes[nodeIndex2];
+    for (let j = i + 1; j < models.length; j++) {
+      const nodeIndex2: number = models[j];
+      const node2: GLTFNode = nodes[nodeIndex2];
 
-			const sameRoot: boolean = node1.rootNode === node2.rootNode && node1.rootNode !== null;
-			if (!node2.hasBoundingBox || nodeIndex1 === nodeIndex2 || sameRoot || node2.max[1] === node2.min[1]) {
-				continue;
-			}
+      const sameRoot: boolean =
+        node1.rootNode === node2.rootNode && node1.rootNode !== null;
+      if (
+        !node2.hasBoundingBox ||
+        nodeIndex1 === nodeIndex2 ||
+        sameRoot ||
+        node2.max[1] === node2.min[1]
+      ) {
+        continue;
+      }
 
-			if (intersecting(node1, node2)) {
-				passed.push(vec2.create(nodeIndex1, nodeIndex2));
-			}
-		}
-	}
+      if (intersecting(node1, node2)) {
+        passed.push(vec2.create(nodeIndex1, nodeIndex2));
+      }
+    }
+  }
 
-	return passed;
+  return passed;
 }
 
 function intersecting(a: GLTFNode, b: GLTFNode): boolean {
-	if (
-		a.min[0] <= b.max[0] &&
-		a.max[0] >= b.min[0] &&
-		a.min[1] <= b.max[1] &&
-		a.max[1] >= b.min[1] &&
-		a.min[2] <= b.max[2] &&
-		a.max[2] >= b.min[2]
-	) {
-		return true;
-	}
-	return false;
+  if (
+    a.min[0] <= b.max[0] &&
+    a.max[0] >= b.min[0] &&
+    a.min[1] <= b.max[1] &&
+    a.max[1] >= b.min[1] &&
+    a.min[2] <= b.max[2] &&
+    a.max[2] >= b.min[2]
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // function intersecting(a: GLTFNode, b: GLTFNode): boolean {

@@ -1,199 +1,199 @@
 * {
-	box-sizing: border-box;
-	margin: 0;
-	padding: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-	background-color: black;
-	overflow: hidden;
-	width: 100vw;
-	height: 100vh;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	font-family: Arial, Helvetica, sans-serif;
+  background-color: black;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: Arial, Helvetica, sans-serif;
 
-	.hud {
-		pointer-events: none;
-		box-sizing: border-box;
-		position: absolute;
-		padding: 1rem;
-		aspect-ratio: 16 / 9;
-		height: 100%;
-		z-index: 10;
-		display: grid;
-		grid-template-columns: 1fr max-content; 
-		grid-template-rows: 1fr 1fr; 
-		grid-template-areas: 
-			"fps menu"
-			"status menu"; 
+  .hud {
+    pointer-events: none;
+    box-sizing: border-box;
+    position: absolute;
+    padding: 1rem;
+    aspect-ratio: 16 / 9;
+    height: 100%;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 1fr max-content;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      "fps menu"
+      "status menu";
 
-		#status {
-			pointer-events: all;
-			grid-area: status;
-			justify-self: start;
-			align-self: end;
-			position: absolute;
-			padding: 0.5rem;
-			background-color: rgba(0, 0, 0, 0.4);
-			border-radius: 0.5rem;
-			max-width: min(30rem, 90%);
-			max-height: min(10rem, 100%);
-			overflow-y: auto;
-			scrollbar-color: darkgrey transparent;
-			scrollbar-width: thin;
-			scrollbar-gutter: auto;
+    #status {
+      pointer-events: all;
+      grid-area: status;
+      justify-self: start;
+      align-self: end;
+      position: absolute;
+      padding: 0.5rem;
+      background-color: rgba(0, 0, 0, 0.4);
+      border-radius: 0.5rem;
+      max-width: min(30rem, 90%);
+      max-height: min(10rem, 100%);
+      overflow-y: auto;
+      scrollbar-color: darkgrey transparent;
+      scrollbar-width: thin;
+      scrollbar-gutter: auto;
 
-			h5 {
-				color: lime;
-				font-weight: 400;
-				margin: 0.4rem 0;
-				word-wrap: break-word;
-			}
-		}
+      h5 {
+        color: lime;
+        font-weight: 400;
+        margin: 0.4rem 0;
+        word-wrap: break-word;
+      }
+    }
 
-		#fps_counter {
-			grid-area: fps;
-			justify-self: start;
-			align-self: start;
-			color: whitesmoke;
-			position: absolute;
-			font-size: larger;
-			font-weight: 600;
-			display: none;
-			user-select: none;
-		}
+    #fps_counter {
+      grid-area: fps;
+      justify-self: start;
+      align-self: start;
+      color: whitesmoke;
+      position: absolute;
+      font-size: larger;
+      font-weight: 600;
+      display: none;
+      user-select: none;
+    }
 
-		.menuContainer {
-			position: relative;
-			pointer-events: all;
-			grid-area: menu;
-			justify-self: end;
-			align-self: start;
-			width: 17rem;
-			height: 100%;
-			display: flex;
-			flex-flow: column nowrap;
-			align-items: flex-end;
-			gap: 0.2rem;
+    .menuContainer {
+      position: relative;
+      pointer-events: all;
+      grid-area: menu;
+      justify-self: end;
+      align-self: start;
+      width: 17rem;
+      height: 100%;
+      display: flex;
+      flex-flow: column nowrap;
+      align-items: flex-end;
+      gap: 0.2rem;
 
-			.menuBtn {
-				background-color: transparent;
-				color: white;
-				border: none;
-				cursor: pointer;
-				border-radius: 50%;
-				transition: opacity 0.15s ease-out;
-				opacity: 0.7;
-				font-size: 2.5rem;
-				margin-top: -0.7rem;
-				user-select: none;
+      .menuBtn {
+        background-color: transparent;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 50%;
+        transition: opacity 0.15s ease-out;
+        opacity: 0.7;
+        font-size: 2.5rem;
+        margin-top: -0.7rem;
+        user-select: none;
 
-				&.active {
-					opacity: 1;
-				}
+        &.active {
+          opacity: 1;
+        }
 
-				&:hover {
-					opacity: 1;
-				}
-			}
-			
-			menu {
-				background-color: rgba(0, 0, 0, 0.5);
-				width: 100%;
-				padding: 1rem;
-				border-radius: 1rem;
-				overflow: auto;
-				scrollbar-color: darkgrey transparent;
-				scrollbar-width: thin;
-				scrollbar-gutter: auto;
-	
-				.setting {
-					width: 100%;
-					height: max-content;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-					margin: 0.5rem 0;
-	
-					label {
-						color: white;
-						font-size: small;
-						user-select: none;
-					}
-					
-					h5 {
-						color: white;
-					}
+        &:hover {
+          opacity: 1;
+        }
+      }
 
-					.slider {
-						display: flex;
-						flex-flow: row nowrap;
-						align-items: center;
-						gap: 0.2rem;
+      menu {
+        background-color: rgba(0, 0, 0, 0.5);
+        width: 100%;
+        padding: 1rem;
+        border-radius: 1rem;
+        overflow: auto;
+        scrollbar-color: darkgrey transparent;
+        scrollbar-width: thin;
+        scrollbar-gutter: auto;
 
-						input {
-							height: 0.3rem;
-						}
-					}
+        .setting {
+          width: 100%;
+          height: max-content;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin: 0.5rem 0;
 
-					input#tod {
-						width: 13ch;
-					}
-				}
+          label {
+            color: white;
+            font-size: small;
+            user-select: none;
+          }
 
-				.title {
-					margin: 1rem;
-					text-align: center;
-					color: white;
-					font-weight: 400;
-					text-decoration: underline;
+          h5 {
+            color: white;
+          }
 
-					&:first-child {
-						margin-top: 0;
-					}
-				}
+          .slider {
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: center;
+            gap: 0.2rem;
 
-				.controls {
-					display: flex;
-					flex-flow: column nowrap;
-					gap: 0.2rem;
+            input {
+              height: 0.3rem;
+            }
+          }
 
-					.controlContainer {
-						display: flex;
-						flex-flow: row nowrap;
-						justify-content: space-between;
-						align-items: center;
-					}
+          input#tod {
+            width: 13ch;
+          }
+        }
 
-					h5 {
-						color: white;
-						font-weight: 400;
-					}
-				}
-			}
-		}
+        .title {
+          margin: 1rem;
+          text-align: center;
+          color: white;
+          font-weight: 400;
+          text-decoration: underline;
 
-		@media (max-aspect-ratio: 16 / 9) {
-			width: 100%;
-			height: auto;
-		}
-	}
+          &:first-child {
+            margin-top: 0;
+          }
+        }
 
-	.container {
-		position: absolute;
-		aspect-ratio: 16 / 9;
-		height: 100%;
+        .controls {
+          display: flex;
+          flex-flow: column nowrap;
+          gap: 0.2rem;
 
-		#canvas {
-			width: 100%;
-			height: 100%;
-		}
+          .controlContainer {
+            display: flex;
+            flex-flow: row nowrap;
+            justify-content: space-between;
+            align-items: center;
+          }
 
-		@media (max-aspect-ratio: 16 / 9) {
-			width: 100%;
-			height: auto;
-		}
-	}
+          h5 {
+            color: white;
+            font-weight: 400;
+          }
+        }
+      }
+    }
+
+    @media (max-aspect-ratio: 16 / 9) {
+      width: 100%;
+      height: auto;
+    }
+  }
+
+  .container {
+    position: absolute;
+    aspect-ratio: 16 / 9;
+    height: 100%;
+
+    #canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    @media (max-aspect-ratio: 16 / 9) {
+      width: 100%;
+      height: auto;
+    }
+  }
 }
